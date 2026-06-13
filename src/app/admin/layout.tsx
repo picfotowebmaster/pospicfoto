@@ -3,6 +3,7 @@
 import { Button } from "@/components/ui/Button";
 import { useAuth } from "@/lib/hooks/useAuth";
 import { getSupabase } from "@/lib/supabase/client";
+import RoleSwitcher from "./_components/RoleSwitcher";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useState, useEffect } from "react";
@@ -46,6 +47,7 @@ export default function AdminLayout({
           <p className="text-xs text-gray-500">Panel de administración</p>
         </div>
         <div className="flex items-center gap-3">
+          <RoleSwitcher />
           <span className="text-sm text-gray-600">
             {session?.user.email}
           </span>
