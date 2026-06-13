@@ -38,7 +38,7 @@ CREATE INDEX idx_historial_nombre ON productos_historial USING gin (nombre gin_t
 CREATE TABLE profiles (
   id         UUID PRIMARY KEY REFERENCES auth.users(id) ON DELETE CASCADE,
   rol        TEXT NOT NULL DEFAULT 'mostrador'
-             CHECK (rol IN ('mostrador','taller','corte','admin')),
+             CHECK (rol IN ('mostrador','taller','corte','admin','superadmin')),
   nombre     TEXT,
   created_at TIMESTAMPTZ DEFAULT now()
 );
@@ -147,18 +147,18 @@ CREATE POLICY "Historial actualizable por autenticados" ON productos_historial
 -- Pedidos: insert por mostrador/admin, lectura por todos autenticados
 CREATE POLICY "Pedidos insert por mostrador/admin" ON pedidos
   FOR INSERT TO authenticated
-  WITH CHECK (EXISTS (SELECT 1 FROM profiles WHERE id = auth.uid() AND rol IN ('mostrador','admin')));
+  WITH CHECK (EXISTS (SELECT 1 FROM profiles WHERE id = auth.uid() AND rol IN ('mostrador','admin','superadmin')));
 
 CREATE POLICY "Pedidos legibles por autenticados" ON pedidos
   FOR SELECT TO authenticated USING (true);
 
 CREATE POLICY "Pedidos actualizables por produccion/admin" ON pedidos
   FOR UPDATE TO authenticated
-  USING (EXISTS (SELECT 1 FROM profiles WHERE id = auth.uid() AND rol IN ('taller','corte','admin')));
+  USING (EXISTS (SELECT 1 FROM profiles WHERE id = auth.uid() AND rol IN ('taller','corte','admin','superadmin')));
 
 CREATE POLICY "Detalle pedidos insert por mostrador/admin" ON detalle_pedidos
   FOR INSERT TO authenticated
-  WITH CHECK (EXISTS (SELECT 1 FROM profiles WHERE id = auth.uid() AND rol IN ('mostrador','admin')));
+  WITH CHECK (EXISTS (SELECT 1 FROM profiles WHERE id = auth.uid() AND rol IN ('mostrador','admin','superadmin')));
 
 CREATE POLICY "Detalle pedidos legibles por autenticados" ON detalle_pedidos
   FOR SELECT TO authenticated USING (true);
@@ -169,4 +169,4 @@ CREATE POLICY "Profiles legibles por autenticados" ON profiles
 
 CREATE POLICY "Profiles actualizables por admin" ON profiles
   FOR UPDATE TO authenticated
-  USING (EXISTS (SELECT 1 FROM profiles WHERE id = auth.uid() AND rol = 'admin'));
+  USING (EXISTS (SELECT 1 FROM profiles WHERE id = auth.uid() AND rol IN ('admin','superadmin')));

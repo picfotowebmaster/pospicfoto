@@ -43,3 +43,22 @@ export async function resetPassword(userId: string, newPassword: string) {
 
   return { success: true };
 }
+
+export async function createUser(email: string, password: string, nombre: string, rol: string) {
+  const client = createAdminClient();
+
+  const { data: created, error } = await client.auth.admin.createUser({
+    email,
+    password,
+    email_confirm: true,
+    user_metadata: { nombre },
+  });
+
+  if (error) throw new Error(error.message);
+
+  if (created?.user) {
+    await client.from("profiles").update({ rol, nombre }).eq("id", created.user.id);
+  }
+
+  return { success: true };
+}

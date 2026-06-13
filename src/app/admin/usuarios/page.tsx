@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useCallback } from "react";
 import { Button } from "@/components/ui/Button";
-import { listarUsuarios, resetPassword, type UsuarioRow } from "./actions";
+import { listarUsuarios, resetPassword, createUser, type UsuarioRow } from "./actions";
 
 function ResetModal({
   usuario,
@@ -128,11 +128,144 @@ function ResetModal({
   );
 }
 
+function CreateModal({
+  onClose,
+  onDone,
+}: {
+  onClose: () => void;
+  onDone: () => void;
+}) {
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+  const [nombre, setNombre] = useState("");
+  const [rol, setRol] = useState("mostrador");
+  const [error, setError] = useState("");
+  const [cargando, setCargando] = useState(false);
+
+  async function handleCreate(e: React.FormEvent) {
+    e.preventDefault();
+    setError("");
+
+    if (!email.trim() || !password.trim() || !nombre.trim()) {
+      setError("Todos los campos son obligatorios.");
+      return;
+    }
+    if (password.length < 6) {
+      setError("La contraseña debe tener al menos 6 caracteres.");
+      return;
+    }
+
+    setCargando(true);
+    try {
+      await createUser(email.trim(), password, nombre.trim(), rol);
+      onDone();
+    } catch (err: unknown) {
+      setError(
+        err instanceof Error ? err.message : "Error al crear el usuario."
+      );
+    }
+    setCargando(false);
+  }
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
+      <div className="bg-white rounded-xl shadow-xl p-6 w-full max-w-sm space-y-4">
+        <h3 className="font-semibold text-gray-900">Crear usuario</h3>
+
+        <form onSubmit={handleCreate} className="space-y-3">
+          {error && (
+            <div className="bg-red-50 text-red-600 text-sm px-3 py-2 rounded-lg">
+              {error}
+            </div>
+          )}
+
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">
+              Email
+            </label>
+            <input
+              type="email"
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              required
+              className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+              placeholder="usuario@email.com"
+            />
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">
+              Nombre
+            </label>
+            <input
+              type="text"
+              value={nombre}
+              onChange={(e) => setNombre(e.target.value)}
+              required
+              className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+              placeholder="Nombre completo"
+            />
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">
+              Contraseña
+            </label>
+            <input
+              type="password"
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              required
+              className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+              placeholder="Mínimo 6 caracteres"
+            />
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">
+              Rol
+            </label>
+            <select
+              value={rol}
+              onChange={(e) => setRol(e.target.value)}
+              className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white"
+            >
+              <option value="mostrador">Mostrador</option>
+              <option value="taller">Taller</option>
+              <option value="corte">Corte</option>
+              <option value="admin">Admin</option>
+            </select>
+          </div>
+
+          <div className="flex gap-2 pt-2">
+            <Button
+              type="button"
+              variant="ghost"
+              className="flex-1"
+              onClick={onClose}
+            >
+              Cancelar
+            </Button>
+            <Button
+              type="submit"
+              className="flex-1"
+              disabled={cargando}
+            >
+              {cargando ? "Creando..." : "Crear usuario"}
+            </Button>
+          </div>
+        </form>
+      </div>
+    </div>
+  );
+}
+
 export default function UsuariosPage() {
   const [usuarios, setUsuarios] = useState<UsuarioRow[]>([]);
   const [cargando, setCargando] = useState(true);
   const [error, setError] = useState("");
   const [modalUsuario, setModalUsuario] = useState<UsuarioRow | null>(null);
+  const [showCreate, setShowCreate] = useState(false);
 
   const cargar = useCallback(async () => {
     setCargando(true);
@@ -159,9 +292,14 @@ export default function UsuariosPage() {
           <h2 className="font-semibold text-gray-700 text-sm uppercase">
             Usuarios ({usuarios.length})
           </h2>
-          <Button size="sm" variant="ghost" onClick={cargar}>
-            Refrescar
-          </Button>
+          <div className="flex gap-2">
+            <Button size="sm" onClick={() => setShowCreate(true)}>
+              + Crear usuario
+            </Button>
+            <Button size="sm" variant="ghost" onClick={cargar}>
+              Refrescar
+            </Button>
+          </div>
         </div>
 
         {error && (
@@ -199,8 +337,10 @@ export default function UsuariosPage() {
                     <td className="py-2 px-3">
                       <span
                         className={`inline-block px-2 py-0.5 rounded-full text-xs font-medium ${
-                          u.rol === "admin"
-                            ? "bg-purple-100 text-purple-700"
+                          u.rol === "superadmin"
+                            ? "bg-red-100 text-red-700"
+                            : u.rol === "admin"
+                              ? "bg-purple-100 text-purple-700"
                             : u.rol === "taller"
                               ? "bg-blue-100 text-blue-700"
                               : u.rol === "corte"
@@ -251,6 +391,16 @@ export default function UsuariosPage() {
           onClose={() => setModalUsuario(null)}
           onDone={() => {
             setModalUsuario(null);
+            cargar();
+          }}
+        />
+      )}
+
+      {showCreate && (
+        <CreateModal
+          onClose={() => setShowCreate(false)}
+          onDone={() => {
+            setShowCreate(false);
             cargar();
           }}
         />

@@ -2,8 +2,11 @@
 
 import { Button } from "@/components/ui/Button";
 import { useAuth } from "@/lib/hooks/useAuth";
+import { getSupabase } from "@/lib/supabase/client";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import { useState, useEffect } from "react";
+import type { Profile } from "@/lib/supabase/types";
 
 export default function AdminLayout({
   children,
@@ -12,10 +15,27 @@ export default function AdminLayout({
 }) {
   const { session, signOut } = useAuth();
   const pathname = usePathname();
+  const [rol, setRol] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!session?.user?.id) return;
+    const supabase = getSupabase();
+    supabase
+      .from("profiles")
+      .select("rol")
+      .eq("id", session.user.id)
+      .single()
+      .then(({ data }: { data: Pick<Profile, "rol"> | null }) => {
+        if (data) setRol(data.rol);
+      });
+  }, [session?.user?.id]);
 
   const tabs = [
     { href: "/admin", label: "Catálogo" },
-    { href: "/admin/usuarios", label: "Usuarios" },
+    { href: "/admin/pedidos", label: "Pedidos" },
+    ...(rol === "superadmin"
+      ? [{ href: "/admin/usuarios", label: "Usuarios" }]
+      : []),
   ];
 
   return (

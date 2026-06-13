@@ -7,7 +7,7 @@ export type EstadoPedido =
   | "listo"
   | "entregado";
 
-export type Rol = "mostrador" | "taller" | "corte" | "admin";
+export type Rol = "mostrador" | "taller" | "corte" | "admin" | "superadmin";
 
 export interface Atributo {
   id: string;
