@@ -1,9 +1,10 @@
 "use client";
 
-import React from "react";
+import React, { useState, useMemo } from "react";
 import { useAuth } from "@/lib/hooks/useAuth";
 import { usePedidoStream } from "@/lib/hooks/usePedidoStream";
-import { ColaPedidos } from "../_components/ColaPedidos";
+import { FiltrosProduccion } from "../_components/FiltrosProduccion";
+import { TablaProduccion } from "../_components/TablaProduccion";
 import { Button } from "@/components/ui/Button";
 import { useRouter } from "next/navigation";
 
@@ -14,6 +15,41 @@ export default function TallerPage() {
     "pendiente",
     "en_taller",
   ]);
+
+  const [busqueda, setBusqueda] = useState("");
+  const [filtroEstado, setFiltroEstado] = useState("");
+  const [filtroCorreccion, setFiltroCorreccion] = useState("");
+
+  const pedidosFiltrados = useMemo(() => {
+    return pedidos.filter((p) => {
+      if (
+        busqueda &&
+        !p.cliente_nombre.toLowerCase().includes(busqueda.toLowerCase())
+      )
+        return false;
+      if (filtroEstado && p.estado !== filtroEstado) return false;
+      if (filtroCorreccion === "si" && !p.requiere_correccion) return false;
+      if (filtroCorreccion === "no" && p.requiere_correccion) return false;
+      return true;
+    });
+  }, [pedidos, busqueda, filtroEstado, filtroCorreccion]);
+
+  function actualizarFiltros(nuevos: {
+    busqueda?: string;
+    estado?: string;
+    requiereCorreccion?: string;
+  }) {
+    if (nuevos.busqueda !== undefined) setBusqueda(nuevos.busqueda);
+    if (nuevos.estado !== undefined) setFiltroEstado(nuevos.estado);
+    if (nuevos.requiereCorreccion !== undefined)
+      setFiltroCorreccion(nuevos.requiereCorreccion);
+  }
+
+  function limpiarFiltros() {
+    setBusqueda("");
+    setFiltroEstado("");
+    setFiltroCorreccion("");
+  }
 
   return (
     <div className="min-h-screen bg-gray-100">
@@ -35,15 +71,25 @@ export default function TallerPage() {
         </div>
       </header>
 
-      <div className="max-w-5xl mx-auto p-4">
+      <div className="max-w-6xl mx-auto p-4">
         {cargando ? (
           <div className="text-center text-gray-400 py-12">Cargando órdenes...</div>
         ) : (
-          <ColaPedidos
-            pedidos={pedidos}
-            zona="taller"
-            onCambiarEstado={cambiarEstado}
-          />
+          <div className="bg-white rounded-xl shadow p-4 space-y-4">
+            <FiltrosProduccion
+              busqueda={busqueda}
+              estado={filtroEstado}
+              requiereCorreccion={filtroCorreccion}
+              zona="taller"
+              onCambiar={actualizarFiltros}
+              onLimpiar={limpiarFiltros}
+            />
+            <TablaProduccion
+              pedidos={pedidosFiltrados}
+              zona="taller"
+              onCambiarEstado={cambiarEstado}
+            />
+          </div>
         )}
       </div>
     </div>
