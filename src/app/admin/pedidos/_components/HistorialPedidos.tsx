@@ -39,6 +39,7 @@ export function HistorialPedidos() {
           fechaDesde={filtros.fechaDesde ?? ""}
           fechaHasta={filtros.fechaHasta ?? ""}
           requiereCorreccion={filtros.requiereCorreccion ?? ""}
+          areaActual={filtros.areaActual ?? ""}
           onCambiar={actualizarFiltros}
           onLimpiar={limpiarFiltros}
         />

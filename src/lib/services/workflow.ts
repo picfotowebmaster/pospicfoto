@@ -12,7 +12,10 @@ export async function fetchProductionAreas() {
     .select("*")
     .order("orden");
 
-  if (error) throw error;
+  if (error) {
+    console.error("PostgREST error:", error.code, error.message, error.details);
+    throw error;
+  }
   return data;
 }
 
@@ -146,4 +149,15 @@ export async function fetchPedidosByArea(
 
   if (error) throw error;
   return data;
+}
+
+export async function fetchUserRole(userId: string): Promise<string | null> {
+  const { data, error } = await supabase
+    .from("profiles")
+    .select("rol")
+    .eq("id", userId)
+    .single();
+
+  if (error) return null;
+  return data?.rol ?? null;
 }

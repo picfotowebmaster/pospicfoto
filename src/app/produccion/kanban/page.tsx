@@ -3,8 +3,8 @@
 import React, { useState, useMemo, useEffect } from "react";
 import { useAuth } from "@/lib/hooks/useAuth";
 import { usePedidosKanban } from "@/lib/hooks/usePedidosKanban";
-import { fetchProductionAreas } from "@/lib/services/workflow";
-import { supabase } from "@/lib/supabase/client";
+import { fetchProductionAreas, fetchUserRole } from "@/lib/services/workflow";
+import { AREAS_PRODUCCION_DATA } from "@/lib/utils/constantes";
 import { KanbanBoard } from "../_components/KanbanBoard";
 import { Button } from "@/components/ui/Button";
 
@@ -30,13 +30,9 @@ export default function KanbanPage() {
       setRolCargando(false);
       return;
     }
-    supabase
-      .from("profiles")
-      .select("rol")
-      .eq("id", session.user.id)
-      .single()
-      .then(({ data }: { data: { rol: string } | null }) => {
-        setRol(data?.rol ?? null);
+    fetchUserRole(session.user.id)
+      .then((r) => {
+        setRol(r);
         setRolCargando(false);
       })
       .catch(() => setRolCargando(false));
@@ -52,8 +48,15 @@ export default function KanbanPage() {
   const [filtroCorreccion, setFiltroCorreccion] = useState("");
 
   useEffect(() => {
-    fetchProductionAreas().then(setAreas).catch(console.error);
-  }, []);
+    if (!session?.user?.id) return;
+    fetchProductionAreas()
+      .then(setAreas)
+      .catch((err: unknown) => {
+        const e = err as { code?: string; message?: string; details?: string };
+        console.error("PostgREST production_areas:", e.code, e.message, e.details);
+        setAreas(AREAS_PRODUCCION_DATA);
+      });
+  }, [session?.user?.id]);
 
   const areaNombre = areas.find((a) => a.id === areaFiltro)?.nombre;
 

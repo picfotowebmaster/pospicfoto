@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { Badge } from "@/components/ui/Badge";
-import { ESTADOS_PEDIDO } from "@/lib/utils/constantes";
+import { ESTADOS_PEDIDO, AREAS_PRODUCCION_DATA } from "@/lib/utils/constantes";
 import { actualizarEstadoPedido } from "@/lib/services/pedidos";
 import type { Pedido } from "@/lib/supabase/types";
 
@@ -58,6 +58,7 @@ export function TablaPedidos({ pedidos, onEstadoCambiado }: TablaPedidosProps) {
               Anticipo
             </th>
             <th className="py-2 px-3 font-medium text-gray-500">Pago</th>
+            <th className="py-2 px-3 font-medium text-gray-500">Área</th>
             <th className="py-2 px-3 font-medium text-gray-500">Estado</th>
             <th className="py-2 px-3 font-medium text-gray-500 text-right">
               Acciones
@@ -78,7 +79,7 @@ export function TablaPedidos({ pedidos, onEstadoCambiado }: TablaPedidosProps) {
           ))}
           {pedidos.length === 0 && (
             <tr>
-              <td colSpan={9} className="py-8 text-center text-gray-400">
+              <td colSpan={10} className="py-8 text-center text-gray-400">
                 No se encontraron pedidos.
               </td>
             </tr>
@@ -138,6 +139,9 @@ function PedidoFila({
           </Badge>
         </td>
         <td className="py-2 px-3">
+          <AreaBadge area={pedido.area_actual} />
+        </td>
+        <td className="py-2 px-3">
           <EstadoBadge estado={pedido.estado} />
         </td>
         <td className="py-2 px-3 text-right" onClick={(e) => e.stopPropagation()}>
@@ -173,7 +177,7 @@ function PedidoFila({
       </tr>
       {expandido && (
         <tr>
-          <td colSpan={9} className="bg-gray-50 border-b border-gray-200">
+          <td colSpan={10} className="bg-gray-50 border-b border-gray-200">
             <FilaExpandida pedido={pedido} />
           </td>
         </tr>
@@ -252,6 +256,26 @@ function EstadoBadge({ estado }: { estado: string }) {
 
   return (
     <span className={`inline-block px-2 py-0.5 rounded-full text-xs font-medium ${color} ${textoColor}`}>
+      {label}
+    </span>
+  );
+}
+
+function AreaBadge({ area }: { area: string }) {
+  const def = AREAS_PRODUCCION_DATA.find((a) => a.id === area);
+  const color = def
+    ? def.color.replace("-500", "-50").replace("bg-", "bg-")
+    : "bg-gray-50";
+  const textoColor = def
+    ? def.color.replace("-500", "-700").replace("bg-", "text-")
+    : "text-gray-700";
+  const borderColor = def
+    ? def.color.replace("-500", "-400").replace("bg-", "border-")
+    : "border-gray-300";
+  const label = def?.nombre ?? area;
+
+  return (
+    <span className={`inline-block px-2 py-0.5 rounded-full text-xs font-medium border ${color} ${textoColor} ${borderColor}`}>
       {label}
     </span>
   );

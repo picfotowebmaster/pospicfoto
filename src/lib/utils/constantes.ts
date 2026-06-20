@@ -51,3 +51,30 @@ export const RUTAS_PRODUCCION = [
   { label: "R3 - Books Directo", value: "R3" as const, desc: "Directo a Taller de Books" },
   { label: "R4 - Laminado", value: "R4" as const, desc: "Taller de Laminado → Montaje" },
 ];
+
+export const AREAS_PRODUCCION_DATA = [
+  { id: "mostrador", nombre: "Ventas / Mostrador", color: "bg-yellow-500", orden: 0 },
+  { id: "diseno", nombre: "Diseño", color: "bg-indigo-500", orden: 1 },
+  { id: "impresion", nombre: "Impresión", color: "bg-blue-500", orden: 2 },
+  { id: "laminado", nombre: "Taller de Laminado", color: "bg-teal-500", orden: 3 },
+  { id: "montaje", nombre: "Taller de Montaje", color: "bg-emerald-500", orden: 4 },
+  { id: "books", nombre: "Taller de Books", color: "bg-violet-500", orden: 4 },
+  { id: "bastidores", nombre: "Taller de Bastidores", color: "bg-rose-500", orden: 4 },
+  { id: "marcos", nombre: "Taller de Marcos", color: "bg-amber-500", orden: 1 },
+  { id: "listo", nombre: "Listo para Entrega", color: "bg-green-500", orden: 99 },
+  { id: "entregado", nombre: "Entregado", color: "bg-gray-500", orden: 100 },
+];
+
+export const WORKFLOW_ROUTES_DATA = [
+  { id: "seed-r1-1", from_area: "mostrador", to_area: "diseno", ruta: "R1", multiple: false },
+  { id: "seed-r1-2", from_area: "diseno", to_area: "impresion", ruta: "R1", multiple: false },
+  { id: "seed-r1-3", from_area: "impresion", to_area: "laminado", ruta: "R1", multiple: true },
+  { id: "seed-r1-4", from_area: "impresion", to_area: "montaje", ruta: "R1", multiple: true },
+  { id: "seed-r1-5", from_area: "impresion", to_area: "books", ruta: "R1", multiple: true },
+  { id: "seed-r1-6", from_area: "impresion", to_area: "bastidores", ruta: "R1", multiple: true },
+  { id: "seed-r2-1", from_area: "mostrador", to_area: "marcos", ruta: "R2", multiple: false },
+  { id: "seed-r2-2", from_area: "marcos", to_area: "montaje", ruta: "R2", multiple: false },
+  { id: "seed-r3-1", from_area: "mostrador", to_area: "books", ruta: "R3", multiple: false },
+  { id: "seed-r4-1", from_area: "mostrador", to_area: "laminado", ruta: "R4", multiple: false },
+  { id: "seed-r4-2", from_area: "laminado", to_area: "montaje", ruta: "R4", multiple: false },
+];

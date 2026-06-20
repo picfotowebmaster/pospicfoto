@@ -4,9 +4,10 @@ import { useState, useEffect, useCallback } from "react";
 import { useRealtime } from "@/lib/services/realtime";
 import {
   fetchPedidosByArea,
+  fetchWorkflowRoutes,
   advancePedido as advancePedidoService,
 } from "@/lib/services/workflow";
-import { AREAS_PRODUCCION_VISIBLES } from "@/lib/utils/constantes";
+import { AREAS_PRODUCCION_VISIBLES, WORKFLOW_ROUTES_DATA } from "@/lib/utils/constantes";
 import type { Pedido, AreaProduccion, WorkflowRoute } from "@/lib/supabase/types";
 
 const AREAS_ACTIVAS: AreaProduccion[] = [...AREAS_PRODUCCION_VISIBLES] as AreaProduccion[];
@@ -38,10 +39,13 @@ export function usePedidosKanban(areaFiltro?: string) {
   }, [cargar]);
 
   useEffect(() => {
-    import("@/lib/services/workflow")
-      .then((m) => m.fetchWorkflowRoutes())
-      .then(setRoutesCache)
-      .catch(() => {});
+    fetchWorkflowRoutes()
+      .then((data) => setRoutesCache(data as WorkflowRoute[]))
+      .catch((err: unknown) => {
+        const e = err as { code?: string; message?: string; details?: string };
+        console.error("PostgREST workflow_routes:", e.code, e.message, e.details);
+        setRoutesCache(WORKFLOW_ROUTES_DATA as WorkflowRoute[]);
+      });
   }, []);
 
   useRealtime("kanban-stream", "pedidos", "*", (payload: Record<string, unknown>) => {

@@ -1,6 +1,6 @@
 "use client";
 
-import { ESTADOS_PEDIDO, METODOS_PAGO } from "@/lib/utils/constantes";
+import { ESTADOS_PEDIDO, METODOS_PAGO, AREAS_PRODUCCION_DATA } from "@/lib/utils/constantes";
 
 interface FiltrosPedidosProps {
   busqueda: string;
@@ -9,6 +9,7 @@ interface FiltrosPedidosProps {
   fechaDesde: string;
   fechaHasta: string;
   requiereCorreccion: string;
+  areaActual: string;
   onCambiar: (filtros: {
     busqueda?: string;
     estado?: string;
@@ -16,6 +17,7 @@ interface FiltrosPedidosProps {
     fechaDesde?: string;
     fechaHasta?: string;
     requiereCorreccion?: string;
+    areaActual?: string;
   }) => void;
   onLimpiar: () => void;
 }
@@ -27,11 +29,12 @@ export function FiltrosPedidos({
   fechaDesde,
   fechaHasta,
   requiereCorreccion,
+  areaActual,
   onCambiar,
   onLimpiar,
 }: FiltrosPedidosProps) {
   const activos =
-    busqueda || estado || metodoPago || fechaDesde || fechaHasta || requiereCorreccion;
+    busqueda || estado || metodoPago || fechaDesde || fechaHasta || requiereCorreccion || areaActual;
 
   return (
     <div className="flex flex-wrap items-end gap-3">
@@ -108,6 +111,22 @@ export function FiltrosPedidos({
           <option value="">Todas</option>
           <option value="si">Sí</option>
           <option value="no">No</option>
+        </select>
+      </div>
+
+      <div className="flex flex-col gap-1 min-w-[130px]">
+        <label className="text-xs font-medium text-gray-500">Departamento</label>
+        <select
+          value={areaActual}
+          onChange={(e) => onCambiar({ areaActual: e.target.value })}
+          className="border border-gray-300 rounded-lg px-2.5 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white"
+        >
+          <option value="">Todos</option>
+          {AREAS_PRODUCCION_DATA.map((a) => (
+            <option key={a.id} value={a.id}>
+              {a.nombre}
+            </option>
+          ))}
         </select>
       </div>
 

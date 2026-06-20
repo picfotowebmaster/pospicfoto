@@ -11,6 +11,7 @@ export interface FiltrosPedidos {
   fechaDesde?: string;
   fechaHasta?: string;
   requiereCorreccion?: string;
+  areaActual?: string;
 }
 
 export async function crearPedido(draft: PedidoDraft, cajeroId: string): Promise<string> {
@@ -116,6 +117,9 @@ function aplicarFiltros(query: any, filtros: FiltrosPedidos) {
     q = q.eq("requiere_correccion", true);
   } else if (filtros.requiereCorreccion === "no") {
     q = q.eq("requiere_correccion", false);
+  }
+  if (filtros.areaActual) {
+    q = q.eq("area_actual", filtros.areaActual);
   }
   return q;
 }
