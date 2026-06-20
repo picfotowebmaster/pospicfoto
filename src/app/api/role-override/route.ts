@@ -4,8 +4,15 @@ import { NextRequest, NextResponse } from "next/server";
 
 const ROLES_DESTINO: Record<string, string> = {
   mostrador: "/mostrador",
-  taller: "/produccion/taller",
-  corte: "/produccion/corte",
+  diseno: "/produccion/kanban",
+  impresion: "/produccion/kanban",
+  laminado: "/produccion/kanban",
+  montaje: "/produccion/kanban",
+  books: "/produccion/kanban",
+  bastidores: "/produccion/kanban",
+  marcos: "/produccion/kanban",
+  taller: "/produccion/kanban",
+  corte: "/produccion/kanban",
 };
 
 export async function POST(request: NextRequest) {

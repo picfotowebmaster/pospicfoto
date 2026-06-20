@@ -22,3 +22,8 @@ GRANT SELECT, INSERT, UPDATE ON public.productos_historial TO authenticated;
 
 -- Perfiles de usuario
 GRANT SELECT, UPDATE ON public.profiles TO authenticated;
+
+-- Producción
+GRANT SELECT ON public.production_areas TO authenticated;
+GRANT SELECT ON public.workflow_routes TO authenticated;
+GRANT SELECT, INSERT ON public.pedido_movimientos TO authenticated;

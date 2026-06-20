@@ -5,6 +5,13 @@ import { useRouter } from "next/navigation";
 
 const ROLE_LABELS: Record<string, string> = {
   mostrador: "Mostrador",
+  diseno: "Diseño",
+  impresion: "Impresión",
+  laminado: "Laminado",
+  montaje: "Montaje",
+  books: "Books",
+  bastidores: "Bastidores",
+  marcos: "Marcos",
   taller: "Taller",
   corte: "Corte",
 };

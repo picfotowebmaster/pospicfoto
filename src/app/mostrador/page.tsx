@@ -11,6 +11,7 @@ import { ResumenPago } from "./_components/ResumenPago";
 import { BotonPagar } from "./_components/BotonPagar";
 import { Button } from "@/components/ui/Button";
 import { crearPedido } from "@/lib/services/pedidos";
+import { RUTAS_PRODUCCION } from "@/lib/utils/constantes";
 // import { fetchAtributosConValores } from "@/lib/services/atributos";
 // import type { Atributo, AtributoValor } from "@/lib/supabase/types";
 import type { LineaPedidoDraft } from "@/lib/supabase/types";
@@ -88,6 +89,7 @@ export default function MostradorPage() {
           anticipo: pedido.anticipo,
           total: pedido.total,
           metodo_pago: pedido.metodoPago,
+          ruta: pedido.ruta,
         },
         session.user.id,
       );
@@ -157,6 +159,23 @@ export default function MostradorPage() {
             pedido.setCliente({ ...pedido.cliente, requiereCorreccion: v })
           }
         />
+
+        <div className="bg-white rounded-xl shadow p-4">
+          <h3 className="font-semibold text-gray-700 text-sm uppercase tracking-wide mb-3">
+            Ruta de Producción
+          </h3>
+          <select
+            value={pedido.ruta}
+            onChange={(e) => pedido.setRuta(e.target.value as typeof pedido.ruta)}
+            className="w-full border border-gray-300 rounded-lg px-2.5 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white"
+          >
+            {RUTAS_PRODUCCION.map((r) => (
+              <option key={r.value} value={r.value}>
+                {r.label} — {r.desc}
+              </option>
+            ))}
+          </select>
+        </div>
 
         <div className="bg-white rounded-xl shadow p-4">
           <div className="flex items-center justify-between mb-3">

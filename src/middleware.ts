@@ -2,6 +2,11 @@ import { createServerClient } from "@supabase/ssr";
 import { createClient } from "@supabase/supabase-js";
 import { NextResponse, type NextRequest } from "next/server";
 
+const ROLES_PRODUCCION = [
+  "diseno", "impresion", "laminado", "montaje", "books", "bastidores", "marcos",
+  "taller", "corte", "admin", "superadmin",
+];
+
 function getSupabaseConfig() {
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
   const key = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
@@ -65,10 +70,20 @@ export async function middleware(request: NextRequest) {
   }
 
   if (user && pathname === "/") {
+    const admin = getAdminClient();
+    const { data: profile } = await admin
+      .from("profiles")
+      .select("rol")
+      .eq("id", user.id)
+      .single() as { data: { rol: string } | null };
+
+    if (profile && ROLES_PRODUCCION.includes(profile.rol)) {
+      return NextResponse.redirect(new URL("/produccion/kanban", request.url));
+    }
     return NextResponse.redirect(new URL("/mostrador", request.url));
   }
 
-  if (user && (pathname.startsWith("/produccion/taller") || pathname.startsWith("/produccion/corte"))) {
+  if (user && (pathname.startsWith("/produccion/taller") || pathname.startsWith("/produccion/corte") || pathname.startsWith("/produccion/kanban"))) {
     const admin = getAdminClient();
     const { data: profile } = await admin
       .from("profiles")
@@ -81,7 +96,7 @@ export async function middleware(request: NextRequest) {
       return NextResponse.redirect(new URL("/mostrador?mensaje=perfil_no_encontrado", request.url));
     }
 
-    if (!["taller", "corte", "admin", "superadmin"].includes(profile.rol)) {
+    if (!ROLES_PRODUCCION.includes(profile.rol)) {
       return NextResponse.redirect(new URL("/mostrador?mensaje=acceso_denegado", request.url));
     }
   }

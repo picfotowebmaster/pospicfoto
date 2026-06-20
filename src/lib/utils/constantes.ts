@@ -33,3 +33,21 @@ export const ESTADOS_PEDIDO = [
   { label: "Listo", value: "listo" as const, color: "bg-green-500" },
   { label: "Entregado", value: "entregado" as const, color: "bg-gray-500" },
 ];
+
+export const AREAS_PRODUCCION_VISIBLES = [
+  "mostrador",
+  "diseno",
+  "impresion",
+  "laminado",
+  "montaje",
+  "books",
+  "bastidores",
+  "marcos",
+] as const;
+
+export const RUTAS_PRODUCCION = [
+  { label: "R1 - Impresión", value: "R1" as const, desc: "Diseño → Impresión → Taller final" },
+  { label: "R2 - Marcos", value: "R2" as const, desc: "Taller de Marcos → Montaje" },
+  { label: "R3 - Books Directo", value: "R3" as const, desc: "Directo a Taller de Books" },
+  { label: "R4 - Laminado", value: "R4" as const, desc: "Taller de Laminado → Montaje" },
+];

@@ -27,6 +27,8 @@ export async function crearPedido(draft: PedidoDraft, cajeroId: string): Promise
       anticipo: draft.anticipo,
       total: draft.total,
       metodo_pago: draft.metodo_pago,
+      ruta: draft.ruta,
+      area_actual: "mostrador",
     })
     .select()
     .single();

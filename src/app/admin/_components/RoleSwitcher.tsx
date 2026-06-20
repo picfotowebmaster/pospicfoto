@@ -6,8 +6,13 @@ import { Button } from "@/components/ui/Button";
 
 const ROLES = [
   { key: "mostrador", label: "Mostrador" },
-  { key: "taller", label: "Taller" },
-  { key: "corte", label: "Corte" },
+  { key: "diseno", label: "Diseño" },
+  { key: "impresion", label: "Impresión" },
+  { key: "laminado", label: "Laminado" },
+  { key: "montaje", label: "Montaje" },
+  { key: "books", label: "Books" },
+  { key: "bastidores", label: "Bastidores" },
+  { key: "marcos", label: "Marcos" },
 ] as const;
 
 function getRoleOverrideCookie(): string | null {

@@ -7,7 +7,33 @@ export type EstadoPedido =
   | "listo"
   | "entregado";
 
-export type Rol = "mostrador" | "taller" | "corte" | "admin" | "superadmin";
+export type AreaProduccion =
+  | "mostrador"
+  | "diseno"
+  | "impresion"
+  | "laminado"
+  | "montaje"
+  | "books"
+  | "bastidores"
+  | "marcos"
+  | "listo"
+  | "entregado";
+
+export type RutaProduccion = "R1" | "R2" | "R3" | "R4";
+
+export type Rol =
+  | "mostrador"
+  | "diseno"
+  | "impresion"
+  | "laminado"
+  | "montaje"
+  | "books"
+  | "bastidores"
+  | "marcos"
+  | "taller"
+  | "corte"
+  | "admin"
+  | "superadmin";
 
 export interface Atributo {
   id: string;
@@ -47,6 +73,9 @@ export interface Pedido {
   hora_entrega: string;
   requiere_correccion: boolean;
   estado: EstadoPedido;
+  area_actual: AreaProduccion;
+  ruta: RutaProduccion | null;
+  area_destino: AreaProduccion | null;
   subtotal: number;
   anticipo: number;
   total: number;
@@ -85,4 +114,29 @@ export interface PedidoDraft {
   anticipo: number;
   total: number;
   metodo_pago: MetodoPago;
+  ruta: RutaProduccion;
+}
+
+export interface ProductionArea {
+  id: string;
+  nombre: string;
+  color: string;
+  orden: number;
+}
+
+export interface WorkflowRoute {
+  id: string;
+  from_area: string;
+  to_area: string;
+  ruta: string;
+  multiple: boolean;
+}
+
+export interface PedidoMovimiento {
+  id: string;
+  pedido_id: string;
+  from_area: string | null;
+  to_area: string;
+  operador_id: string | null;
+  created_at: string;
 }

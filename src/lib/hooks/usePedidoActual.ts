@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useCallback } from "react";
-import type { LineaPedidoDraft, MetodoPago } from "@/lib/supabase/types";
+import type { LineaPedidoDraft, MetodoPago, RutaProduccion } from "@/lib/supabase/types";
 import { sumarLineas, calcularAnticipo, generarIdLocal } from "@/lib/utils/calculos";
 import { ANTICIPO_POR_DEFECTO } from "@/lib/utils/constantes";
 
@@ -24,6 +24,7 @@ export function usePedidoActual() {
   const [lineas, setLineas] = useState<LineaPedidoDraft[]>([]);
   const [porcentajeAnticipo, setPorcentajeAnticipo] = useState(ANTICIPO_POR_DEFECTO);
   const [metodoPago, setMetodoPago] = useState<MetodoPago>("Efectivo");
+  const [ruta, setRuta] = useState<RutaProduccion>("R1");
 
   const subtotal = sumarLineas(lineas);
   const anticipo = calcularAnticipo(subtotal, porcentajeAnticipo);
@@ -60,6 +61,7 @@ export function usePedidoActual() {
     setLineas([]);
     setPorcentajeAnticipo(ANTICIPO_POR_DEFECTO);
     setMetodoPago("Efectivo");
+    setRuta("R1");
   }, []);
 
   const valido =
@@ -89,6 +91,8 @@ export function usePedidoActual() {
     setPorcentajeAnticipo,
     metodoPago,
     setMetodoPago,
+    ruta,
+    setRuta,
     valido,
   };
 }
