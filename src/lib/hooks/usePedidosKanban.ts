@@ -7,6 +7,7 @@ import {
   fetchWorkflowRoutes,
   advancePedido as advancePedidoService,
 } from "@/lib/services/workflow";
+import { cancelarPedido as cancelarPedidoService } from "@/lib/services/pedidos";
 import { AREAS_PRODUCCION_VISIBLES, WORKFLOW_ROUTES_DATA } from "@/lib/utils/constantes";
 import type { Pedido, AreaProduccion, WorkflowRoute } from "@/lib/supabase/types";
 
@@ -106,5 +107,13 @@ export function usePedidosKanban(areaFiltro?: string) {
     [],
   );
 
-  return { columnas, pedidos, cargando, getNextForPedido, avanzarPedido, recargar: cargar };
+  const cancelarPedido = useCallback(
+    async (pedidoId: string) => {
+      await cancelarPedidoService(pedidoId);
+      cargar();
+    },
+    [cargar],
+  );
+
+  return { columnas, pedidos, cargando, getNextForPedido, avanzarPedido, cancelarPedido, recargar: cargar };
 }

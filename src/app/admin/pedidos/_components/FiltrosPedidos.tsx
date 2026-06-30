@@ -4,6 +4,7 @@ import { ESTADOS_PEDIDO, METODOS_PAGO, AREAS_PRODUCCION_DATA } from "@/lib/utils
 
 interface FiltrosPedidosProps {
   busqueda: string;
+  ticketId: string;
   estado: string;
   metodoPago: string;
   fechaDesde: string;
@@ -12,6 +13,7 @@ interface FiltrosPedidosProps {
   areaActual: string;
   onCambiar: (filtros: {
     busqueda?: string;
+    ticketId?: string;
     estado?: string;
     metodoPago?: string;
     fechaDesde?: string;
@@ -24,6 +26,7 @@ interface FiltrosPedidosProps {
 
 export function FiltrosPedidos({
   busqueda,
+  ticketId,
   estado,
   metodoPago,
   fechaDesde,
@@ -34,7 +37,7 @@ export function FiltrosPedidos({
   onLimpiar,
 }: FiltrosPedidosProps) {
   const activos =
-    busqueda || estado || metodoPago || fechaDesde || fechaHasta || requiereCorreccion || areaActual;
+    busqueda || ticketId || estado || metodoPago || fechaDesde || fechaHasta || requiereCorreccion || areaActual;
 
   return (
     <div className="flex flex-wrap items-end gap-3">
@@ -46,6 +49,17 @@ export function FiltrosPedidos({
           onChange={(e) => onCambiar({ busqueda: e.target.value })}
           placeholder="Buscar por nombre..."
           className="border border-gray-300 rounded-lg px-2.5 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+        />
+      </div>
+
+      <div className="flex flex-col gap-1 min-w-[140px]">
+        <label className="text-xs font-medium text-gray-500">Ticket ID</label>
+        <input
+          type="text"
+          value={ticketId}
+          onChange={(e) => onCambiar({ ticketId: e.target.value })}
+          placeholder="ej. A3F2B1C4"
+          className="border border-gray-300 rounded-lg px-2.5 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 font-mono"
         />
       </div>
 

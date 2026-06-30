@@ -11,6 +11,7 @@ import { ResumenPago } from "./_components/ResumenPago";
 import { BotonPagar } from "./_components/BotonPagar";
 import { Button } from "@/components/ui/Button";
 import { crearPedido } from "@/lib/services/pedidos";
+import { supabase } from "@/lib/supabase/client";
 import { RUTAS_PRODUCCION } from "@/lib/utils/constantes";
 import { fetchAtributosConValores } from "@/lib/services/atributos";
 import type { Atributo, AtributoValor } from "@/lib/supabase/types";
@@ -27,6 +28,8 @@ export default function MostradorPage() {
   const [editandoLinea, setEditandoLinea] = useState<LineaPedidoDraft | null>(null);
   const [pagarCargando, setPagarCargando] = useState(false);
   const [mensajeError, setMensajeError] = useState("");
+  const [ticketBusqueda, setTicketBusqueda] = useState("");
+  const [buscandoTicket, setBuscandoTicket] = useState(false);
 
   useEffect(() => {
     // Mostrar mensaje de error si viene en query params
@@ -109,6 +112,30 @@ export default function MostradorPage() {
     }
   }
 
+  async function handleBuscarTicket(e: React.FormEvent) {
+    e.preventDefault();
+    const query = ticketBusqueda.trim();
+    if (!query) return;
+    setBuscandoTicket(true);
+    try {
+      const { data } = await supabase
+        .from("pedidos")
+        .select("id")
+        .ilike("id", `${query}%`)
+        .limit(2);
+      if (!data || data.length === 0) {
+        alert("No se encontro ningun pedido con ese ID.");
+      } else {
+        router.push(`/mostrador/ticket/${data[0].id}`);
+      }
+    } catch (err) {
+      console.error("Error buscando ticket:", err);
+      alert("Error al buscar el ticket.");
+    } finally {
+      setBuscandoTicket(false);
+    }
+  }
+
   return (
     <div className="min-h-screen bg-gray-100">
       <header className="bg-white shadow-sm border-b border-gray-200 px-4 py-2 flex items-center justify-between">
@@ -116,6 +143,18 @@ export default function MostradorPage() {
           <h1 className="text-lg font-bold text-gray-900">PIC PHOTO</h1>
           <p className="text-xs text-gray-500">Sistema de Punto de Venta</p>
         </div>
+        <form onSubmit={handleBuscarTicket} className="flex items-center gap-1">
+          <input
+            type="text"
+            value={ticketBusqueda}
+            onChange={(e) => setTicketBusqueda(e.target.value)}
+            placeholder="Buscar ticket..."
+            className="border border-gray-300 rounded-lg px-2.5 py-1.5 text-xs w-36 focus:outline-none focus:ring-2 focus:ring-blue-500 font-mono"
+          />
+          <Button type="submit" size="sm" variant="primary" disabled={buscandoTicket || !ticketBusqueda.trim()}>
+            {buscandoTicket ? "..." : "Ir"}
+          </Button>
+        </form>
         <div className="flex items-center gap-3">
           <span className="text-sm text-gray-600">
             {session?.user.email}

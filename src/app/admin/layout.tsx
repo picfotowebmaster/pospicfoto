@@ -34,6 +34,7 @@ export default function AdminLayout({
   const tabs = [
     { href: "/admin", label: "Catálogo" },
     { href: "/admin/pedidos", label: "Pedidos" },
+    { href: "/admin/reportes", label: "Reportes" },
     ...(rol === "superadmin"
       ? [{ href: "/admin/usuarios", label: "Usuarios" }]
       : []),

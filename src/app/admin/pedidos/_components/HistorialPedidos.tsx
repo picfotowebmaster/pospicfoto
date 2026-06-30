@@ -1,10 +1,15 @@
 "use client";
 
+import { useState, useEffect } from "react";
 import { useHistorialPedidos } from "@/lib/hooks/useHistorialPedidos";
 import { FiltrosPedidos } from "./FiltrosPedidos";
 import { TablaPedidos } from "./TablaPedidos";
 import { Paginador } from "./Paginador";
 import { Button } from "@/components/ui/Button";
+import { fetchAtributosConValores } from "@/lib/services/atributos";
+import type { Atributo, AtributoValor } from "@/lib/supabase/types";
+
+type AtributoConValores = Atributo & { valores: AtributoValor[] };
 
 export function HistorialPedidos() {
   const {
@@ -20,6 +25,14 @@ export function HistorialPedidos() {
     recargar,
   } = useHistorialPedidos();
 
+  const [atributosPool, setAtributosPool] = useState<AtributoConValores[]>([]);
+
+  useEffect(() => {
+    fetchAtributosConValores()
+      .then((data) => setAtributosPool(data as AtributoConValores[]))
+      .catch(() => {});
+  }, []);
+
   return (
     <div className="max-w-6xl mx-auto p-4">
       <div className="bg-white rounded-xl shadow p-4 space-y-4">
@@ -34,6 +47,7 @@ export function HistorialPedidos() {
 
         <FiltrosPedidos
           busqueda={filtros.busqueda ?? ""}
+          ticketId={filtros.ticketId ?? ""}
           estado={filtros.estado ?? ""}
           metodoPago={filtros.metodoPago ?? ""}
           fechaDesde={filtros.fechaDesde ?? ""}
@@ -56,7 +70,7 @@ export function HistorialPedidos() {
           </div>
         ) : (
           <>
-            <TablaPedidos pedidos={pedidos} onEstadoCambiado={recargar} />
+            <TablaPedidos pedidos={pedidos} atributosPool={atributosPool} onEstadoCambiado={recargar} />
             <Paginador
               pagina={pagina}
               hasMore={hasMore}

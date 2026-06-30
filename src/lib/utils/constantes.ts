@@ -32,6 +32,7 @@ export const ESTADOS_PEDIDO = [
   { label: "En Corte", value: "en_corte" as const, color: "bg-purple-500" },
   { label: "Listo", value: "listo" as const, color: "bg-green-500" },
   { label: "Entregado", value: "entregado" as const, color: "bg-gray-500" },
+  { label: "Cancelado", value: "cancelado" as const, color: "bg-red-600" },
 ];
 
 export const AREAS_PRODUCCION_VISIBLES = [

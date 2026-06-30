@@ -13,6 +13,10 @@ const ROLES_DEPARTAMENTO = [
   "books", "bastidores", "marcos", "taller", "corte",
 ];
 
+const ROL_PERMITIDOS_CANCELAR = [
+  "mostrador", "taller", "corte", "admin", "superadmin",
+];
+
 function getDepartamentoFromRol(rol: string | null): string | undefined {
   if (!rol) return undefined;
   if (["admin", "superadmin"].includes(rol)) return undefined;
@@ -40,7 +44,7 @@ export default function KanbanPage() {
 
   const areaFiltro = getDepartamentoFromRol(rol);
 
-  const { columnas, cargando, getNextForPedido, avanzarPedido, recargar } =
+  const { columnas, cargando, getNextForPedido, avanzarPedido, cancelarPedido, recargar } =
     usePedidosKanban(areaFiltro);
 
   const [areas, setAreas] = useState<{ id: string; nombre: string; color: string; orden: number }[]>([]);
@@ -154,7 +158,7 @@ export default function KanbanPage() {
             <div className="flex-1" />
 
             <div className="text-xs text-gray-400">
-              {Object.values(columnas).reduce((sum, p) => sum + p.length, 0)}{" "}
+              {Object.values(columnasFiltradas).reduce((sum, p) => sum + p.length, 0)}{" "}
               pedidos activos
             </div>
           </div>
@@ -174,6 +178,7 @@ export default function KanbanPage() {
             areas={areas}
             getNextForPedido={getNextForPedido}
             onAvanzarPedido={avanzarPedido}
+            onCancelarPedido={rol && ROL_PERMITIDOS_CANCELAR.includes(rol) ? cancelarPedido : undefined}
           />
         )}
       </div>

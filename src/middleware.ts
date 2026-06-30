@@ -66,21 +66,7 @@ export async function middleware(request: NextRequest) {
   }
 
   if (user && pathname === "/auth/login") {
-    return NextResponse.redirect(new URL("/mostrador", request.url));
-  }
-
-  if (user && pathname === "/") {
-    const admin = getAdminClient();
-    const { data: profile } = await admin
-      .from("profiles")
-      .select("rol")
-      .eq("id", user.id)
-      .single() as { data: { rol: string } | null };
-
-    if (profile && ROLES_PRODUCCION.includes(profile.rol)) {
-      return NextResponse.redirect(new URL("/produccion/kanban", request.url));
-    }
-    return NextResponse.redirect(new URL("/mostrador", request.url));
+    return NextResponse.redirect(new URL("/", request.url));
   }
 
   if (user && (pathname.startsWith("/produccion/taller") || pathname.startsWith("/produccion/corte") || pathname.startsWith("/produccion/kanban"))) {

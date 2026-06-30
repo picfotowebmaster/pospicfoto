@@ -10,6 +10,7 @@ interface KanbanColumnaProps {
   pedidos: Pedido[];
   getNextForPedido: (pedido: Pedido) => NextAreaInfo[];
   onAvanzarPedido: (pedidoId: string, destino?: string) => Promise<void>;
+  onCancelarPedido?: (pedidoId: string) => Promise<void>;
 }
 
 const COLOR_MAP: Record<string, { bg: string; text: string; border: string }> = {
@@ -30,6 +31,7 @@ export function KanbanColumna({
   pedidos,
   getNextForPedido,
   onAvanzarPedido,
+  onCancelarPedido,
 }: KanbanColumnaProps) {
   const colores = COLOR_MAP[area.color] || COLOR_MAP["bg-gray-500"];
 
@@ -56,6 +58,7 @@ export function KanbanColumna({
             pedido={pedido}
             nextAreas={getNextForPedido(pedido)}
             onAvanzarPedido={onAvanzarPedido}
+            onCancelarPedido={onCancelarPedido}
           />
         ))}
         {pedidos.length === 0 && (

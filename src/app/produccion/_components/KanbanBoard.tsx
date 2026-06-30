@@ -14,6 +14,7 @@ interface KanbanBoardProps {
   areas: { id: string; nombre: string; color: string; orden: number }[];
   getNextForPedido: (pedido: Pedido) => NextAreaInfo[];
   onAvanzarPedido: (pedidoId: string, destino?: string) => Promise<void>;
+  onCancelarPedido?: (pedidoId: string) => Promise<void>;
 }
 
 export function KanbanBoard({
@@ -21,6 +22,7 @@ export function KanbanBoard({
   areas,
   getNextForPedido,
   onAvanzarPedido,
+  onCancelarPedido,
 }: KanbanBoardProps) {
   const areasFiltradas = areas.filter((a) => a.id !== "entregado");
 
@@ -32,15 +34,28 @@ export function KanbanBoard({
     );
   }
 
+  const areasConPedidos = areasFiltradas.filter(
+    (a) => (columnas[a.id] || []).length > 0,
+  );
+
+  if (areasConPedidos.length === 0) {
+    return (
+      <div className="text-center text-gray-400 py-12">
+        No hay pedidos activos en producción.
+      </div>
+    );
+  }
+
   return (
     <div className="flex gap-4 overflow-x-auto pb-4 min-h-[70vh]">
-      {areasFiltradas.map((area) => (
+      {areasConPedidos.map((area) => (
         <KanbanColumna
           key={area.id}
           area={area}
           pedidos={columnas[area.id] || []}
           getNextForPedido={getNextForPedido}
           onAvanzarPedido={onAvanzarPedido}
+          onCancelarPedido={onCancelarPedido}
         />
       ))}
     </div>

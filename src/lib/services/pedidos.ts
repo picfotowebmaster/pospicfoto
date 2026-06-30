@@ -1,11 +1,12 @@
 import { supabase } from "../supabase/client";
-import type { PedidoDraft, Pedido } from "../supabase/types";
+import type { PedidoDraft, Pedido, MetodoPago, RutaProduccion, LineaPedidoDraft } from "../supabase/types";
 import { upsertHistorial } from "./historial";
 
 export interface FiltrosPedidos {
   pagina: number;
   porPagina: number;
   busqueda?: string;
+  ticketId?: string;
   estado?: string;
   metodoPago?: string;
   fechaDesde?: string;
@@ -83,16 +84,123 @@ export async function fetchPedidosPorEstado(
   return data;
 }
 
+const ESTADO_A_AREA: Record<string, string | null> = {
+  pendiente: "mostrador",
+  en_taller: null,
+  en_corte: "corte",
+  listo: "listo",
+  entregado: "entregado",
+  cancelado: null,
+};
+
+async function cambiarEstadoConMovimiento(
+  pedidoId: string,
+  nuevoEstado: string,
+): Promise<void> {
+  const { data: pedido, error: fetchErr } = await supabase
+    .from("pedidos")
+    .select("area_actual")
+    .eq("id", pedidoId)
+    .single();
+
+  if (fetchErr || !pedido) throw new Error("Pedido no encontrado");
+
+  const oldArea = pedido.area_actual as string;
+  const newArea = ESTADO_A_AREA[nuevoEstado] ?? oldArea;
+
+  const { error: updateErr } = await supabase
+    .from("pedidos")
+    .update({ estado: nuevoEstado, area_actual: newArea })
+    .eq("id", pedidoId);
+
+  if (updateErr) throw updateErr;
+
+  const idOperador = (await supabase.auth.getUser()).data.user?.id ?? null;
+
+  const { error: movErr } = await supabase
+    .from("pedido_movimientos")
+    .insert({
+      pedido_id: pedidoId,
+      from_area: oldArea,
+      to_area: newArea,
+      operador_id: idOperador,
+    });
+
+  if (movErr) throw movErr;
+}
+
 export async function actualizarEstadoPedido(
   id: string,
   estado: string,
 ): Promise<void> {
-  const { error } = await supabase
+  await cambiarEstadoConMovimiento(id, estado);
+}
+
+export async function cancelarPedido(id: string): Promise<void> {
+  await cambiarEstadoConMovimiento(id, "cancelado");
+}
+
+export async function actualizarPedido(
+  id: string,
+  data: {
+    cliente_nombre: string;
+    cliente_telefono?: string;
+    fecha_entrega: string;
+    hora_entrega: string;
+    requiere_correccion: boolean;
+    subtotal: number;
+    anticipo: number;
+    total: number;
+    metodo_pago: MetodoPago;
+    ruta: RutaProduccion;
+    lineas: LineaPedidoDraft[];
+  },
+): Promise<void> {
+  const { error: pedidoErr } = await supabase
     .from("pedidos")
-    .update({ estado })
+    .update({
+      cliente_nombre: data.cliente_nombre,
+      cliente_telefono: data.cliente_telefono || null,
+      fecha_entrega: data.fecha_entrega,
+      hora_entrega: data.hora_entrega,
+      requiere_correccion: data.requiere_correccion,
+      subtotal: data.subtotal,
+      anticipo: data.anticipo,
+      total: data.total,
+      metodo_pago: data.metodo_pago,
+      ruta: data.ruta,
+    })
     .eq("id", id);
 
-  if (error) throw error;
+  if (pedidoErr) throw pedidoErr;
+
+  const { error: deleteErr } = await supabase
+    .from("detalle_pedidos")
+    .delete()
+    .eq("pedido_id", id);
+
+  if (deleteErr) throw deleteErr;
+
+  const detalles = data.lineas.map((l) => ({
+    pedido_id: id,
+    producto_nombre: l.producto_nombre,
+    cantidad: l.cantidad,
+    precio_unitario: l.precio_unitario,
+    importe_linea: l.cantidad * l.precio_unitario,
+    atributos: l.atributos,
+  }));
+
+  if (detalles.length > 0) {
+    const { error: insertErr } = await supabase
+      .from("detalle_pedidos")
+      .insert(detalles);
+
+    if (insertErr) throw insertErr;
+  }
+
+  for (const l of data.lineas) {
+    await upsertHistorial(l.producto_nombre, l.atributos).catch(() => {});
+  }
 }
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -100,6 +208,9 @@ function aplicarFiltros(query: any, filtros: FiltrosPedidos) {
   let q = query;
   if (filtros.busqueda) {
     q = q.ilike("cliente_nombre", `%${filtros.busqueda}%`);
+  }
+  if (filtros.ticketId) {
+    q = q.ilike("id", `${filtros.ticketId}%`);
   }
   if (filtros.estado) {
     q = q.eq("estado", filtros.estado);

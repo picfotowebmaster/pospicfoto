@@ -3,8 +3,9 @@
 import { useState } from "react";
 import { Badge } from "@/components/ui/Badge";
 import { ESTADOS_PEDIDO, AREAS_PRODUCCION_DATA } from "@/lib/utils/constantes";
-import { actualizarEstadoPedido } from "@/lib/services/pedidos";
-import type { Pedido } from "@/lib/supabase/types";
+import { actualizarEstadoPedido, cancelarPedido, actualizarPedido } from "@/lib/services/pedidos";
+import { EditPedidoForm } from "./EditPedidoForm";
+import type { Pedido, Atributo, AtributoValor, MetodoPago, RutaProduccion, LineaPedidoDraft } from "@/lib/supabase/types";
 
 const COLOR_PAGO: Record<string, string> = {
   Efectivo: "bg-emerald-500",
@@ -19,16 +20,15 @@ function formatearFecha(fecha: string): string {
 
 interface TablaPedidosProps {
   pedidos: Pedido[];
+  atributosPool: (Atributo & { valores: AtributoValor[] })[];
   onEstadoCambiado: () => void;
 }
 
-export function TablaPedidos({ pedidos, onEstadoCambiado }: TablaPedidosProps) {
+export function TablaPedidos({ pedidos, atributosPool, onEstadoCambiado }: TablaPedidosProps) {
   const [expandido, setExpandido] = useState<string | null>(null);
+  const [editando, setEditando] = useState<string | null>(null);
   const [cambiando, setCambiando] = useState<string | null>(null);
-
-  function toggleExpandir(id: string) {
-    setExpandido((prev) => (prev === id ? null : id));
-  }
+  const [cancelando, setCancelando] = useState<string | null>(null);
 
   async function cambiarEstado(pedidoId: string, nuevoEstado: string) {
     setCambiando(pedidoId);
@@ -40,6 +40,40 @@ export function TablaPedidos({ pedidos, onEstadoCambiado }: TablaPedidosProps) {
     } finally {
       setCambiando(null);
     }
+  }
+
+  async function handleCancelar(pedidoId: string) {
+    if (!window.confirm("\u00bfCancelar este pedido?")) return;
+    setCancelando(pedidoId);
+    try {
+      await cancelarPedido(pedidoId);
+      onEstadoCambiado();
+    } catch (err) {
+      console.error("Error al cancelar pedido:", err);
+    } finally {
+      setCancelando(null);
+    }
+  }
+
+  async function handleGuardarEdicion(
+    pedidoId: string,
+    data: {
+      cliente_nombre: string;
+      cliente_telefono: string;
+      fecha_entrega: string;
+      hora_entrega: string;
+      requiere_correccion: boolean;
+      subtotal: number;
+      anticipo: number;
+      total: number;
+      metodo_pago: MetodoPago;
+      ruta: RutaProduccion;
+      lineas: LineaPedidoDraft[];
+    },
+  ) {
+    await actualizarPedido(pedidoId, data);
+    setEditando(null);
+    onEstadoCambiado();
   }
 
   return (
@@ -72,9 +106,22 @@ export function TablaPedidos({ pedidos, onEstadoCambiado }: TablaPedidosProps) {
               pedido={p}
               indice={idx}
               expandido={expandido === p.id}
-              onToggle={() => toggleExpandir(p.id)}
+              editando={editando === p.id}
+              onToggle={() => {
+                if (editando === p.id) return;
+                setExpandido((prev) => (prev === p.id ? null : p.id));
+              }}
+              onEditar={() => {
+                setExpandido(p.id);
+                setEditando(p.id);
+              }}
+              onCancelEdit={() => setEditando(null)}
               cambiando={cambiando === p.id}
+              cancelando={cancelando === p.id}
               onCambiarEstado={(estado) => cambiarEstado(p.id, estado)}
+              onCancelar={() => handleCancelar(p.id)}
+              onGuardarEdicion={(data) => handleGuardarEdicion(p.id, data)}
+              atributosPool={atributosPool}
             />
           ))}
           {pedidos.length === 0 && (
@@ -94,16 +141,42 @@ function PedidoFila({
   pedido,
   indice,
   expandido,
+  editando,
   onToggle,
+  onEditar,
+  onCancelEdit,
   cambiando,
+  cancelando,
   onCambiarEstado,
+  onCancelar,
+  onGuardarEdicion,
+  atributosPool,
 }: {
   pedido: Pedido;
   indice: number;
   expandido: boolean;
+  editando: boolean;
   onToggle: () => void;
+  onEditar: () => void;
+  onCancelEdit: () => void;
   cambiando: boolean;
+  cancelando: boolean;
   onCambiarEstado: (estado: string) => void;
+  onCancelar: () => void;
+  onGuardarEdicion: (data: {
+    cliente_nombre: string;
+    cliente_telefono: string;
+    fecha_entrega: string;
+    hora_entrega: string;
+    requiere_correccion: boolean;
+    subtotal: number;
+    anticipo: number;
+    total: number;
+    metodo_pago: MetodoPago;
+    ruta: RutaProduccion;
+    lineas: LineaPedidoDraft[];
+  }) => Promise<void>;
+  atributosPool: (Atributo & { valores: AtributoValor[] })[];
 }) {
   return (
     <>
@@ -155,9 +228,22 @@ function PedidoFila({
             >
               Ticket
             </a>
+            {pedido.estado !== "cancelado" && (
+              <button
+                onClick={editando ? onCancelEdit : onEditar}
+                className={`text-xs rounded px-1.5 py-0.5 transition-colors cursor-pointer ${
+                  editando
+                    ? "text-gray-500 hover:text-gray-700 hover:bg-gray-100"
+                    : "text-indigo-600 hover:text-indigo-800 hover:bg-indigo-50"
+                }`}
+                title={editando ? "Cancelar edición" : "Editar pedido"}
+              >
+                {editando ? "Cerrar" : "Editar"}
+              </button>
+            )}
             <select
               value={pedido.estado}
-              disabled={cambiando}
+              disabled={cambiando || editando}
               onChange={(e) => {
                 if (e.target.value !== pedido.estado) {
                   onCambiarEstado(e.target.value);
@@ -172,13 +258,32 @@ function PedidoFila({
                 </option>
               ))}
             </select>
+            {pedido.estado !== "cancelado" && pedido.estado !== "entregado" && !editando && (
+              <button
+                onClick={onCancelar}
+                disabled={cancelando}
+                className="text-xs text-red-500 hover:text-red-700 hover:bg-red-50 rounded px-1.5 py-0.5 transition-colors cursor-pointer disabled:opacity-50"
+                title="Cancelar pedido"
+              >
+                {cancelando ? "..." : "Cancelar"}
+              </button>
+            )}
           </div>
         </td>
       </tr>
       {expandido && (
         <tr>
           <td colSpan={10} className="bg-gray-50 border-b border-gray-200">
-            <FilaExpandida pedido={pedido} />
+            {editando ? (
+              <EditPedidoForm
+                pedido={pedido}
+                atributosPool={atributosPool}
+                onSave={onGuardarEdicion}
+                onCancel={onCancelEdit}
+              />
+            ) : (
+              <FilaExpandida pedido={pedido} />
+            )}
           </td>
         </tr>
       )}

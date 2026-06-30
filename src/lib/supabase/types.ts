@@ -5,7 +5,8 @@ export type EstadoPedido =
   | "en_taller"
   | "en_corte"
   | "listo"
-  | "entregado";
+  | "entregado"
+  | "cancelado";
 
 export type AreaProduccion =
   | "mostrador"

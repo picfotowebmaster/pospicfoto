@@ -16,15 +16,18 @@ interface KanbanTarjetaProps {
   pedido: Pedido;
   nextAreas: NextAreaInfo[];
   onAvanzarPedido: (pedidoId: string, destino?: string) => Promise<void>;
+  onCancelarPedido?: (pedidoId: string) => Promise<void>;
 }
 
 export function KanbanTarjeta({
   pedido,
   nextAreas,
   onAvanzarPedido,
+  onCancelarPedido,
 }: KanbanTarjetaProps) {
   const [cambiando, setCambiando] = useState(false);
   const [destino, setDestino] = useState("");
+  const [cancelando, setCancelando] = useState(false);
 
   const hasMultiple = nextAreas.some((n) => n.multiple);
   const puedeAvanzar = nextAreas.length > 0;
@@ -38,6 +41,16 @@ export function KanbanTarjeta({
     } finally {
       setCambiando(false);
       setDestino("");
+    }
+  }
+
+  async function handleCancelar() {
+    if (!window.confirm("\u00bfCancelar este pedido?")) return;
+    setCancelando(true);
+    try {
+      await onCancelarPedido?.(pedido.id);
+    } finally {
+      setCancelando(false);
     }
   }
 
@@ -108,9 +121,19 @@ export function KanbanTarjeta({
             disabled={cambiando || (hasMultiple && !destino)}
             onClick={handleAvanzar}
           >
-            {cambiando ? "..." : esEntrega ? "Entregar ✓" : "Avanzar →"}
+            {cambiando ? "..." : esEntrega ? "Entregar \u2713" : "Avanzar \u2192"}
           </Button>
         </div>
+      )}
+
+      {onCancelarPedido && (
+        <button
+          onClick={handleCancelar}
+          disabled={cancelando}
+          className="w-full text-xs text-red-500 hover:text-red-700 hover:bg-red-50 rounded px-2 py-1 transition-colors cursor-pointer disabled:opacity-50"
+        >
+          {cancelando ? "Cancelando..." : "Cancelar pedido"}
+        </button>
       )}
     </div>
   );
