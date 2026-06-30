@@ -28,6 +28,7 @@ export function KanbanTarjeta({
 
   const hasMultiple = nextAreas.some((n) => n.multiple);
   const puedeAvanzar = nextAreas.length > 0;
+  const esEntrega = nextAreas.length === 1 && nextAreas[0].destination === "entregado";
 
   async function handleAvanzar() {
     if (hasMultiple && !destino) return;
@@ -101,13 +102,13 @@ export function KanbanTarjeta({
             </select>
           )}
           <Button
-            variant="primary"
+            variant={esEntrega ? "success" : "primary"}
             size="sm"
             className="w-full text-xs"
             disabled={cambiando || (hasMultiple && !destino)}
             onClick={handleAvanzar}
           >
-            {cambiando ? "..." : "Avanzar →"}
+            {cambiando ? "..." : esEntrega ? "Entregar ✓" : "Avanzar →"}
           </Button>
         </div>
       )}

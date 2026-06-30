@@ -105,7 +105,7 @@ async function movePedido(
 ): Promise<PedidoMovimiento> {
   const updateData: Record<string, string | null> = {
     area_actual: toArea,
-    estado: toArea === "listo" ? "listo" : "en_taller",
+    estado: toArea === "listo" ? "listo" : toArea === "entregado" ? "entregado" : "en_taller",
   };
 
   if (areaDestino) {

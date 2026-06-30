@@ -22,7 +22,7 @@ export function KanbanBoard({
   getNextForPedido,
   onAvanzarPedido,
 }: KanbanBoardProps) {
-  const areasFiltradas = areas.filter((a) => a.id !== "listo" && a.id !== "entregado");
+  const areasFiltradas = areas.filter((a) => a.id !== "entregado");
 
   if (areasFiltradas.length === 0) {
     return (

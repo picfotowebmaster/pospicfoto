@@ -12,17 +12,17 @@ import { BotonPagar } from "./_components/BotonPagar";
 import { Button } from "@/components/ui/Button";
 import { crearPedido } from "@/lib/services/pedidos";
 import { RUTAS_PRODUCCION } from "@/lib/utils/constantes";
-// import { fetchAtributosConValores } from "@/lib/services/atributos";
-// import type { Atributo, AtributoValor } from "@/lib/supabase/types";
+import { fetchAtributosConValores } from "@/lib/services/atributos";
+import type { Atributo, AtributoValor } from "@/lib/supabase/types";
 import type { LineaPedidoDraft } from "@/lib/supabase/types";
-// type AtributoConValores = Atributo & { valores: AtributoValor[] };
+type AtributoConValores = Atributo & { valores: AtributoValor[] };
 
 export default function MostradorPage() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const { session, signOut } = useAuth();
   const pedido = usePedidoActual();
-  // const [atributosPool, setAtributosPool] = useState<AtributoConValores[]>([]);
+  const [atributosPool, setAtributosPool] = useState<AtributoConValores[]>([]);
   const [mostrandoLinea, setMostrandoLinea] = useState(false);
   const [editandoLinea, setEditandoLinea] = useState<LineaPedidoDraft | null>(null);
   const [pagarCargando, setPagarCargando] = useState(false);
@@ -37,6 +37,12 @@ export default function MostradorPage() {
       setMensajeError("Tu perfil de usuario no fue encontrado. Contacta al administrador.");
     }
   }, [searchParams]);
+
+  useEffect(() => {
+    fetchAtributosConValores()
+      .then(setAtributosPool)
+      .catch(() => {});
+  }, []);
 
   function handleAgregarLinea() {
     setEditandoLinea(null);
@@ -201,6 +207,7 @@ export default function MostradorPage() {
             <div className="mt-3">
               <LineaPedido
                 id={editandoLinea?.id || ""}
+                atributosPool={atributosPool}
                 onSave={handleSaveLinea}
                 onCancel={() => {
                   setMostrandoLinea(false);

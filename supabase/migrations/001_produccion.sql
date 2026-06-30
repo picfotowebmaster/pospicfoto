@@ -49,7 +49,13 @@ INSERT INTO workflow_routes (from_area, to_area, ruta, multiple) VALUES
   ('mostrador',  'books',      'R3', false),
   -- RUTA 4 (Flujo de Laminado)
   ('mostrador',  'laminado',   'R4', false),
-  ('laminado',   'montaje',    'R4', false);
+  ('laminado',   'montaje',    'R4', false),
+  -- TRANSICIÓN FINAL: Listo → Entregado (todas las rutas)
+  ('listo',      'entregado',  'R1', false),
+  ('listo',      'entregado',  'R2', false),
+  ('listo',      'entregado',  'R3', false),
+  ('listo',      'entregado',  'R4', false)
+ON CONFLICT (from_area, to_area, ruta) DO NOTHING;
 
 -- 3. Migrar tabla pedidos
 -- =============================================

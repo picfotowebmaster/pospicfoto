@@ -43,6 +43,7 @@ export const AREAS_PRODUCCION_VISIBLES = [
   "books",
   "bastidores",
   "marcos",
+  "listo",
 ] as const;
 
 export const RUTAS_PRODUCCION = [
@@ -77,4 +78,8 @@ export const WORKFLOW_ROUTES_DATA = [
   { id: "seed-r3-1", from_area: "mostrador", to_area: "books", ruta: "R3", multiple: false },
   { id: "seed-r4-1", from_area: "mostrador", to_area: "laminado", ruta: "R4", multiple: false },
   { id: "seed-r4-2", from_area: "laminado", to_area: "montaje", ruta: "R4", multiple: false },
+  { id: "seed-final-r1", from_area: "listo", to_area: "entregado", ruta: "R1", multiple: false },
+  { id: "seed-final-r2", from_area: "listo", to_area: "entregado", ruta: "R2", multiple: false },
+  { id: "seed-final-r3", from_area: "listo", to_area: "entregado", ruta: "R3", multiple: false },
+  { id: "seed-final-r4", from_area: "listo", to_area: "entregado", ruta: "R4", multiple: false },
 ];
