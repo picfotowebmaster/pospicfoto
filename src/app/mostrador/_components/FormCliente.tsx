@@ -28,25 +28,25 @@ export function FormCliente({
   onRequiereCorreccionChange,
 }: FormClienteProps) {
   return (
-    <div className="bg-white rounded-xl shadow p-4 space-y-3">
-      <h3 className="font-semibold text-gray-700 text-sm uppercase tracking-wide">
+    <div className="bg-white dark:bg-gray-900 rounded-xl shadow p-4 space-y-3">
+      <h3 className="font-semibold text-gray-700 dark:text-gray-300 text-sm uppercase tracking-wide">
         Datos del Cliente
       </h3>
       <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
         <div>
-          <label className="block text-xs font-medium text-gray-500 mb-1">
+          <label className="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1">
             Nombre del Cliente *
           </label>
           <input
             type="text"
             value={nombre}
             onChange={(e) => onNombreChange(e.target.value)}
-            className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+            className="w-full border border-gray-300 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-100 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
             placeholder="Nombre completo"
           />
         </div>
         <div>
-          <label className="block text-xs font-medium text-gray-500 mb-1">
+          <label className="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1">
             Teléfono
           </label>
           <input

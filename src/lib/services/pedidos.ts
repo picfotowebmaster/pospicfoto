@@ -6,7 +6,7 @@ export interface FiltrosPedidos {
   pagina: number;
   porPagina: number;
   busqueda?: string;
-  ticketId?: string;
+  numeroPedido?: string;
   estado?: string;
   metodoPago?: string;
   fechaDesde?: string;
@@ -16,6 +16,28 @@ export interface FiltrosPedidos {
 }
 
 export async function crearPedido(draft: PedidoDraft, cajeroId: string): Promise<string> {
+  const { data: marca } = await supabase
+    .from("marcas")
+    .select("codigo")
+    .eq("id", draft.marca_id)
+    .single();
+
+  const { data: sucursal } = await supabase
+    .from("sucursales")
+    .select("codigo")
+    .eq("id", draft.sucursal_id)
+    .single();
+
+  if (!marca || !sucursal) throw new Error("Marca o sucursal no encontrada");
+
+  const { data: numData, error: numErr } = await supabase
+    .rpc("generar_numero_pedido", {
+      marca_codigo: marca.codigo,
+      sucursal_codigo: sucursal.codigo,
+    });
+
+  if (numErr) throw numErr;
+
   const { data: pedido, error: pedidoErr } = await supabase
     .from("pedidos")
     .insert({
@@ -31,6 +53,9 @@ export async function crearPedido(draft: PedidoDraft, cajeroId: string): Promise
       metodo_pago: draft.metodo_pago,
       ruta: draft.ruta,
       area_actual: "mostrador",
+      sucursal_id: draft.sucursal_id,
+      marca_id: draft.marca_id,
+      numero_pedido: numData,
     })
     .select()
     .single();
@@ -56,14 +81,17 @@ export async function crearPedido(draft: PedidoDraft, cajeroId: string): Promise
     await upsertHistorial(l.producto_nombre, l.atributos).catch(() => {});
   }
 
-  return pedido.id;
+  return pedido.numero_pedido;
 }
 
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
 export async function fetchPedido(id: string): Promise<Pedido> {
+  const column = UUID_RE.test(id) ? "id" : "numero_pedido";
   const { data, error } = await supabase
     .from("pedidos")
     .select("*, detalle_pedidos(*)")
-    .eq("id", id)
+    .eq(column, id)
     .single();
 
   if (error) throw error;
@@ -209,8 +237,8 @@ function aplicarFiltros(query: any, filtros: FiltrosPedidos) {
   if (filtros.busqueda) {
     q = q.ilike("cliente_nombre", `%${filtros.busqueda}%`);
   }
-  if (filtros.ticketId) {
-    q = q.ilike("id", `${filtros.ticketId}%`);
+  if (filtros.numeroPedido) {
+    q = q.ilike("numero_pedido", `%${filtros.numeroPedido}%`);
   }
   if (filtros.estado) {
     q = q.eq("estado", filtros.estado);

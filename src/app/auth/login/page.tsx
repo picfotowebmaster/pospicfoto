@@ -74,8 +74,8 @@ export default function LoginPage() {
   }
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gray-50">
-      <div className="bg-white p-8 rounded-2xl shadow-lg w-full max-w-sm">
+      <div className="min-h-screen flex items-center justify-center bg-gray-50 dark:bg-gray-950">
+        <div className="bg-white dark:bg-gray-900 p-8 rounded-2xl shadow-lg w-full max-w-sm">
         <div className="text-center mb-6">
           <h1 className="text-2xl font-bold text-gray-900">PIC PHOTO</h1>
           <p className="text-sm text-gray-500 mt-1">Sistema de Punto de Venta</p>

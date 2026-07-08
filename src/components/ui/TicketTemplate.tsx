@@ -18,7 +18,7 @@ export function TicketTemplate({ pedido }: TicketTemplateProps) {
       <div className="border-t border-b border-dashed border-gray-400 py-0.5 mb-1">
         <div>
           <span className="font-bold">Ticket:</span>{" "}
-          {pedido.id.slice(0, 8).toUpperCase()}
+          {pedido.numero_pedido || pedido.id.slice(0, 8).toUpperCase()}
         </div>
         <div>
           <span className="font-bold">Fecha:</span> {pedido.fecha_recepcion} -{" "}

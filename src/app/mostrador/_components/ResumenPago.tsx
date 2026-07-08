@@ -29,8 +29,8 @@ export function ResumenPago({
   onMetodoPagoChange,
 }: ResumenPagoProps) {
   return (
-    <div className="bg-white rounded-xl shadow p-4 space-y-4">
-      <h3 className="font-semibold text-gray-700 text-sm uppercase tracking-wide">
+    <div className="bg-white dark:bg-gray-900 rounded-xl shadow p-4 space-y-4">
+      <h3 className="font-semibold text-gray-700 dark:text-gray-300 text-sm uppercase tracking-wide">
         Resumen y Pago
       </h3>
 

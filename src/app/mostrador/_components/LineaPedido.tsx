@@ -64,9 +64,9 @@ export function LineaPedido({
   const importeLinea = cantidad * precioUnitario;
 
   return (
-    <div className="bg-gray-50 rounded-lg p-3 border border-gray-200 space-y-3">
+    <div className="bg-gray-50 dark:bg-gray-800 rounded-lg p-3 border border-gray-200 dark:border-gray-700 space-y-3">
       <div className="relative">
-        <label className="block text-xs font-medium text-gray-500 mb-1">
+        <label className="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1">
           Producto *
         </label>
         <Autocompletar

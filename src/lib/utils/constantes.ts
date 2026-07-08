@@ -67,6 +67,16 @@ export const AREAS_PRODUCCION_DATA = [
   { id: "entregado", nombre: "Entregado", color: "bg-gray-500", orden: 100 },
 ];
 
+export const SUCURSALES = [
+  { codigo: "PAL" as const, nombre: "Palma" },
+  { codigo: "CUB" as const, nombre: "Cuba" },
+];
+
+export const MARCAS = [
+  { codigo: "PIC" as const, nombre: "Picfoto" },
+  { codigo: "FRX" as const, nombre: "Framex" },
+];
+
 export const WORKFLOW_ROUTES_DATA = [
   { id: "seed-r1-1", from_area: "mostrador", to_area: "diseno", ruta: "R1", multiple: false },
   { id: "seed-r1-2", from_area: "diseno", to_area: "impresion", ruta: "R1", multiple: false },

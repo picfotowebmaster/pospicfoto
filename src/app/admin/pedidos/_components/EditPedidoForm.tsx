@@ -114,8 +114,14 @@ export function EditPedidoForm({
 
   return (
     <div className="px-6 py-3 space-y-4">
-      <div className="bg-white rounded-lg border border-gray-200 p-3 space-y-3">
-        <h4 className="text-xs font-semibold text-gray-500 uppercase tracking-wide">
+      <div className="bg-white dark:bg-gray-900 rounded-lg border border-gray-200 dark:border-gray-700 p-3 space-y-3">
+        {pedido.numero_pedido && (
+          <div className="flex items-center gap-2 text-xs text-gray-500">
+            <span className="font-semibold uppercase">Pedido:</span>
+            <span className="font-mono text-gray-700 dark:text-gray-300">{pedido.numero_pedido}</span>
+          </div>
+        )}
+        <h4 className="text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide">
           Datos del Cliente
         </h4>
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
@@ -175,8 +181,8 @@ export function EditPedidoForm({
         </label>
       </div>
 
-      <div className="bg-white rounded-lg border border-gray-200 p-3 space-y-3">
-        <h4 className="text-xs font-semibold text-gray-500 uppercase tracking-wide">
+      <div className="bg-white dark:bg-gray-900 rounded-lg border border-gray-200 dark:border-gray-700 p-3 space-y-3">
+        <h4 className="text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide">
           Ruta y Pago
         </h4>
         <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
@@ -256,9 +262,9 @@ export function EditPedidoForm({
         </div>
       </div>
 
-      <div className="bg-white rounded-lg border border-gray-200 p-3 space-y-3">
+      <div className="bg-white dark:bg-gray-900 rounded-lg border border-gray-200 dark:border-gray-700 p-3 space-y-3">
         <div className="flex items-center justify-between">
-          <h4 className="text-xs font-semibold text-gray-500 uppercase tracking-wide">
+          <h4 className="text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide">
             Productos ({lineas.length})
           </h4>
           <Button

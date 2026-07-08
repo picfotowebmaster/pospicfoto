@@ -56,10 +56,23 @@ export interface ProductoHistorial {
   ultimo_uso: string;
 }
 
+export interface Sucursal {
+  id: string;
+  nombre: string;
+  codigo: string;
+}
+
+export interface Marca {
+  id: string;
+  nombre: string;
+  codigo: string;
+}
+
 export interface Profile {
   id: string;
   rol: Rol;
   nombre: string;
+  sucursal_id?: string | null;
   created_at: string;
 }
 
@@ -81,6 +94,9 @@ export interface Pedido {
   anticipo: number;
   total: number;
   metodo_pago: MetodoPago;
+  numero_pedido?: string | null;
+  sucursal_id?: string | null;
+  marca_id?: string | null;
   created_at: string;
   updated_at: string;
   detalle_pedidos?: DetallePedido[];
@@ -116,6 +132,8 @@ export interface PedidoDraft {
   total: number;
   metodo_pago: MetodoPago;
   ruta: RutaProduccion;
+  sucursal_id: string;
+  marca_id: string;
 }
 
 export interface ProductionArea {

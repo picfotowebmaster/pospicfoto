@@ -4,6 +4,8 @@ import React, { useState, useEffect } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useAuth } from "@/lib/hooks/useAuth";
 import { usePedidoActual } from "@/lib/hooks/usePedidoActual";
+import { useToast } from "@/components/ui/Toast";
+import { ThemeToggle } from "@/components/ui/ThemeToggle";
 import { FormCliente } from "./_components/FormCliente";
 import { LineaPedido } from "./_components/LineaPedido";
 import { TablaLineas } from "./_components/TablaLineas";
@@ -12,7 +14,7 @@ import { BotonPagar } from "./_components/BotonPagar";
 import { Button } from "@/components/ui/Button";
 import { crearPedido } from "@/lib/services/pedidos";
 import { supabase } from "@/lib/supabase/client";
-import { RUTAS_PRODUCCION } from "@/lib/utils/constantes";
+import { RUTAS_PRODUCCION, MARCAS } from "@/lib/utils/constantes";
 import { fetchAtributosConValores } from "@/lib/services/atributos";
 import type { Atributo, AtributoValor } from "@/lib/supabase/types";
 import type { LineaPedidoDraft } from "@/lib/supabase/types";
@@ -21,8 +23,10 @@ type AtributoConValores = Atributo & { valores: AtributoValor[] };
 export default function MostradorPage() {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const { session, signOut } = useAuth();
-  const pedido = usePedidoActual();
+  const { session, profile, signOut } = useAuth();
+  const { showError } = useToast();
+  const sucursalId = profile?.sucursal_id ?? "";
+  const pedido = usePedidoActual(sucursalId);
   const [atributosPool, setAtributosPool] = useState<AtributoConValores[]>([]);
   const [mostrandoLinea, setMostrandoLinea] = useState(false);
   const [editandoLinea, setEditandoLinea] = useState<LineaPedidoDraft | null>(null);
@@ -30,9 +34,10 @@ export default function MostradorPage() {
   const [mensajeError, setMensajeError] = useState("");
   const [ticketBusqueda, setTicketBusqueda] = useState("");
   const [buscandoTicket, setBuscandoTicket] = useState(false);
+  const [sucursalNombre, setSucursalNombre] = useState("");
+  const [marcas, setMarcas] = useState<{ id: string; nombre: string; codigo: string }[]>([]);
 
   useEffect(() => {
-    // Mostrar mensaje de error si viene en query params
     const mensaje = searchParams.get("mensaje");
     if (mensaje === "acceso_denegado") {
       setMensajeError("No tienes permisos para acceder a esa sección.");
@@ -46,6 +51,27 @@ export default function MostradorPage() {
       .then(setAtributosPool)
       .catch(() => {});
   }, []);
+
+  useEffect(() => {
+    if (sucursalId) {
+      supabase
+        .from("sucursales")
+        .select("nombre")
+        .eq("id", sucursalId)
+        .single()
+        .then(({ data }: { data: unknown }) => {
+          if (data) setSucursalNombre((data as { nombre: string }).nombre);
+        })
+        .catch(() => {});
+    }
+    supabase
+      .from("marcas")
+      .select("id, nombre, codigo")
+      .then(({ data }: { data: unknown }) => {
+        if (data) setMarcas(data as { id: string; nombre: string; codigo: string }[]);
+      })
+      .catch(() => {});
+  }, [sucursalId]);
 
   function handleAgregarLinea() {
     setEditandoLinea(null);
@@ -80,13 +106,13 @@ export default function MostradorPage() {
 
   async function handlePagar() {
     if (!session?.user.id) {
-      alert("Sesión expirada. Inicia sesión nuevamente.");
+      showError("Sesión expirada. Inicia sesión nuevamente.");
       router.push("/auth/login");
       return;
     }
     setPagarCargando(true);
     try {
-      const pedidoId = await crearPedido(
+      const numeroPedido = await crearPedido(
         {
           cliente_nombre: pedido.cliente.nombre,
           cliente_telefono: pedido.cliente.telefono,
@@ -99,14 +125,16 @@ export default function MostradorPage() {
           total: pedido.total,
           metodo_pago: pedido.metodoPago,
           ruta: pedido.ruta,
+          sucursal_id: sucursalId,
+          marca_id: pedido.marcaId,
         },
         session.user.id,
       );
       pedido.limpiar();
-      router.push(`/mostrador/ticket/${pedidoId}`);
+      router.push(`/mostrador/ticket/${numeroPedido}`);
     } catch (err) {
       console.error("Error al crear pedido:", err);
-      alert("Error al crear el pedido. Intenta de nuevo.");
+      showError("Error al crear el pedido. Intenta de nuevo.");
     } finally {
       setPagarCargando(false);
     }
@@ -120,43 +148,44 @@ export default function MostradorPage() {
     try {
       const { data } = await supabase
         .from("pedidos")
-        .select("id")
-        .ilike("id", `${query}%`)
+        .select("numero_pedido")
+        .ilike("numero_pedido", `%${query}%`)
         .limit(2);
       if (!data || data.length === 0) {
-        alert("No se encontro ningun pedido con ese ID.");
+        showError("No se encontró ningún pedido con ese ID.");
       } else {
-        router.push(`/mostrador/ticket/${data[0].id}`);
+        router.push(`/mostrador/ticket/${data[0].numero_pedido}`);
       }
     } catch (err) {
       console.error("Error buscando ticket:", err);
-      alert("Error al buscar el ticket.");
+      showError("Error al buscar el ticket.");
     } finally {
       setBuscandoTicket(false);
     }
   }
 
   return (
-    <div className="min-h-screen bg-gray-100">
-      <header className="bg-white shadow-sm border-b border-gray-200 px-4 py-2 flex items-center justify-between">
+    <div className="min-h-screen bg-gray-100 dark:bg-gray-950">
+      <header className="bg-white dark:bg-gray-900 shadow-sm border-b border-gray-200 dark:border-gray-800 px-4 py-2 flex items-center justify-between">
         <div>
-          <h1 className="text-lg font-bold text-gray-900">PIC PHOTO</h1>
-          <p className="text-xs text-gray-500">Sistema de Punto de Venta</p>
+          <h1 className="text-lg font-bold text-gray-900 dark:text-gray-100">PIC PHOTO</h1>
+          <p className="text-xs text-gray-500 dark:text-gray-400">Sistema de Punto de Venta</p>
         </div>
         <form onSubmit={handleBuscarTicket} className="flex items-center gap-1">
           <input
             type="text"
             value={ticketBusqueda}
             onChange={(e) => setTicketBusqueda(e.target.value)}
-            placeholder="Buscar ticket..."
-            className="border border-gray-300 rounded-lg px-2.5 py-1.5 text-xs w-36 focus:outline-none focus:ring-2 focus:ring-blue-500 font-mono"
+            placeholder="Buscar pedido (ej. PIC-PAL-00001)..."
+            className="border border-gray-300 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-100 rounded-lg px-2.5 py-1.5 text-xs w-36 focus:outline-none focus:ring-2 focus:ring-blue-500 font-mono"
           />
           <Button type="submit" size="sm" variant="primary" disabled={buscandoTicket || !ticketBusqueda.trim()}>
             {buscandoTicket ? "..." : "Ir"}
           </Button>
         </form>
         <div className="flex items-center gap-3">
-          <span className="text-sm text-gray-600">
+          <ThemeToggle />
+          <span className="text-sm text-gray-600 dark:text-gray-300">
             {session?.user.email}
           </span>
           <Button variant="ghost" size="sm" onClick={signOut}>
@@ -166,15 +195,15 @@ export default function MostradorPage() {
       </header>
 
       {mensajeError && (
-        <div className="bg-red-50 border-b border-red-200 px-4 py-3">
+        <div className="bg-red-50 dark:bg-red-900/30 border-b border-red-200 dark:border-red-800 px-4 py-3">
           <div className="max-w-7xl mx-auto">
             <div className="flex items-center justify-between">
-              <p className="text-sm text-red-700">{mensajeError}</p>
+              <p className="text-sm text-red-700 dark:text-red-300">{mensajeError}</p>
               <button
                 onClick={() => setMensajeError("")}
-                className="text-red-500 hover:text-red-700 font-semibold"
+                className="text-red-500 dark:text-red-400 hover:text-red-700 dark:hover:text-red-300 font-semibold"
               >
-                ✕
+                <i className="fas fa-times" />
               </button>
             </div>
           </div>
@@ -204,6 +233,39 @@ export default function MostradorPage() {
             pedido.setCliente({ ...pedido.cliente, requiereCorreccion: v })
           }
         />
+
+        <div className="bg-white rounded-xl shadow p-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div>
+              <label className="block text-xs font-medium text-gray-500 mb-1">
+                Sucursal
+              </label>
+              <input
+                type="text"
+                value={sucursalNombre || "No asignada"}
+                readOnly
+                className="w-full border border-gray-200 bg-gray-50 text-gray-700 rounded-lg px-2.5 py-1.5 text-sm"
+              />
+            </div>
+            <div>
+              <label className="block text-xs font-medium text-gray-500 mb-1">
+                Marca <span className="text-red-400">*</span>
+              </label>
+              <select
+                value={pedido.marcaId}
+                onChange={(e) => pedido.setMarcaId(e.target.value)}
+                className="w-full border border-gray-300 rounded-lg px-2.5 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white"
+              >
+                <option value="">Seleccionar marca...</option>
+                {marcas.map((m) => (
+                  <option key={m.id} value={m.id}>
+                    {m.nombre}
+                  </option>
+                ))}
+              </select>
+            </div>
+          </div>
+        </div>
 
         <div className="bg-white rounded-xl shadow p-4">
           <h3 className="font-semibold text-gray-700 text-sm uppercase tracking-wide mb-3">

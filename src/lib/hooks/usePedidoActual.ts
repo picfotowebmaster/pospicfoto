@@ -13,7 +13,7 @@ interface ClienteData {
   requiereCorreccion: boolean;
 }
 
-export function usePedidoActual() {
+export function usePedidoActual(sucursalId: string) {
   const [cliente, setCliente] = useState<ClienteData>({
     nombre: "",
     telefono: "",
@@ -25,6 +25,7 @@ export function usePedidoActual() {
   const [porcentajeAnticipo, setPorcentajeAnticipo] = useState(ANTICIPO_POR_DEFECTO);
   const [metodoPago, setMetodoPago] = useState<MetodoPago>("Efectivo");
   const [ruta, setRuta] = useState<RutaProduccion>("R1");
+  const [marcaId, setMarcaId] = useState("");
 
   const subtotal = sumarLineas(lineas);
   const anticipo = calcularAnticipo(subtotal, porcentajeAnticipo);
@@ -68,6 +69,8 @@ export function usePedidoActual() {
     cliente.nombre.trim() !== "" &&
     cliente.fechaEntrega !== "" &&
     cliente.horaEntrega !== "" &&
+    sucursalId !== "" &&
+    marcaId !== "" &&
     lineas.length > 0 &&
     lineas.every(
       (l) =>
@@ -93,6 +96,9 @@ export function usePedidoActual() {
     setMetodoPago,
     ruta,
     setRuta,
+    sucursalId,
+    marcaId,
+    setMarcaId,
     valido,
   };
 }

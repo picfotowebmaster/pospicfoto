@@ -13,7 +13,7 @@ interface TablaLineasProps {
 export function TablaLineas({ lineas, onEditar, onEliminar }: TablaLineasProps) {
   if (lineas.length === 0) {
     return (
-      <div className="text-center text-gray-400 text-sm py-8">
+      <div className="text-center text-gray-400 dark:text-gray-500 text-sm py-8">
         No hay productos agregados. Agrega una línea para comenzar.
       </div>
     );
@@ -60,14 +60,14 @@ export function TablaLineas({ lineas, onEditar, onEliminar }: TablaLineasProps) 
                     size="sm"
                     onClick={() => onEditar(linea)}
                   >
-                    ✎
+                    <i className="fas fa-edit" />
                   </Button>
                   <Button
                     variant="ghost"
                     size="sm"
                     onClick={() => onEliminar(linea.id)}
                   >
-                    ✕
+                    <i className="fas fa-trash" />
                   </Button>
                 </div>
               </td>

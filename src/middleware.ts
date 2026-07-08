@@ -1,6 +1,7 @@
 import { createServerClient } from "@supabase/ssr";
 import { createClient } from "@supabase/supabase-js";
 import { NextResponse, type NextRequest } from "next/server";
+import type { User } from "@supabase/supabase-js";
 
 const ROLES_PRODUCCION = [
   "diseno", "impresion", "laminado", "montaje", "books", "bastidores", "marcos",
@@ -28,6 +29,22 @@ function getAdminClient() {
   if (!config) throw new Error("SUPABASE_SERVICE_ROLE_KEY requerida");
   _adminClient = createClient(config.url, config.key);
   return _adminClient;
+}
+
+async function getUserRol(user: User): Promise<string | null> {
+  const metaRol = (user.user_metadata as Record<string, unknown> | null)?.rol;
+  if (typeof metaRol === "string" && metaRol.length > 0) {
+    return metaRol;
+  }
+
+  const admin = getAdminClient();
+  const { data: profile } = await admin
+    .from("profiles")
+    .select("rol")
+    .eq("id", user.id)
+    .single() as { data: { rol: string } | null };
+
+  return (profile as { rol: string } | null)?.rol ?? null;
 }
 
 export async function middleware(request: NextRequest) {
@@ -70,40 +87,29 @@ export async function middleware(request: NextRequest) {
   }
 
   if (user && (pathname.startsWith("/produccion/taller") || pathname.startsWith("/produccion/corte") || pathname.startsWith("/produccion/kanban"))) {
-    const admin = getAdminClient();
-    const { data: profile } = await admin
-      .from("profiles")
-      .select("rol")
-      .eq("id", user.id)
-      .single() as { data: { rol: string } | null };
+    const rol = await getUserRol(user);
 
-    if (!profile) {
-      // Si no existe el perfil, redirigir a mostrador
+    if (!rol) {
       return NextResponse.redirect(new URL("/mostrador?mensaje=perfil_no_encontrado", request.url));
     }
 
-    if (!ROLES_PRODUCCION.includes(profile.rol)) {
+    if (!ROLES_PRODUCCION.includes(rol)) {
       return NextResponse.redirect(new URL("/mostrador?mensaje=acceso_denegado", request.url));
     }
   }
 
   if (user && pathname.startsWith("/admin")) {
-    const admin = getAdminClient();
-    const { data: profile } = await admin
-      .from("profiles")
-      .select("rol")
-      .eq("id", user.id)
-      .single() as { data: { rol: string } | null };
+    const rol = await getUserRol(user);
 
-    if (!profile) {
+    if (!rol) {
       return NextResponse.redirect(new URL("/mostrador?mensaje=perfil_no_encontrado", request.url));
     }
 
     if (pathname.startsWith("/admin/usuarios")) {
-      if (profile.rol !== "superadmin") {
+      if (rol !== "superadmin") {
         return NextResponse.redirect(new URL("/mostrador?mensaje=acceso_denegado", request.url));
       }
-    } else if (!["admin", "superadmin"].includes(profile.rol)) {
+    } else if (!["admin", "superadmin"].includes(rol)) {
       return NextResponse.redirect(new URL("/mostrador?mensaje=acceso_denegado", request.url));
     }
   }

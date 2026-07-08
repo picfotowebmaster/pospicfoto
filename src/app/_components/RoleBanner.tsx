@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useSyncExternalStore } from "react";
 import { useRouter } from "next/navigation";
 
 const ROLE_LABELS: Record<string, string> = {
@@ -22,14 +22,26 @@ function getRoleOverrideCookie(): string | null {
   return match ? decodeURIComponent(match[1]) : null;
 }
 
+function subscribeToCookie() {
+  return () => {};
+}
+
+function getCookieSnapshot() {
+  return getRoleOverrideCookie();
+}
+
+function getServerCookieSnapshot() {
+  return null;
+}
+
 export default function RoleBanner() {
   const router = useRouter();
-  const [roleOverride, setRoleOverride] = useState<string | null>(null);
+  const roleOverride = useSyncExternalStore(
+    subscribeToCookie,
+    getCookieSnapshot,
+    getServerCookieSnapshot,
+  );
   const [cargando, setCargando] = useState(false);
-
-  useEffect(() => {
-    setRoleOverride(getRoleOverrideCookie());
-  }, []);
 
   async function handleClearOverride() {
     setCargando(true);

@@ -1,6 +1,8 @@
 import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import RoleBanner from "./_components/RoleBanner";
+import { ToastContainer } from "./_components/ToastContainer";
+import { ThemeProvider } from "@/components/ui/ThemeProvider";
 import "./globals.css";
 import "./ticket.css";
 
@@ -31,7 +33,9 @@ export default function RootLayout({
     >
       <body className="min-h-full flex flex-col">
         <RoleBanner />
-        {children}
+        <ThemeProvider>
+          <ToastContainer>{children}</ToastContainer>
+        </ThemeProvider>
       </body>
     </html>
   );

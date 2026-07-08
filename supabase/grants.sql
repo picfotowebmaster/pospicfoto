@@ -27,3 +27,7 @@ GRANT SELECT, UPDATE ON public.profiles TO authenticated;
 GRANT SELECT ON public.production_areas TO authenticated;
 GRANT SELECT ON public.workflow_routes TO authenticated;
 GRANT SELECT, INSERT ON public.pedido_movimientos TO authenticated;
+
+-- Sucursales y Marcas
+GRANT SELECT ON public.sucursales TO authenticated;
+GRANT SELECT ON public.marcas TO authenticated;

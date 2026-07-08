@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { supabase } from "@/lib/supabase/client";
+import { useToast } from "@/components/ui/Toast";
 import { VentasChart } from "./_components/VentasChart";
 import { MetodoPagoChart } from "./_components/MetodoPagoChart";
 import { PendientesTabla } from "./_components/PendientesTabla";
@@ -44,6 +45,7 @@ interface TiempoRow {
 }
 
 export default function ReportesPage() {
+  const { showError } = useToast();
   const [periodo, setPeriodo] = useState<string>("30d");
   const [cargando, setCargando] = useState(true);
   const [ventas, setVentas] = useState<VentaDia[]>([]);
@@ -118,6 +120,7 @@ export default function ReportesPage() {
         }
       } catch (err) {
         console.error("Error cargando reportes:", err);
+        showError("Error al cargar reportes.");
       } finally {
         setCargando(false);
       }
@@ -127,18 +130,18 @@ export default function ReportesPage() {
   }, [periodo, dias]);
 
   return (
-    <div className="max-w-7xl mx-auto p-4 space-y-6">
+    <div className="max-w-6xl mx-auto p-4 space-y-6">
       <div className="flex items-center justify-between">
-        <h2 className="text-lg font-bold text-gray-900">Reportes</h2>
-        <div className="flex gap-1 bg-gray-100 rounded-lg p-1">
+        <h2 className="font-semibold text-gray-700 dark:text-gray-300 text-sm uppercase">Reportes</h2>
+        <div className="flex gap-1 bg-gray-100 dark:bg-gray-800 rounded-lg p-1">
           {PERIODOS.map((p) => (
             <button
               key={p.key}
               onClick={() => setPeriodo(p.key)}
               className={`px-3 py-1.5 text-xs font-medium rounded-md transition-colors cursor-pointer ${
                 periodo === p.key
-                  ? "bg-white text-gray-900 shadow-sm"
-                  : "text-gray-500 hover:text-gray-700"
+                  ? "bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 shadow-sm"
+                  : "text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200"
               }`}
             >
               {p.label}
@@ -148,7 +151,7 @@ export default function ReportesPage() {
       </div>
 
       {cargando ? (
-        <div className="text-center text-gray-400 py-20">Cargando reportes...</div>
+        <div className="text-center text-gray-400 dark:text-gray-500 py-20">Cargando reportes...</div>
       ) : (
         <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
           <VentasChart data={ventas} />

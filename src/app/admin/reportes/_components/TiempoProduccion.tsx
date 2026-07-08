@@ -26,12 +26,12 @@ export function TiempoProduccion({ data }: Props) {
       : 0;
 
   return (
-    <div className="bg-white rounded-xl shadow p-4">
-      <h3 className="text-sm font-semibold text-gray-500 uppercase tracking-wide mb-4">
+    <div className="bg-white dark:bg-gray-900 rounded-xl shadow p-4">
+      <h3 className="text-sm font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide mb-4">
         Tiempo en producción
       </h3>
       {data.length === 0 ? (
-        <div className="text-center text-gray-400 py-10 text-sm">
+        <div className="text-center text-gray-400 dark:text-gray-500 py-10 text-sm">
           Sin pedidos completados en este período
         </div>
       ) : (

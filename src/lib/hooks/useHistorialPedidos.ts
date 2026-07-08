@@ -12,7 +12,7 @@ export function useHistorialPedidos() {
   const [pagina, setPagina] = useState(1);
   const [filtros, setFiltros] = useState<
     Omit<FiltrosPedidos, "pagina" | "porPagina">
-  >({});
+  >({ numeroPedido: "" });
   const [trigger, setTrigger] = useState(0);
 
   const porPagina = 20;

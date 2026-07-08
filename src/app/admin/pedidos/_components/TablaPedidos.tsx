@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { Badge } from "@/components/ui/Badge";
+import { useToast } from "@/components/ui/Toast";
 import { ESTADOS_PEDIDO, AREAS_PRODUCCION_DATA } from "@/lib/utils/constantes";
 import { actualizarEstadoPedido, cancelarPedido, actualizarPedido } from "@/lib/services/pedidos";
 import { EditPedidoForm } from "./EditPedidoForm";
@@ -25,6 +26,7 @@ interface TablaPedidosProps {
 }
 
 export function TablaPedidos({ pedidos, atributosPool, onEstadoCambiado }: TablaPedidosProps) {
+  const { showError } = useToast();
   const [expandido, setExpandido] = useState<string | null>(null);
   const [editando, setEditando] = useState<string | null>(null);
   const [cambiando, setCambiando] = useState<string | null>(null);
@@ -37,6 +39,7 @@ export function TablaPedidos({ pedidos, atributosPool, onEstadoCambiado }: Tabla
       onEstadoCambiado();
     } catch (err) {
       console.error("Error al cambiar estado:", err);
+      showError("Error al cambiar estado del pedido.");
     } finally {
       setCambiando(null);
     }
@@ -50,6 +53,7 @@ export function TablaPedidos({ pedidos, atributosPool, onEstadoCambiado }: Tabla
       onEstadoCambiado();
     } catch (err) {
       console.error("Error al cancelar pedido:", err);
+      showError("Error al cancelar el pedido.");
     } finally {
       setCancelando(null);
     }
@@ -81,7 +85,7 @@ export function TablaPedidos({ pedidos, atributosPool, onEstadoCambiado }: Tabla
       <table className="w-full text-sm text-left">
         <thead>
           <tr className="border-b border-gray-200">
-            <th className="py-2 px-3 font-medium text-gray-500 w-10">#</th>
+            <th className="py-2 px-3 font-medium text-gray-500 w-[140px]">Pedido</th>
             <th className="py-2 px-3 font-medium text-gray-500">Cliente</th>
             <th className="py-2 px-3 font-medium text-gray-500 hidden md:table-cell">
               Teléfono
@@ -126,7 +130,7 @@ export function TablaPedidos({ pedidos, atributosPool, onEstadoCambiado }: Tabla
           ))}
           {pedidos.length === 0 && (
             <tr>
-              <td colSpan={10} className="py-8 text-center text-gray-400">
+              <td colSpan={10} className="py-8 text-center text-gray-400 dark:text-gray-500">
                 No se encontraron pedidos.
               </td>
             </tr>
@@ -180,30 +184,32 @@ function PedidoFila({
 }) {
   return (
     <>
-      <tr
-        onClick={onToggle}
-        className="border-b border-gray-100 hover:bg-gray-50 cursor-pointer"
-      >
-        <td className="py-2 px-3 text-gray-400 text-xs">{indice + 1}</td>
-        <td className="py-2 px-3 text-gray-900 font-medium">
+        <tr
+          onClick={onToggle}
+          className="border-b border-gray-100 dark:border-gray-800 hover:bg-gray-50 dark:hover:bg-gray-800/60 cursor-pointer"
+        >
+          <td className="py-2 px-3 text-gray-900 dark:text-gray-100 font-mono text-xs font-medium">
+            {pedido.numero_pedido || "\u2014"}
+          </td>
+          <td className="py-2 px-3 text-gray-900 dark:text-gray-100 font-medium">
           {pedido.cliente_nombre}
           {pedido.requiere_correccion && (
             <span className="ml-1.5 text-orange-500 text-xs" title="Requiere corrección">
-              &#9679;
+              <i className="fas fa-circle text-[6px] align-middle" />
             </span>
           )}
         </td>
-        <td className="py-2 px-3 text-gray-500 hidden md:table-cell">
-          {pedido.cliente_telefono || "—"}
+        <td className="py-2 px-3 text-gray-500 hidden md:table-cell dark:text-gray-400">
+          {pedido.cliente_telefono || "\u2014"}
         </td>
-        <td className="py-2 px-3 text-gray-700 text-xs">
+        <td className="py-2 px-3 text-gray-700 dark:text-gray-300 text-xs">
           <div>{formatearFecha(pedido.fecha_entrega)}</div>
-          <div className="text-gray-400">{pedido.hora_entrega.slice(0, 5)}</div>
+          <div className="text-gray-400 dark:text-gray-500">{pedido.hora_entrega.slice(0, 5)}</div>
         </td>
-        <td className="py-2 px-3 text-gray-900 font-medium">
+        <td className="py-2 px-3 text-gray-900 dark:text-gray-100 font-medium">
           ${pedido.total.toFixed(2)}
         </td>
-        <td className="py-2 px-3 text-gray-600 hidden sm:table-cell">
+        <td className="py-2 px-3 text-gray-600 hidden sm:table-cell dark:text-gray-400">
           ${pedido.anticipo.toFixed(2)}
         </td>
         <td className="py-2 px-3">
@@ -220,7 +226,7 @@ function PedidoFila({
         <td className="py-2 px-3 text-right" onClick={(e) => e.stopPropagation()}>
           <div className="flex items-center justify-end gap-2">
             <a
-              href={`/mostrador/ticket/${pedido.id}`}
+              href={`/mostrador/ticket/${pedido.numero_pedido || pedido.id}`}
               target="_blank"
               rel="noopener noreferrer"
               className="text-xs text-blue-600 hover:text-blue-800 cursor-pointer"
@@ -273,7 +279,7 @@ function PedidoFila({
       </tr>
       {expandido && (
         <tr>
-          <td colSpan={10} className="bg-gray-50 border-b border-gray-200">
+          <td colSpan={10} className="bg-gray-50 dark:bg-gray-800/50 border-b border-gray-200 dark:border-gray-800">
             {editando ? (
               <EditPedidoForm
                 pedido={pedido}
@@ -298,24 +304,24 @@ function FilaExpandida({ pedido }: { pedido: Pedido }) {
     <div className="px-6 py-3 space-y-3">
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 text-xs">
         <div>
-          <span className="text-gray-400">Recibido:</span>{" "}
-          <span className="text-gray-700">
+          <span className="text-gray-400 dark:text-gray-500">Recibido:</span>{" "}
+          <span className="text-gray-700 dark:text-gray-300">
             {formatearFecha(pedido.fecha_recepcion)} {pedido.hora_recepcion?.slice(0, 5)}
           </span>
         </div>
         <div>
-          <span className="text-gray-400">Subtotal:</span>{" "}
-          <span className="text-gray-700">${pedido.subtotal.toFixed(2)}</span>
+          <span className="text-gray-400 dark:text-gray-500">Subtotal:</span>{" "}
+          <span className="text-gray-700 dark:text-gray-300">${pedido.subtotal.toFixed(2)}</span>
         </div>
         <div>
-          <span className="text-gray-400">Resta:</span>{" "}
-          <span className="text-gray-700">
+          <span className="text-gray-400 dark:text-gray-500">Resta:</span>{" "}
+          <span className="text-gray-700 dark:text-gray-300">
             ${(pedido.total - pedido.anticipo).toFixed(2)}
           </span>
         </div>
         <div>
-          <span className="text-gray-400">Corrección:</span>{" "}
-          <span className={pedido.requiere_correccion ? "text-orange-600 font-medium" : "text-gray-700"}>
+          <span className="text-gray-400 dark:text-gray-500">Corrección:</span>{" "}
+          <span className={pedido.requiere_correccion ? "text-orange-600 dark:text-orange-400 font-medium" : "text-gray-700 dark:text-gray-300"}>
             {pedido.requiere_correccion ? "Sí" : "No"}
           </span>
         </div>
@@ -324,7 +330,7 @@ function FilaExpandida({ pedido }: { pedido: Pedido }) {
       {lineas.length > 0 && (
         <table className="w-full text-xs">
           <thead>
-            <tr className="text-gray-400 border-b border-gray-200">
+            <tr className="text-gray-400 dark:text-gray-500 border-b border-gray-200 dark:border-gray-700">
               <th className="py-1 pr-3 text-left font-medium">Producto</th>
               <th className="py-1 px-2 text-center font-medium w-16">Cant.</th>
               <th className="py-1 px-2 text-right font-medium w-20">P. Unit.</th>
@@ -333,13 +339,13 @@ function FilaExpandida({ pedido }: { pedido: Pedido }) {
           </thead>
           <tbody>
             {lineas.map((l) => (
-              <tr key={l.id} className="border-b border-gray-100">
-                <td className="py-1 pr-3 text-gray-700">{l.producto_nombre}</td>
-                <td className="py-1 px-2 text-center text-gray-600">{l.cantidad}</td>
-                <td className="py-1 px-2 text-right text-gray-600">
+              <tr key={l.id} className="border-b border-gray-100 dark:border-gray-800">
+                <td className="py-1 pr-3 text-gray-700 dark:text-gray-300">{l.producto_nombre}</td>
+                <td className="py-1 px-2 text-center text-gray-600 dark:text-gray-400">{l.cantidad}</td>
+                <td className="py-1 px-2 text-right text-gray-600 dark:text-gray-400">
                   ${l.precio_unitario.toFixed(2)}
                 </td>
-                <td className="py-1 pl-2 text-right text-gray-800 font-medium">
+                <td className="py-1 pl-2 text-right text-gray-800 dark:text-gray-200 font-medium">
                   ${l.importe_linea.toFixed(2)}
                 </td>
               </tr>

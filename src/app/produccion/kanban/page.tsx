@@ -1,12 +1,16 @@
 "use client";
 
-import React, { useState, useMemo, useEffect } from "react";
+import React, { useState, useMemo, useEffect, useCallback } from "react";
 import { useAuth } from "@/lib/hooks/useAuth";
+import { useToast } from "@/components/ui/Toast";
+import { ThemeToggle } from "@/components/ui/ThemeToggle";
 import { usePedidosKanban } from "@/lib/hooks/usePedidosKanban";
 import { fetchProductionAreas, fetchUserRole } from "@/lib/services/workflow";
 import { AREAS_PRODUCCION_DATA } from "@/lib/utils/constantes";
 import { KanbanBoard } from "../_components/KanbanBoard";
+import { KanbanToast, createToast, type ToastItem } from "../_components/KanbanToast";
 import { Button } from "@/components/ui/Button";
+import type { Pedido } from "@/lib/supabase/types";
 
 const ROLES_DEPARTAMENTO = [
   "diseno", "impresion", "laminado", "montaje",
@@ -24,8 +28,29 @@ function getDepartamentoFromRol(rol: string | null): string | undefined {
   return undefined;
 }
 
+function playChime() {
+  try {
+    const ctx = new (window.AudioContext || (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext)();
+    [880, 1100].forEach((freq) => {
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+      osc.type = "sine";
+      osc.frequency.value = freq;
+      gain.gain.setValueAtTime(0.3, ctx.currentTime);
+      gain.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + 0.3);
+      osc.connect(gain);
+      gain.connect(ctx.destination);
+      osc.start(ctx.currentTime);
+      osc.stop(ctx.currentTime + 0.3);
+    });
+  } catch {
+    /* navegador bloquea audio, silencioso */
+  }
+}
+
 export default function KanbanPage() {
   const { session, signOut } = useAuth();
+  const { showError } = useToast();
   const [rol, setRol] = useState<string | null>(null);
   const [rolCargando, setRolCargando] = useState(true);
 
@@ -39,17 +64,34 @@ export default function KanbanPage() {
         setRol(r);
         setRolCargando(false);
       })
-      .catch(() => setRolCargando(false));
+      .catch(() => {
+        setRolCargando(false);
+        showError("Error al verificar permisos de usuario.");
+      });
   }, [session?.user?.id]);
 
   const areaFiltro = getDepartamentoFromRol(rol);
 
-  const { columnas, cargando, getNextForPedido, avanzarPedido, cancelarPedido, recargar } =
-    usePedidosKanban(areaFiltro);
-
   const [areas, setAreas] = useState<{ id: string; nombre: string; color: string; orden: number }[]>([]);
   const [busqueda, setBusqueda] = useState("");
   const [filtroCorreccion, setFiltroCorreccion] = useState("");
+  const [toasts, setToasts] = useState<ToastItem[]>([]);
+  const [muted, setMuted] = useState(false);
+
+  const handleRemoveToast = useCallback((id: string) => {
+    setToasts((prev) => prev.filter((t) => t.id !== id));
+  }, []);
+
+  const handleNuevoPedido = useCallback(
+    (pedido: Pedido) => {
+      setToasts((prev) => [createToast(pedido), ...prev].slice(0, 5));
+      if (!muted) playChime();
+    },
+    [muted],
+  );
+
+  const { columnas, cargando, getNextForPedido, avanzarPedido, cancelarPedido, recargar } =
+    usePedidosKanban(areaFiltro, handleNuevoPedido);
 
   useEffect(() => {
     if (!session?.user?.id) return;
@@ -58,6 +100,7 @@ export default function KanbanPage() {
       .catch((err: unknown) => {
         const e = err as { code?: string; message?: string; details?: string };
         console.error("PostgREST production_areas:", e.code, e.message, e.details);
+        showError("Error al cargar áreas de producción. Usando configuración por defecto.");
         setAreas(AREAS_PRODUCCION_DATA);
       });
   }, [session?.user?.id]);
@@ -91,16 +134,24 @@ export default function KanbanPage() {
   }
 
   return (
-    <div className="min-h-screen bg-gray-100">
-      <header className="bg-white shadow-sm border-b border-gray-200 px-4 py-2 flex items-center justify-between">
+    <div className="min-h-screen bg-gray-100 dark:bg-gray-950">
+      <header className="bg-white dark:bg-gray-900 shadow-sm border-b border-gray-200 dark:border-gray-800 px-4 py-2 flex items-center justify-between">
         <div>
-          <h1 className="text-lg font-bold text-gray-900">
+          <h1 className="text-lg font-bold text-gray-900 dark:text-gray-100">
             PIC PHOTO - {areaNombre || "PRODUCCIÓN"}
           </h1>
-          <p className="text-xs text-gray-500">Pipeline de Producción</p>
+          <p className="text-xs text-gray-500 dark:text-gray-400">Pipeline de Producción</p>
         </div>
         <div className="flex items-center gap-3">
-          <span className="text-sm text-gray-600">{session?.user.email}</span>
+          <ThemeToggle />
+          <button
+            onClick={() => setMuted((m) => !m)}
+            className="text-lg cursor-pointer leading-none select-none text-gray-500 dark:text-gray-400"
+            title={muted ? "Activar sonido" : "Silenciar"}
+          >
+            <i className={`fas ${muted ? "fa-volume-mute" : "fa-volume-up"}`} />
+          </button>
+          <span className="text-sm text-gray-600 dark:text-gray-300">{session?.user.email}</span>
           <Button variant="ghost" size="sm" onClick={recargar}>
             Actualizar
           </Button>
@@ -111,10 +162,10 @@ export default function KanbanPage() {
       </header>
 
       <div className="max-w-full mx-auto p-4">
-        <div className="bg-white rounded-xl shadow p-4 mb-4">
+        <div className="bg-white dark:bg-gray-900 rounded-xl shadow p-4 mb-4">
           <div className="flex flex-wrap items-end gap-3">
             <div className="flex flex-col gap-1 min-w-[200px]">
-              <label className="text-xs font-medium text-gray-500">
+              <label className="text-xs font-medium text-gray-500 dark:text-gray-400">
                 Cliente
               </label>
               <input
@@ -122,18 +173,18 @@ export default function KanbanPage() {
                 value={busqueda}
                 onChange={(e) => setBusqueda(e.target.value)}
                 placeholder="Buscar por nombre..."
-                className="border border-gray-300 rounded-lg px-2.5 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                className="border border-gray-300 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-100 rounded-lg px-2.5 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
               />
             </div>
 
             <div className="flex flex-col gap-1">
-              <label className="text-xs font-medium text-gray-500">
+              <label className="text-xs font-medium text-gray-500 dark:text-gray-400">
                 Corrección
               </label>
               <select
                 value={filtroCorreccion}
                 onChange={(e) => setFiltroCorreccion(e.target.value)}
-                className="border border-gray-300 rounded-lg px-2.5 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white"
+                className="border border-gray-300 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-100 rounded-lg px-2.5 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
               >
                 <option value="">Todas</option>
                 <option value="si">Requiere corrección</option>
@@ -148,7 +199,7 @@ export default function KanbanPage() {
                     setBusqueda("");
                     setFiltroCorreccion("");
                   }}
-                  className="text-xs text-blue-600 hover:text-blue-800 font-medium cursor-pointer"
+                  className="text-xs text-blue-600 hover:text-blue-800 dark:text-blue-400 dark:hover:text-blue-300 font-medium cursor-pointer"
                 >
                   Limpiar filtros
                 </button>
@@ -157,7 +208,7 @@ export default function KanbanPage() {
 
             <div className="flex-1" />
 
-            <div className="text-xs text-gray-400">
+            <div className="text-xs text-gray-400 dark:text-gray-500">
               {Object.values(columnasFiltradas).reduce((sum, p) => sum + p.length, 0)}{" "}
               pedidos activos
             </div>
@@ -182,6 +233,8 @@ export default function KanbanPage() {
           />
         )}
       </div>
+
+      <KanbanToast toasts={toasts} onRemove={handleRemoveToast} />
     </div>
   );
 }

@@ -2,6 +2,7 @@ import { createClient } from "@/lib/supabase/server";
 import { redirect } from "next/navigation";
 import { DashboardCard } from "./_components/DashboardCard";
 import { SignOutButton } from "./_components/SignOutButton";
+import { ThemeToggle } from "@/components/ui/ThemeToggle";
 import { AREAS_PRODUCCION_DATA, ESTADOS_PEDIDO } from "@/lib/utils/constantes";
 import Link from "next/link";
 
@@ -76,14 +77,15 @@ export default async function DashboardPage() {
   const areasPendientes = AREAS_PRODUCCION_DATA.filter((a) => a.id !== "entregado");
 
   return (
-    <div className="min-h-screen bg-gray-100">
-      <header className="bg-white shadow-sm border-b border-gray-200 px-4 py-2 flex items-center justify-between">
+    <div className="min-h-screen bg-gray-100 dark:bg-gray-950">
+      <header className="bg-white dark:bg-gray-900 shadow-sm border-b border-gray-200 dark:border-gray-800 px-4 py-2 flex items-center justify-between">
         <div>
-          <h1 className="text-lg font-bold text-gray-900">PIC PHOTO &mdash; Dashboard</h1>
-          <p className="text-xs text-gray-500 capitalize">{formatearFecha(new Date())}</p>
+          <h1 className="text-lg font-bold text-gray-900 dark:text-gray-100">PIC PHOTO &mdash; Dashboard</h1>
+          <p className="text-xs text-gray-500 dark:text-gray-400 capitalize">{formatearFecha(new Date())}</p>
         </div>
         <div className="flex items-center gap-3">
-          <span className="text-sm text-gray-600">{user.email}</span>
+          <span className="text-sm text-gray-600 dark:text-gray-300">{user.email}</span>
+          <ThemeToggle />
           <SignOutButton />
         </div>
       </header>
@@ -95,7 +97,7 @@ export default async function DashboardPage() {
         </div>
 
         <section>
-          <h2 className="text-sm font-semibold text-gray-500 uppercase tracking-wide mb-3">
+          <h2 className="text-sm font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide mb-3">
             Pendientes por &aacute;rea
           </h2>
           <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-3">
@@ -115,7 +117,7 @@ export default async function DashboardPage() {
         </section>
 
         <section>
-          <h2 className="text-sm font-semibold text-gray-500 uppercase tracking-wide mb-3">
+          <h2 className="text-sm font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide mb-3">
             Estado de producci&oacute;n
           </h2>
           <div className="grid grid-cols-2 sm:grid-cols-5 gap-3">
@@ -134,7 +136,7 @@ export default async function DashboardPage() {
         </section>
 
         <section>
-          <h2 className="text-sm font-semibold text-gray-500 uppercase tracking-wide mb-3">
+          <h2 className="text-sm font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide mb-3">
             Navegaci&oacute;n r&aacute;pida
           </h2>
           <div className="flex flex-wrap gap-3">

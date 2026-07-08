@@ -76,3 +76,23 @@ CREATE TABLE pedido_movimientos (
 );
 
 CREATE INDEX idx_movimientos_pedido ON pedido_movimientos(pedido_id);
+
+-- =============================================
+-- RLS para tablas de producción
+-- =============================================
+ALTER TABLE production_areas ENABLE ROW LEVEL SECURITY;
+ALTER TABLE workflow_routes ENABLE ROW LEVEL SECURITY;
+ALTER TABLE pedido_movimientos ENABLE ROW LEVEL SECURITY;
+
+CREATE POLICY "Áreas de prod legibles por autenticados" ON production_areas
+  FOR SELECT TO authenticated USING (true);
+
+CREATE POLICY "Rutas de workflow legibles por autenticados" ON workflow_routes
+  FOR SELECT TO authenticated USING (true);
+
+CREATE POLICY "Movimientos legibles por autenticados" ON pedido_movimientos
+  FOR SELECT TO authenticated USING (true);
+
+CREATE POLICY "Movimientos insertables por operador" ON pedido_movimientos
+  FOR INSERT TO authenticated
+  WITH CHECK (operador_id = auth.uid());

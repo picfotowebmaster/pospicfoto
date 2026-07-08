@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import { useRealtime } from "@/lib/services/realtime";
 import {
   fetchPedidosByArea,
@@ -8,6 +8,7 @@ import {
   advancePedido as advancePedidoService,
 } from "@/lib/services/workflow";
 import { cancelarPedido as cancelarPedidoService } from "@/lib/services/pedidos";
+import { useToast } from "@/components/ui/Toast";
 import { AREAS_PRODUCCION_VISIBLES, WORKFLOW_ROUTES_DATA } from "@/lib/utils/constantes";
 import type { Pedido, AreaProduccion, WorkflowRoute } from "@/lib/supabase/types";
 
@@ -18,10 +19,17 @@ interface NextAreaInfo {
   multiple: boolean;
 }
 
-export function usePedidosKanban(areaFiltro?: string) {
+export function usePedidosKanban(areaFiltro?: string, onNuevoPedido?: (pedido: Pedido) => void) {
+  const { showError } = useToast();
   const [pedidos, setPedidos] = useState<Pedido[]>([]);
   const [cargando, setCargando] = useState(true);
   const [routesCache, setRoutesCache] = useState<WorkflowRoute[]>([]);
+
+  const onNuevoPedidoRef = useRef(onNuevoPedido);
+
+  useEffect(() => {
+    onNuevoPedidoRef.current = onNuevoPedido;
+  }, [onNuevoPedido]);
 
   const cargar = useCallback(async () => {
     setCargando(true);
@@ -30,6 +38,7 @@ export function usePedidosKanban(areaFiltro?: string) {
       setPedidos(data);
     } catch (err) {
       console.error("Error cargando pedidos kanban:", err);
+      showError("Error al cargar pedidos de producción.");
     } finally {
       setCargando(false);
     }
@@ -57,6 +66,7 @@ export function usePedidosKanban(areaFiltro?: string) {
           if (prev.find((p) => p.id === nuevo.id)) return prev;
           return [nuevo, ...prev];
         });
+        onNuevoPedidoRef.current?.(nuevo);
       }
     } else if (payload.eventType === "UPDATE") {
       const actualizado = payload.new as Pedido;

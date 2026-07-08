@@ -35,9 +35,9 @@ export function HistorialPedidos() {
 
   return (
     <div className="max-w-6xl mx-auto p-4">
-      <div className="bg-white rounded-xl shadow p-4 space-y-4">
+      <div className="bg-white dark:bg-gray-900 rounded-xl shadow p-4 space-y-4">
         <div className="flex items-center justify-between flex-wrap gap-2">
-          <h2 className="font-semibold text-gray-700 text-sm uppercase">
+          <h2 className="font-semibold text-gray-700 dark:text-gray-300 text-sm uppercase">
             Pedidos
           </h2>
           <Button size="sm" variant="ghost" onClick={recargar}>
@@ -47,7 +47,7 @@ export function HistorialPedidos() {
 
         <FiltrosPedidos
           busqueda={filtros.busqueda ?? ""}
-          ticketId={filtros.ticketId ?? ""}
+          numeroPedido={filtros.numeroPedido ?? ""}
           estado={filtros.estado ?? ""}
           metodoPago={filtros.metodoPago ?? ""}
           fechaDesde={filtros.fechaDesde ?? ""}
@@ -65,7 +65,7 @@ export function HistorialPedidos() {
         )}
 
         {cargando ? (
-          <div className="text-gray-400 text-sm text-center py-8">
+          <div className="text-gray-400 dark:text-gray-500 text-sm text-center py-8">
             Cargando pedidos...
           </div>
         ) : (

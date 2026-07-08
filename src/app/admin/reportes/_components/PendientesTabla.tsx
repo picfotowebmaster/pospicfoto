@@ -23,12 +23,12 @@ function diasHasta(fechaEntrega: string): { dias: number; vencido: boolean } {
 
 export function PendientesTabla({ pedidos }: Props) {
   return (
-    <div className="bg-white rounded-xl shadow p-4">
-      <h3 className="text-sm font-semibold text-gray-500 uppercase tracking-wide mb-4">
+    <div className="bg-white dark:bg-gray-900 rounded-xl shadow p-4">
+      <h3 className="text-sm font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide mb-4">
         Pendientes de entrega ({pedidos.length})
       </h3>
       {pedidos.length === 0 ? (
-        <div className="text-center text-gray-400 py-10 text-sm">
+        <div className="text-center text-gray-400 dark:text-gray-500 py-10 text-sm">
           No hay pedidos pendientes
         </div>
       ) : (
@@ -36,6 +36,7 @@ export function PendientesTabla({ pedidos }: Props) {
           <table className="w-full text-sm">
             <thead>
               <tr className="border-b border-gray-200 text-left text-xs text-gray-500 uppercase">
+                <th className="pb-2 pr-3">Pedido</th>
                 <th className="pb-2 pr-3">Cliente</th>
                 <th className="pb-2 pr-3">Entrega</th>
                 <th className="pb-2 pr-3 text-center">Días</th>
@@ -51,9 +52,10 @@ export function PendientesTabla({ pedidos }: Props) {
                 const estadoDef = ESTADOS_PEDIDO.find((e) => e.value === p.estado);
 
                 return (
-                  <tr key={p.id} className="border-b border-gray-100 hover:bg-gray-50">
-                    <td className="py-2 pr-3 font-medium text-gray-900">{p.cliente_nombre}</td>
-                    <td className="py-2 pr-3 text-gray-600 text-xs">
+                  <tr key={p.id} className="border-b border-gray-100 dark:border-gray-800 hover:bg-gray-50 dark:hover:bg-gray-800/60">
+                    <td className="py-2 pr-3 font-mono text-xs text-gray-500 dark:text-gray-400">{p.numero_pedido || "\u2014"}</td>
+                    <td className="py-2 pr-3 font-medium text-gray-900 dark:text-gray-100">{p.cliente_nombre}</td>
+                    <td className="py-2 pr-3 text-gray-600 dark:text-gray-400 text-xs">
                       {formatearFecha(p.fecha_entrega)} {p.hora_entrega?.slice(0, 5)}
                     </td>
                     <td className="py-2 pr-3 text-center">
@@ -69,7 +71,7 @@ export function PendientesTabla({ pedidos }: Props) {
                         {vencido ? `-${Math.abs(dias)}` : dias}
                       </span>
                     </td>
-                    <td className="py-2 pr-3 text-gray-600 text-xs">
+                    <td className="py-2 pr-3 text-gray-600 dark:text-gray-400 text-xs">
                       {area?.nombre ?? p.area_actual}
                     </td>
                     <td className="py-2 pr-3">
@@ -77,7 +79,7 @@ export function PendientesTabla({ pedidos }: Props) {
                         <Badge color={estadoDef.color}>{estadoDef.label}</Badge>
                       )}
                     </td>
-                    <td className="py-2 text-right font-medium text-gray-900">
+                    <td className="py-2 text-right font-medium text-gray-900 dark:text-gray-100">
                       ${p.total.toFixed(2)}
                     </td>
                   </tr>
