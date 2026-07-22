@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, Suspense } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useAuth } from "@/lib/hooks/useAuth";
 import { usePedidoActual } from "@/lib/hooks/usePedidoActual";
@@ -14,19 +14,26 @@ import { BotonPagar } from "./_components/BotonPagar";
 import { Button } from "@/components/ui/Button";
 import { crearPedido } from "@/lib/services/pedidos";
 import { supabase } from "@/lib/supabase/client";
-import { RUTAS_PRODUCCION, MARCAS } from "@/lib/utils/constantes";
+import { RUTAS_PRODUCCION } from "@/lib/utils/constantes";
 import { fetchAtributosConValores } from "@/lib/services/atributos";
+import { useOffline } from "@/lib/offline/useOffline";
+import { useOfflineSync } from "@/lib/offline/useOfflineSync";
+import { queueOrder, getQueueCount } from "@/lib/offline/orderQueue";
+import { loadCatalog } from "@/lib/offline/catalogSync";
+import OfflineIndicator from "../_components/OfflineIndicator";
 import type { Atributo, AtributoValor } from "@/lib/supabase/types";
 import type { LineaPedidoDraft } from "@/lib/supabase/types";
 type AtributoConValores = Atributo & { valores: AtributoValor[] };
 
-export default function MostradorPage() {
+function MostradorContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const { session, profile, signOut } = useAuth();
-  const { showError } = useToast();
+  const { showError, showSuccess } = useToast();
   const sucursalId = profile?.sucursal_id ?? "";
   const pedido = usePedidoActual(sucursalId);
+  const { isOnline } = useOffline();
+  useOfflineSync({ cajeroId: session?.user.id, isOnline });
   const [atributosPool, setAtributosPool] = useState<AtributoConValores[]>([]);
   const [mostrandoLinea, setMostrandoLinea] = useState(false);
   const [editandoLinea, setEditandoLinea] = useState<LineaPedidoDraft | null>(null);
@@ -36,6 +43,7 @@ export default function MostradorPage() {
   const [buscandoTicket, setBuscandoTicket] = useState(false);
   const [sucursalNombre, setSucursalNombre] = useState("");
   const [marcas, setMarcas] = useState<{ id: string; nombre: string; codigo: string }[]>([]);
+  const [queueCount, setQueueCount] = useState(0);
 
   useEffect(() => {
     const mensaje = searchParams.get("mensaje");
@@ -47,13 +55,21 @@ export default function MostradorPage() {
   }, [searchParams]);
 
   useEffect(() => {
-    fetchAtributosConValores()
-      .then(setAtributosPool)
-      .catch(() => {});
-  }, []);
+    loadCatalog(isOnline).then((cached) => {
+      if (cached.atributos) setAtributosPool(cached.atributos as AtributoConValores[]);
+      if (cached.marcas) {
+        setMarcas(cached.marcas as { id: string; nombre: string; codigo: string }[]);
+      }
+      if (cached.sucursales && sucursalId) {
+        const sucs = cached.sucursales as { id: string; nombre: string; codigo: string }[];
+        const found = sucs.find((s) => s.id === sucursalId);
+        if (found) setSucursalNombre(found.nombre);
+      }
+    }).catch(() => {});
+  }, [isOnline, sucursalId]);
 
   useEffect(() => {
-    if (sucursalId) {
+    if (isOnline && sucursalId) {
       supabase
         .from("sucursales")
         .select("nombre")
@@ -64,14 +80,34 @@ export default function MostradorPage() {
         })
         .catch(() => {});
     }
-    supabase
-      .from("marcas")
-      .select("id, nombre, codigo")
-      .then(({ data }: { data: unknown }) => {
-        if (data) setMarcas(data as { id: string; nombre: string; codigo: string }[]);
-      })
-      .catch(() => {});
-  }, [sucursalId]);
+  }, [isOnline, sucursalId]);
+
+  useEffect(() => {
+    if (isOnline) {
+      fetchAtributosConValores()
+        .then(setAtributosPool)
+        .catch(() => {});
+      supabase
+        .from("marcas")
+        .select("id, nombre, codigo")
+        .then(({ data }: { data: unknown }) => {
+          if (data) setMarcas(data as { id: string; nombre: string; codigo: string }[]);
+        })
+        .catch(() => {});
+    }
+  }, [isOnline]);
+
+  useEffect(() => {
+    pedido.restoreDraft();
+  }, []);
+
+  useEffect(() => {
+    getQueueCount().then(setQueueCount).catch(() => {});
+    const interval = setInterval(() => {
+      getQueueCount().then(setQueueCount).catch(() => {});
+    }, 5000);
+    return () => clearInterval(interval);
+  }, []);
 
   function handleAgregarLinea() {
     setEditandoLinea(null);
@@ -111,31 +147,44 @@ export default function MostradorPage() {
       return;
     }
     setPagarCargando(true);
+
+    const draft = {
+      cliente_nombre: pedido.cliente.nombre,
+      cliente_telefono: pedido.cliente.telefono,
+      fecha_entrega: pedido.cliente.fechaEntrega,
+      hora_entrega: pedido.cliente.horaEntrega,
+      requiere_correccion: pedido.cliente.requiereCorreccion,
+      lineas: pedido.lineas,
+      subtotal: pedido.subtotal,
+      anticipo: pedido.anticipo,
+      total: pedido.total,
+      metodo_pago: pedido.metodoPago,
+      ruta: pedido.ruta,
+      sucursal_id: sucursalId,
+      marca_id: pedido.marcaId,
+    };
+
+    if (!isOnline) {
+      try {
+        await queueOrder(draft);
+        pedido.limpiar();
+        showSuccess("Pedido guardado localmente. Se sincronizará al reconectar.");
+        setQueueCount((c) => c + 1);
+      } catch (err) {
+        console.error("Error al guardar pedido offline:", err);
+        showError("Error al guardar el pedido localmente.");
+      }
+      setPagarCargando(false);
+      return;
+    }
+
     try {
-      const numeroPedido = await crearPedido(
-        {
-          cliente_nombre: pedido.cliente.nombre,
-          cliente_telefono: pedido.cliente.telefono,
-          fecha_entrega: pedido.cliente.fechaEntrega,
-          hora_entrega: pedido.cliente.horaEntrega,
-          requiere_correccion: pedido.cliente.requiereCorreccion,
-          lineas: pedido.lineas,
-          subtotal: pedido.subtotal,
-          anticipo: pedido.anticipo,
-          total: pedido.total,
-          metodo_pago: pedido.metodoPago,
-          ruta: pedido.ruta,
-          sucursal_id: sucursalId,
-          marca_id: pedido.marcaId,
-        },
-        session.user.id,
-      );
+      const numeroPedido = await crearPedido(draft, session.user.id);
       pedido.limpiar();
       router.push(`/mostrador/ticket/${numeroPedido}`);
     } catch (err) {
       console.error("Error al crear pedido:", err);
       showError("Error al crear el pedido. Intenta de nuevo.");
-    } finally {
       setPagarCargando(false);
     }
   }
@@ -184,6 +233,7 @@ export default function MostradorPage() {
           </Button>
         </form>
         <div className="flex items-center gap-3">
+          <OfflineIndicator />
           <ThemeToggle />
           <span className="text-sm text-gray-600 dark:text-gray-300">
             {session?.user.email}
@@ -340,9 +390,29 @@ export default function MostradorPage() {
               cargando={pagarCargando}
               valido={pedido.valido}
             />
+            {!isOnline && (
+              <p className="text-xs text-amber-600 text-center">
+                <i className="fas fa-cloud-upload-alt mr-1" />
+                Modo offline — el pedido se guardará localmente
+              </p>
+            )}
+            {queueCount > 0 && (
+              <p className="text-xs text-blue-600 text-center">
+                <i className="fas fa-clock mr-1" />
+                {queueCount} pedido(s) pendiente(s) de sincronizar
+              </p>
+            )}
           </div>
         </div>
       </div>
     </div>
+  );
+}
+
+export default function MostradorPage() {
+  return (
+    <Suspense fallback={<div className="min-h-screen flex items-center justify-center"><p>Cargando punto de venta...</p></div>}>
+      <MostradorContent />
+    </Suspense>
   );
 }

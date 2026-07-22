@@ -1,9 +1,10 @@
 "use client";
 
-import { useState, useCallback } from "react";
+import { useState, useCallback, useEffect, useRef } from "react";
 import type { LineaPedidoDraft, MetodoPago, RutaProduccion } from "@/lib/supabase/types";
 import { sumarLineas, calcularAnticipo, generarIdLocal } from "@/lib/utils/calculos";
 import { ANTICIPO_POR_DEFECTO } from "@/lib/utils/constantes";
+import { savePedidoDraft, getPedidoDraft, clearPedidoDraft } from "@/lib/offline/db";
 
 interface ClienteData {
   nombre: string;
@@ -26,6 +27,48 @@ export function usePedidoActual(sucursalId: string) {
   const [metodoPago, setMetodoPago] = useState<MetodoPago>("Efectivo");
   const [ruta, setRuta] = useState<RutaProduccion>("R1");
   const [marcaId, setMarcaId] = useState("");
+  const [draftRestored, setDraftRestored] = useState(false);
+  const persistTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const getDraftSnapshot = useCallback(
+    () => ({
+      cliente,
+      lineas,
+      porcentajeAnticipo,
+      metodoPago,
+      ruta,
+      marcaId,
+    }),
+    [cliente, lineas, porcentajeAnticipo, metodoPago, ruta, marcaId],
+  );
+
+  useEffect(() => {
+    if (persistTimer.current) clearTimeout(persistTimer.current);
+    persistTimer.current = setTimeout(() => {
+      savePedidoDraft(getDraftSnapshot() as unknown as Record<string, unknown>).catch(() => {});
+    }, 500);
+    return () => {
+      if (persistTimer.current) clearTimeout(persistTimer.current);
+    };
+  }, [getDraftSnapshot]);
+
+  const restoreDraft = useCallback(async () => {
+    try {
+      const draft = await getPedidoDraft();
+      if (draft) {
+        const d = draft as Record<string, unknown>;
+        if (d.cliente) setCliente(d.cliente as ClienteData);
+        if (d.lineas) setLineas(d.lineas as LineaPedidoDraft[]);
+        if (typeof d.porcentajeAnticipo === "number") setPorcentajeAnticipo(d.porcentajeAnticipo as number);
+        if (typeof d.metodoPago === "string") setMetodoPago(d.metodoPago as MetodoPago);
+        if (typeof d.ruta === "string") setRuta(d.ruta as RutaProduccion);
+        if (typeof d.marcaId === "string") setMarcaId(d.marcaId as string);
+      }
+    } catch {
+      // silencioso
+    }
+    setDraftRestored(true);
+  }, []);
 
   const subtotal = sumarLineas(lineas);
   const anticipo = calcularAnticipo(subtotal, porcentajeAnticipo);
@@ -63,6 +106,7 @@ export function usePedidoActual(sucursalId: string) {
     setPorcentajeAnticipo(ANTICIPO_POR_DEFECTO);
     setMetodoPago("Efectivo");
     setRuta("R1");
+    clearPedidoDraft().catch(() => {});
   }, []);
 
   const valido =
@@ -100,5 +144,7 @@ export function usePedidoActual(sucursalId: string) {
     marcaId,
     setMarcaId,
     valido,
+    draftRestored,
+    restoreDraft,
   };
 }
