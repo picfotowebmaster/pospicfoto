@@ -1,6 +1,6 @@
 "use client";
 
-import { createContext, useContext, useState, useEffect, useCallback, type ReactNode } from "react";
+import { createContext, use, useState, useEffect, useCallback, useMemo, type ReactNode } from "react";
 
 type Theme = "light" | "dark";
 
@@ -12,7 +12,7 @@ interface ThemeContextValue {
 const ThemeContext = createContext<ThemeContextValue | null>(null);
 
 export function useTheme() {
-  const ctx = useContext(ThemeContext);
+  const ctx = use(ThemeContext);
   if (!ctx) throw new Error("useTheme debe usarse dentro de ThemeProvider");
   return ctx;
 }
@@ -42,9 +42,11 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
     });
   }, []);
 
+  const value = useMemo(() => ({ theme, toggle }), [theme, toggle]);
+
   return (
-    <ThemeContext.Provider value={{ theme, toggle }}>
+    <ThemeContext value={value}>
       {children}
-    </ThemeContext.Provider>
+    </ThemeContext>
   );
 }

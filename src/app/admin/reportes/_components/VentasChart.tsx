@@ -20,8 +20,10 @@ function formatearFecha(fecha: string): string {
   return d.toLocaleDateString("es-MX", { day: "2-digit", month: "short" });
 }
 
+const monedaFormatter = new Intl.NumberFormat("es-MX", { style: "currency", currency: "MXN" });
+
 function formatearMoneda(valor: number): string {
-  return new Intl.NumberFormat("es-MX", { style: "currency", currency: "MXN" }).format(valor);
+  return monedaFormatter.format(valor);
 }
 
 export function VentasChart({ data }: Props) {

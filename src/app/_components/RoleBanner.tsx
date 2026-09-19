@@ -70,6 +70,7 @@ export default function RoleBanner() {
           <span className="font-semibold">{label}</span>
         </p>
         <button
+          type="button"
           onClick={handleClearOverride}
           disabled={cargando}
           className="text-sm font-medium text-yellow-800 hover:text-yellow-900 underline transition-colors"

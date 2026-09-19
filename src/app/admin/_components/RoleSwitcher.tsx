@@ -13,6 +13,7 @@ const ROLES = [
   { key: "books", label: "Books" },
   { key: "bastidores", label: "Bastidores" },
   { key: "marcos", label: "Marcos" },
+  { key: "contador", label: "Contador" },
 ] as const;
 
 function getRoleOverrideCookie(): string | null {

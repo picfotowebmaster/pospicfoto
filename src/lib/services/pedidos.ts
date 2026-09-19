@@ -44,6 +44,7 @@ export async function crearPedido(draft: PedidoDraft, cajeroId: string): Promise
       cajero_id: cajeroId,
       cliente_nombre: draft.cliente_nombre,
       cliente_telefono: draft.cliente_telefono || null,
+      cliente_email: draft.cliente_email || null,
       fecha_entrega: draft.fecha_entrega,
       hora_entrega: draft.hora_entrega,
       requiere_correccion: draft.requiere_correccion,
@@ -77,11 +78,195 @@ export async function crearPedido(draft: PedidoDraft, cajeroId: string): Promise
 
   if (detalleErr) throw detalleErr;
 
-  for (const l of draft.lineas) {
-    await upsertHistorial(l.producto_nombre, l.atributos).catch(() => {});
-  }
+  await Promise.all(
+    draft.lineas.map((l) => upsertHistorial(l.producto_nombre, l.atributos).catch(() => {})),
+  );
 
   return pedido.numero_pedido;
+}
+
+async function insertarSubPedido(
+  cajeroId: string,
+  marcaCodigo: string,
+  sucursalCodigo: string,
+  draft: {
+    cliente_nombre: string;
+    cliente_telefono: string;
+    cliente_email?: string;
+    fecha_entrega: string;
+    hora_entrega: string;
+    requiere_correccion: boolean;
+    metodo_pago: MetodoPago;
+    ruta: RutaProduccion;
+    sucursal_id: string;
+    marca_id: string;
+    subtotal: number;
+    anticipo: number;
+    total: number;
+  },
+  lineas: LineaPedidoDraft[],
+  facturaNumero: string,
+): Promise<string> {
+  const { data: numData, error: numErr } = await supabase
+    .rpc("generar_numero_pedido", {
+      marca_codigo: marcaCodigo,
+      sucursal_codigo: sucursalCodigo,
+    });
+
+  if (numErr) throw numErr;
+
+  const { data: pedido, error: pedidoErr } = await supabase
+    .from("pedidos")
+    .insert({
+      cajero_id: cajeroId,
+      cliente_nombre: draft.cliente_nombre,
+      cliente_telefono: draft.cliente_telefono || null,
+      cliente_email: draft.cliente_email || null,
+      fecha_entrega: draft.fecha_entrega,
+      hora_entrega: draft.hora_entrega,
+      requiere_correccion: draft.requiere_correccion,
+      subtotal: draft.subtotal,
+      anticipo: draft.anticipo,
+      total: draft.total,
+      metodo_pago: draft.metodo_pago,
+      ruta: draft.ruta,
+      area_actual: "mostrador",
+      sucursal_id: draft.sucursal_id,
+      marca_id: draft.marca_id,
+      numero_pedido: numData,
+      factura_numero: facturaNumero,
+    })
+    .select()
+    .single();
+
+  if (pedidoErr) throw pedidoErr;
+
+  const detalles = lineas.map((l) => ({
+    pedido_id: pedido.id,
+    producto_nombre: l.producto_nombre,
+    cantidad: l.cantidad,
+    precio_unitario: l.precio_unitario,
+    importe_linea: l.cantidad * l.precio_unitario,
+    atributos: l.atributos,
+  }));
+
+  const { error: detalleErr } = await supabase
+    .from("detalle_pedidos")
+    .insert(detalles);
+
+  if (detalleErr) throw detalleErr;
+
+  await Promise.all(
+    lineas.map((l) => upsertHistorial(l.producto_nombre, l.atributos).catch(() => {})),
+  );
+
+  return pedido.numero_pedido;
+}
+
+export interface DraftAgrupado {
+  cliente_nombre: string;
+  cliente_telefono: string;
+  cliente_email?: string;
+  fecha_entrega: string;
+  hora_entrega: string;
+  requiere_correccion: boolean;
+  lineas: LineaPedidoDraft[];
+  subtotal: number;
+  anticipo: number;
+  total: number;
+  metodo_pago: MetodoPago;
+  sucursal_id: string;
+  marca_id: string;
+}
+
+export async function crearPedidoAgrupado(draft: DraftAgrupado, cajeroId: string): Promise<{ facturaNumero: string; pedidoIds: string[] }> {
+  const { data: marca } = await supabase
+    .from("marcas")
+    .select("codigo")
+    .eq("id", draft.marca_id)
+    .single();
+
+  const { data: sucursal } = await supabase
+    .from("sucursales")
+    .select("codigo")
+    .eq("id", draft.sucursal_id)
+    .single();
+
+  if (!marca || !sucursal) throw new Error("Marca o sucursal no encontrada");
+
+  const groups: Record<string, LineaPedidoDraft[]> = {};
+  for (const l of draft.lineas) {
+    if (!groups[l.ruta]) groups[l.ruta] = [];
+    groups[l.ruta].push(l);
+  }
+
+  const rutas = Object.keys(groups);
+
+  if (rutas.length === 1) {
+    const ruta = rutas[0] as RutaProduccion;
+    const numeroPedido = await crearPedido(
+      {
+        cliente_nombre: draft.cliente_nombre,
+        cliente_telefono: draft.cliente_telefono,
+        cliente_email: draft.cliente_email,
+        fecha_entrega: draft.fecha_entrega,
+        hora_entrega: draft.hora_entrega,
+        requiere_correccion: draft.requiere_correccion,
+        lineas: draft.lineas,
+        subtotal: draft.subtotal,
+        anticipo: draft.anticipo,
+        total: draft.total,
+        metodo_pago: draft.metodo_pago,
+        ruta,
+        sucursal_id: draft.sucursal_id,
+        marca_id: draft.marca_id,
+      },
+      cajeroId,
+    );
+    return { facturaNumero: numeroPedido, pedidoIds: [numeroPedido] };
+  }
+
+  const { data: facturaData, error: facturaNumErr } = await supabase
+    .rpc("generar_numero_pedido", {
+      marca_codigo: marca.codigo,
+      sucursal_codigo: sucursal.codigo,
+    });
+
+  if (facturaNumErr) throw facturaNumErr;
+  const facturaNumero: string = facturaData;
+
+  const pedidoIds: string[] = [];
+
+  for (const ruta of rutas) {
+    const lineasRuta = groups[ruta];
+    const factor = lineasRuta.reduce((s, l) => s + l.cantidad * l.precio_unitario, 0) / draft.subtotal;
+
+    const pedidoId = await insertarSubPedido(
+      cajeroId,
+      marca.codigo,
+      sucursal.codigo,
+      {
+        cliente_nombre: draft.cliente_nombre,
+        cliente_telefono: draft.cliente_telefono,
+        cliente_email: draft.cliente_email,
+        fecha_entrega: draft.fecha_entrega,
+        hora_entrega: draft.hora_entrega,
+        requiere_correccion: draft.requiere_correccion,
+        metodo_pago: draft.metodo_pago,
+        ruta: ruta as RutaProduccion,
+        sucursal_id: draft.sucursal_id,
+        marca_id: draft.marca_id,
+        subtotal: Math.round(draft.subtotal * factor * 100) / 100,
+        anticipo: Math.round(draft.anticipo * factor * 100) / 100,
+        total: Math.round(draft.total * factor * 100) / 100,
+      },
+      lineasRuta,
+      facturaNumero,
+    );
+    pedidoIds.push(pedidoId);
+  }
+
+  return { facturaNumero, pedidoIds };
 }
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -121,25 +306,67 @@ const ESTADO_A_AREA: Record<string, string | null> = {
   cancelado: null,
 };
 
-async function cambiarEstadoConMovimiento(
-  pedidoId: string,
-  nuevoEstado: string,
+export async function actualizarEstadoPedido(
+  id: string,
+  estado: string,
 ): Promise<void> {
+  if (estado === "cancelado") {
+    await cancelarPedido(id);
+    return;
+  }
+
   const { data: pedido, error: fetchErr } = await supabase
     .from("pedidos")
     .select("area_actual")
-    .eq("id", pedidoId)
+    .eq("id", id)
     .single();
 
   if (fetchErr || !pedido) throw new Error("Pedido no encontrado");
 
   const oldArea = pedido.area_actual as string;
-  const newArea = ESTADO_A_AREA[nuevoEstado] ?? oldArea;
+  const newArea = ESTADO_A_AREA[estado] ?? oldArea;
+
+  if (newArea && newArea !== oldArea) {
+    const { movePedido } = await import("./workflow");
+    await movePedido(id, oldArea, newArea, null);
+  } else {
+    const { error: updateErr } = await supabase
+      .from("pedidos")
+      .update({ estado })
+      .eq("id", id);
+
+    if (updateErr) throw updateErr;
+
+    const idOperador = (await supabase.auth.getUser()).data.user?.id ?? null;
+
+    const { error: movErr } = await supabase
+      .from("pedido_movimientos")
+      .insert({
+        pedido_id: id,
+        from_area: oldArea,
+        to_area: oldArea,
+        operador_id: idOperador,
+      });
+
+    if (movErr) throw movErr;
+  }
+}
+
+export async function cancelarPedido(id: string): Promise<void> {
+  const { data: pedido, error: fetchErr } = await supabase
+    .from("pedidos")
+    .select("area_actual")
+    .eq("id", id)
+    .single();
+
+  if (fetchErr || !pedido) throw new Error("Pedido no encontrado");
+
+  const oldArea = pedido.area_actual as string;
 
   const { error: updateErr } = await supabase
     .from("pedidos")
-    .update({ estado: nuevoEstado, area_actual: newArea })
-    .eq("id", pedidoId);
+    .update({ estado: "cancelado" })
+    .eq("id", id);
 
   if (updateErr) throw updateErr;
 
@@ -148,24 +375,13 @@ async function cambiarEstadoConMovimiento(
   const { error: movErr } = await supabase
     .from("pedido_movimientos")
     .insert({
-      pedido_id: pedidoId,
+      pedido_id: id,
       from_area: oldArea,
-      to_area: newArea,
+      to_area: oldArea,
       operador_id: idOperador,
     });
 
   if (movErr) throw movErr;
-}
-
-export async function actualizarEstadoPedido(
-  id: string,
-  estado: string,
-): Promise<void> {
-  await cambiarEstadoConMovimiento(id, estado);
-}
-
-export async function cancelarPedido(id: string): Promise<void> {
-  await cambiarEstadoConMovimiento(id, "cancelado");
 }
 
 export async function actualizarPedido(
@@ -173,6 +389,7 @@ export async function actualizarPedido(
   data: {
     cliente_nombre: string;
     cliente_telefono?: string;
+    cliente_email?: string;
     fecha_entrega: string;
     hora_entrega: string;
     requiere_correccion: boolean;
@@ -189,6 +406,7 @@ export async function actualizarPedido(
     .update({
       cliente_nombre: data.cliente_nombre,
       cliente_telefono: data.cliente_telefono || null,
+      cliente_email: data.cliente_email || null,
       fecha_entrega: data.fecha_entrega,
       hora_entrega: data.hora_entrega,
       requiere_correccion: data.requiere_correccion,
@@ -226,9 +444,9 @@ export async function actualizarPedido(
     if (insertErr) throw insertErr;
   }
 
-  for (const l of data.lineas) {
-    await upsertHistorial(l.producto_nombre, l.atributos).catch(() => {});
-  }
+  await Promise.all(
+    data.lineas.map((l) => upsertHistorial(l.producto_nombre, l.atributos).catch(() => {})),
+  );
 }
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any

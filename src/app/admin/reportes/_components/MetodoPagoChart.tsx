@@ -14,8 +14,10 @@ interface Props {
   data: { metodo_pago: string; count: number; total: number }[];
 }
 
+const monedaFormatter = new Intl.NumberFormat("es-MX", { style: "currency", currency: "MXN" });
+
 function formatearMoneda(valor: number): string {
-  return new Intl.NumberFormat("es-MX", { style: "currency", currency: "MXN" }).format(valor);
+  return monedaFormatter.format(valor);
 }
 
 export function MetodoPagoChart({ data }: Props) {

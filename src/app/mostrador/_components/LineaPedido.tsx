@@ -11,8 +11,17 @@ import type {
   AtributoValor,
   ProductoHistorial,
 } from "@/lib/supabase/types";
-import type { LineaPedidoDraft } from "@/lib/supabase/types";
+import type { LineaPedidoDraft, RutaProduccion } from "@/lib/supabase/types";
 import { generarIdLocal } from "@/lib/utils/calculos";
+import { RUTAS_PRODUCCION } from "@/lib/utils/constantes";
+
+function inferRuta(productoNombre: string): RutaProduccion {
+  const lower = productoNombre.toLowerCase();
+  if (/marco|moldura|enmarc|frame/i.test(lower)) return "R2";
+  if (/book|album|fotolibro|photobook/i.test(lower)) return "R3";
+  if (/lamin|plastif/i.test(lower)) return "R4";
+  return "R1";
+}
 
 interface LineaPedidoProps {
   id: string;
@@ -20,6 +29,7 @@ interface LineaPedidoProps {
   onSave: (linea: LineaPedidoDraft) => void;
   onCancel: () => void;
   editData?: LineaPedidoDraft;
+  rutaDefault: RutaProduccion;
 }
 
 export function LineaPedido({
@@ -28,6 +38,7 @@ export function LineaPedido({
   onSave,
   onCancel,
   editData,
+  rutaDefault,
 }: LineaPedidoProps) {
   const [descripcion, setDescripcion] = useState(
     editData?.producto_nombre || "",
@@ -39,12 +50,16 @@ export function LineaPedido({
   const [atributos, setAtributos] = useState<Record<string, string>>(
     editData?.atributos || {},
   );
+  const [ruta, setRuta] = useState<RutaProduccion>(
+    editData?.ruta || rutaDefault,
+  );
 
   const autocompletar = useAutocompletar<ProductoHistorial>({
     fetchFn: buscarHistorial,
     onSelect: (item) => {
       setDescripcion(item.nombre);
       setAtributos(item.atributos || {});
+      setRuta(inferRuta(item.nombre));
     },
     renderItem: (h) => h.nombre,
     minChars: 2,
@@ -58,6 +73,7 @@ export function LineaPedido({
       cantidad,
       precio_unitario: precioUnitario,
       atributos,
+      ruta,
     });
   }
 
@@ -113,7 +129,7 @@ export function LineaPedido({
         ))}
       </div>
 
-      <div className="grid grid-cols-3 gap-3">
+      <div className="grid grid-cols-4 gap-3">
         <div>
           <label className="block text-xs font-medium text-gray-500 mb-1">
             Cantidad *
@@ -148,6 +164,22 @@ export function LineaPedido({
           <div className="w-full border border-gray-200 bg-gray-100 rounded-lg px-3 py-2 text-sm font-bold text-gray-700">
             ${importeLinea.toFixed(2)}
           </div>
+        </div>
+        <div>
+          <label className="block text-xs font-medium text-gray-500 mb-1">
+            Ruta Prod.
+          </label>
+          <select
+            value={ruta}
+            onChange={(e) => setRuta(e.target.value as RutaProduccion)}
+            className="w-full border border-gray-300 rounded-lg px-2 py-2 text-xs focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white"
+          >
+            {RUTAS_PRODUCCION.map((r) => (
+              <option key={r.value} value={r.value}>
+                {r.label}
+              </option>
+            ))}
+          </select>
         </div>
       </div>
 

@@ -1,6 +1,6 @@
 {
-  "name": "PIC PHOTO - POS",
-  "short_name": "PIC PHOTO",
+  "name": "PIC FOTO - POS",
+  "short_name": "PIC FOTO",
   "description": "Sistema de Punto de Venta para Laboratorio Fotográfico",
   "start_url": "/mostrador",
   "scope": "/",

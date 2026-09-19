@@ -28,7 +28,7 @@ export function useAuth() {
     });
 
     return () => subscription.unsubscribe();
-  }, []);
+  }, [hasSupabase]);
 
   useEffect(() => {
     if (!session?.user.id) {

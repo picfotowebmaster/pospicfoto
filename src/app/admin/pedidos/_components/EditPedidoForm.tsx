@@ -23,6 +23,7 @@ interface EditPedidoFormProps {
   onSave: (data: {
     cliente_nombre: string;
     cliente_telefono: string;
+    cliente_email: string;
     fecha_entrega: string;
     hora_entrega: string;
     requiere_correccion: boolean;
@@ -43,6 +44,7 @@ function detalleALinea(d: Pedido["detalle_pedidos"]): LineaPedidoDraft[] {
     cantidad: item.cantidad,
     precio_unitario: item.precio_unitario,
     atributos: item.atributos,
+    ruta: "R1" as RutaProduccion,
   }));
 }
 
@@ -54,6 +56,7 @@ export function EditPedidoForm({
 }: EditPedidoFormProps) {
   const [nombre, setNombre] = useState(pedido.cliente_nombre);
   const [telefono, setTelefono] = useState(pedido.cliente_telefono || "");
+  const [email, setEmail] = useState(pedido.cliente_email || "");
   const [fechaEntrega, setFechaEntrega] = useState(pedido.fecha_entrega);
   const [horaEntrega, setHoraEntrega] = useState(pedido.hora_entrega);
   const [requiereCorreccion, setRequiereCorreccion] = useState(pedido.requiere_correccion);
@@ -97,6 +100,7 @@ export function EditPedidoForm({
       await onSave({
         cliente_nombre: nombre,
         cliente_telefono: telefono,
+        cliente_email: email,
         fecha_entrega: fechaEntrega,
         hora_entrega: horaEntrega,
         requiere_correccion: requiereCorreccion,
@@ -144,6 +148,17 @@ export function EditPedidoForm({
               type="text"
               value={telefono}
               onChange={(e) => setTelefono(e.target.value)}
+              className="w-full border border-gray-300 rounded-lg px-2.5 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+            />
+          </div>
+          <div>
+            <label className="block text-xs font-medium text-gray-500 mb-1">
+              Correo (para factura)
+            </label>
+            <input
+              type="email"
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
               className="w-full border border-gray-300 rounded-lg px-2.5 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
             />
           </div>
@@ -293,6 +308,7 @@ export function EditPedidoForm({
                 setEditandoLinea(null);
               }}
               editData={editandoLinea || undefined}
+              rutaDefault={(pedido.ruta as RutaProduccion) || "R1"}
             />
           </div>
         )}

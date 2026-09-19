@@ -37,6 +37,7 @@ export function ResumenPago({
       <div className="flex gap-2">
         {ANTICIPO_OPCIONES.map((op) => (
           <button
+            type="button"
             key={op.value}
             onClick={() => onPorcentajeChange(op.value)}
             className={`flex-1 px-3 py-2 text-sm rounded-lg border font-medium transition-colors cursor-pointer ${
@@ -72,6 +73,7 @@ export function ResumenPago({
         <div className="flex gap-2">
           {METODOS_PAGO.map((m) => (
             <button
+              type="button"
               key={m.value}
               onClick={() => onMetodoPagoChange(m.value)}
               className={`flex-1 px-3 py-2 text-sm rounded-lg border font-medium transition-colors cursor-pointer ${

@@ -1,6 +1,6 @@
 "use client";
 
-import { createContext, useContext, useState, useCallback, type ReactNode } from "react";
+import { createContext, use, useState, useCallback, useMemo, type ReactNode } from "react";
 
 type ToastType = "error" | "success" | "info";
 
@@ -20,7 +20,7 @@ interface ToastContextValue {
 const ToastContext = createContext<ToastContextValue | null>(null);
 
 export function useToast() {
-  const ctx = useContext(ToastContext);
+  const ctx = use(ToastContext);
   if (!ctx) throw new Error("useToast debe usarse dentro de ToastProvider");
   return ctx;
 }
@@ -50,8 +50,10 @@ export function ToastProvider({ children }: { children: ReactNode }) {
   const showError = useCallback((message: string) => showToast("error", message), [showToast]);
   const showSuccess = useCallback((message: string) => showToast("success", message), [showToast]);
 
+  const value = useMemo(() => ({ showToast, showError, showSuccess }), [showToast, showError, showSuccess]);
+
   return (
-    <ToastContext.Provider value={{ showToast, showError, showSuccess }}>
+    <ToastContext value={value}>
       {children}
       <div className="fixed bottom-4 right-4 z-60 flex flex-col-reverse gap-2 pointer-events-none">
         {toasts.map((toast) => {
@@ -72,6 +74,7 @@ export function ToastProvider({ children }: { children: ReactNode }) {
               <div className="flex items-start justify-between gap-2">
                 <p className="text-sm font-medium">{toast.message}</p>
                 <button
+                  type="button"
                   onClick={() => removeToast(toast.id)}
                   className="text-current opacity-50 hover:opacity-100 cursor-pointer shrink-0 leading-none text-lg"
                 >
@@ -82,6 +85,6 @@ export function ToastProvider({ children }: { children: ReactNode }) {
           );
         })}
       </div>
-    </ToastContext.Provider>
+    </ToastContext>
   );
 }

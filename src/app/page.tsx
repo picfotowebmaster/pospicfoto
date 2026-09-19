@@ -3,7 +3,7 @@ import { redirect } from "next/navigation";
 import { DashboardCard } from "./_components/DashboardCard";
 import { SignOutButton } from "./_components/SignOutButton";
 import { ThemeToggle } from "@/components/ui/ThemeToggle";
-import { AREAS_PRODUCCION_DATA, ESTADOS_PEDIDO } from "@/lib/utils/constantes";
+import { AREAS_PRODUCCION_DATA, ESTADOS_PEDIDO, NOMBRE_EMPRESA } from "@/lib/utils/constantes";
 import Link from "next/link";
 
 const ROLES_PRODUCCION = [
@@ -34,6 +34,10 @@ export default async function DashboardPage() {
   const rol = (profile as { rol?: string } | null)?.rol ?? null;
   const esProduccion = rol ? ROLES_PRODUCCION.includes(rol) : false;
   const esAdmin = rol === "admin" || rol === "superadmin";
+
+  if (rol === "contador") {
+    redirect("/contabilidad");
+  }
 
   const today = new Date().toISOString().split("T")[0];
 
@@ -80,7 +84,7 @@ export default async function DashboardPage() {
     <div className="min-h-screen bg-gray-100 dark:bg-gray-950">
       <header className="bg-white dark:bg-gray-900 shadow-sm border-b border-gray-200 dark:border-gray-800 px-4 py-2 flex items-center justify-between">
         <div>
-          <h1 className="text-lg font-bold text-gray-900 dark:text-gray-100">PIC PHOTO &mdash; Dashboard</h1>
+          <h1 className="text-lg font-bold text-gray-900 dark:text-gray-100">{NOMBRE_EMPRESA} &mdash; Dashboard</h1>
           <p className="text-xs text-gray-500 dark:text-gray-400 capitalize">{formatearFecha(new Date())}</p>
         </div>
         <div className="flex items-center gap-3">

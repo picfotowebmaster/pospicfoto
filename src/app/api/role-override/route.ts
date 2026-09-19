@@ -13,6 +13,7 @@ const ROLES_DESTINO: Record<string, string> = {
   marcos: "/produccion/kanban",
   taller: "/produccion/kanban",
   corte: "/produccion/kanban",
+  contador: "/contabilidad",
 };
 
 export async function POST(request: NextRequest) {

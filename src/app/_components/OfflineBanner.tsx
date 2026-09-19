@@ -33,6 +33,7 @@ export default function OfflineBanner() {
       <i className="fas fa-wifi-slash" />
       <span>Sin conexión — los pedidos se guardarán localmente y se sincronizarán al reconectar</span>
       <button
+        type="button"
         onClick={() => setDismissed(true)}
         className="ml-2 text-white/80 hover:text-white"
         aria-label="Cerrar"

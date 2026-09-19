@@ -3,7 +3,7 @@
 import { useState, useEffect, useCallback } from "react";
 import { Button } from "@/components/ui/Button";
 import { supabase } from "@/lib/supabase/client";
-import { listarUsuarios, resetPassword, createUser, type UsuarioRow } from "./actions";
+import { listarUsuarios, resetPassword, createUser, updateUserSucursal, type UsuarioRow } from "./actions";
 
 function ResetModal({
   usuario,
@@ -255,6 +255,7 @@ function CreateModal({
               <option value="mostrador">Mostrador</option>
               <option value="taller">Taller</option>
               <option value="corte">Corte</option>
+              <option value="contador">Contador</option>
               <option value="admin">Admin</option>
             </select>
           </div>
@@ -368,7 +369,28 @@ export default function UsuariosPage() {
                   <tr key={u.id} className="border-b border-gray-100 hover:bg-gray-50">
                     <td className="py-2 px-3 text-gray-900">{u.email}</td>
                     <td className="py-2 px-3 text-gray-600">{u.nombre || "—"}</td>
-                    <td className="py-2 px-3 text-gray-600">{u.sucursal_nombre || "—"}</td>
+                    <td className="py-2 px-3 text-gray-600">
+                      <select
+                        value={u.sucursal_id || ""}
+                        onChange={async (e) => {
+                          const nuevo = e.target.value || null;
+                          try {
+                            await updateUserSucursal(u.id, nuevo);
+                            await cargar();
+                          } catch {
+                            setError("Error al actualizar la sucursal.");
+                          }
+                        }}
+                        className="w-full border border-gray-200 rounded-lg px-2 py-1 text-xs focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white"
+                      >
+                        <option value="">— Sin asignar —</option>
+                        {sucursales.map((s) => (
+                          <option key={s.id} value={s.id}>
+                            {s.nombre}
+                          </option>
+                        ))}
+                      </select>
+                    </td>
                     <td className="py-2 px-3">
                       <span
                         className={`inline-block px-2 py-0.5 rounded-full text-xs font-medium ${
@@ -380,7 +402,9 @@ export default function UsuariosPage() {
                               ? "bg-blue-100 text-blue-700"
                               : u.rol === "corte"
                                 ? "bg-amber-100 text-amber-700"
-                                : "bg-gray-100 text-gray-600"
+                                : u.rol === "contador"
+                                  ? "bg-teal-100 text-teal-700"
+                                  : "bg-gray-100 text-gray-600"
                         }`}
                       >
                         {u.rol || "—"}

@@ -83,8 +83,8 @@ export function TicketTemplate({ pedido }: TicketTemplateProps) {
       </div>
 
       <div className="text-[8px] text-center border-t border-dashed border-gray-400 pt-1">
-        {POLITICAS.map((p, i) => (
-          <div key={i}>{p}</div>
+        {POLITICAS.map((p) => (
+          <div key={p}>{p}</div>
         ))}
       </div>
     </div>

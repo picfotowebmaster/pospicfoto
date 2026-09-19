@@ -5,6 +5,13 @@ import { useEffect } from "react";
 export default function ServiceWorkerRegistration() {
   useEffect(() => {
     if (typeof window !== "undefined" && "serviceWorker" in navigator) {
+      if (process.env.NODE_ENV === "development") {
+        navigator.serviceWorker
+          .getRegistrations()
+          .then((regs) => regs.forEach((r) => r.unregister()))
+          .catch(() => {});
+        return;
+      }
       navigator.serviceWorker.register("/sw.js").then(
         (registration) => {
           console.log("[PWA] Service Worker registrado:", registration.scope);

@@ -1,13 +1,22 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import dynamic from "next/dynamic";
 import { supabase } from "@/lib/supabase/client";
 import { useToast } from "@/components/ui/Toast";
-import { VentasChart } from "./_components/VentasChart";
-import { MetodoPagoChart } from "./_components/MetodoPagoChart";
 import { PendientesTabla } from "./_components/PendientesTabla";
 import { TiempoProduccion } from "./_components/TiempoProduccion";
 import type { Pedido } from "@/lib/supabase/types";
+
+const VentasChart = dynamic(
+  () => import("./_components/VentasChart").then((m) => ({ default: m.VentasChart })),
+  { ssr: false, loading: () => <div className="h-[300px] bg-gray-100 dark:bg-gray-800 rounded-xl animate-pulse" /> },
+);
+
+const MetodoPagoChart = dynamic(
+  () => import("./_components/MetodoPagoChart").then((m) => ({ default: m.MetodoPagoChart })),
+  { ssr: false, loading: () => <div className="h-[300px] bg-gray-100 dark:bg-gray-800 rounded-xl animate-pulse" /> },
+);
 
 const PERIODOS = [
   { key: "today", label: "Hoy", days: 1 },
@@ -136,6 +145,7 @@ export default function ReportesPage() {
         <div className="flex gap-1 bg-gray-100 dark:bg-gray-800 rounded-lg p-1">
           {PERIODOS.map((p) => (
             <button
+              type="button"
               key={p.key}
               onClick={() => setPeriodo(p.key)}
               className={`px-3 py-1.5 text-xs font-medium rounded-md transition-colors cursor-pointer ${

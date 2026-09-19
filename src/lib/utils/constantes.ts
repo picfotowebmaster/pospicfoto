@@ -1,5 +1,7 @@
+export const NOMBRE_EMPRESA = "PIC FOTO";
+
 export const DATOS_EMPRESA = {
-  nombre: "PIC PHOTO",
+  nombre: NOMBRE_EMPRESA,
   rfc: "PPH180924PK9",
   direccion: 'REPÚBLICA DE CUBA #81 LOCAL "A" Y "C", CENTRO HISTÓRICO, CDMX.',
 };

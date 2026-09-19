@@ -1,11 +1,13 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useRouter } from "next/navigation";
+import Link from "next/link";
 import { supabase } from "@/lib/supabase/client";
 import { useAuth } from "@/lib/hooks/useAuth";
 import type { AuthChangeEvent, Session } from "@supabase/supabase-js";
 import { Button } from "@/components/ui/Button";
+import { NOMBRE_EMPRESA } from "@/lib/utils/constantes";
 
 export default function ResetPasswordPage() {
   const router = useRouter();
@@ -16,18 +18,18 @@ export default function ResetPasswordPage() {
   const [mensaje, setMensaje] = useState("");
   const [cargando, setCargando] = useState(false);
   const [sesionLista, setSesionLista] = useState(false);
-  const [exito, setExito] = useState(false);
+  const exitoRef = useRef(false);
   const hasSupabase = supabase != null;
   const [verificando, setVerificando] = useState(hasSupabase);
 
   useEffect(() => {
-    if (exito) {
+    if (exitoRef.current) {
       const timer = setTimeout(() => {
         router.push("/auth/login");
       }, 3000);
       return () => clearTimeout(timer);
     }
-  }, [exito, router]);
+  }, [router]);
 
   useEffect(() => {
     if (!hasSupabase) return;
@@ -49,7 +51,7 @@ export default function ResetPasswordPage() {
     });
 
     return () => subscription.unsubscribe();
-  }, []);
+  }, [hasSupabase]);
 
   async function handleReset(e: React.FormEvent) {
     e.preventDefault();
@@ -80,7 +82,7 @@ export default function ResetPasswordPage() {
         setMensaje("Contraseña actualizada correctamente. Redirigiendo...");
         setPassword("");
         setConfirmar("");
-        setExito(true);
+        exitoRef.current = true;
         // Logout después del éxito
         try {
           await supabase.auth.signOut();
@@ -99,7 +101,7 @@ export default function ResetPasswordPage() {
     return (
       <div className="min-h-screen flex items-center justify-center bg-gray-50">
         <div className="bg-white p-8 rounded-2xl shadow-lg w-full max-w-sm text-center">
-          <h1 className="text-2xl font-bold text-gray-900 mb-4">PIC PHOTO</h1>
+          <h1 className="text-2xl font-bold text-gray-900 mb-4">{NOMBRE_EMPRESA}</h1>
           <p className="text-sm text-gray-500">Verificando enlace de recuperación...</p>
         </div>
       </div>
@@ -110,16 +112,16 @@ export default function ResetPasswordPage() {
     return (
       <div className="min-h-screen flex items-center justify-center bg-gray-50">
         <div className="bg-white p-8 rounded-2xl shadow-lg w-full max-w-sm text-center space-y-4">
-          <h1 className="text-2xl font-bold text-gray-900">PIC PHOTO</h1>
+          <h1 className="text-2xl font-bold text-gray-900">{NOMBRE_EMPRESA}</h1>
           <p className="text-sm text-red-600">
             El enlace de recuperación no es válido o ya expiró. Solicitá uno nuevo.
           </p>
-          <a
+          <Link
             href="/auth/login"
             className="inline-block text-sm text-blue-600 hover:text-blue-800"
           >
             Volver al inicio de sesión
-          </a>
+          </Link>
         </div>
       </div>
     );
@@ -129,7 +131,7 @@ export default function ResetPasswordPage() {
       <div className="min-h-screen flex items-center justify-center bg-gray-50 dark:bg-gray-950">
         <div className="bg-white dark:bg-gray-900 p-8 rounded-2xl shadow-lg w-full max-w-sm">
         <div className="text-center mb-6">
-          <h1 className="text-2xl font-bold text-gray-900">PIC PHOTO</h1>
+          <h1 className="text-2xl font-bold text-gray-900">{NOMBRE_EMPRESA}</h1>
           <p className="text-sm text-gray-500 mt-1">Restablecer contraseña</p>
         </div>
 
@@ -145,12 +147,12 @@ export default function ResetPasswordPage() {
               <div className="bg-green-50 text-green-600 text-sm px-3 py-2 rounded-lg">
                 {mensaje}
               </div>
-              <a
+              <Link
                 href="/auth/login"
                 className="block w-full text-center text-sm text-blue-600 hover:text-blue-800"
               >
                 Ir al inicio de sesión
-              </a>
+              </Link>
             </>
           ) : (
             <>

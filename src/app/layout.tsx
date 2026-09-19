@@ -3,6 +3,7 @@ import { Geist, Geist_Mono } from "next/font/google";
 import RoleBanner from "./_components/RoleBanner";
 import { ToastContainer } from "./_components/ToastContainer";
 import { ThemeProvider } from "@/components/ui/ThemeProvider";
+import { NOMBRE_EMPRESA } from "@/lib/utils/constantes";
 import ServiceWorkerRegistration from "./_components/ServiceWorkerRegistration";
 import OfflineBanner from "./_components/OfflineBanner";
 import "./globals.css";
@@ -26,7 +27,7 @@ export const viewport: Viewport = {
 };
 
 export const metadata: Metadata = {
-  title: "PIC PHOTO - POS",
+  title: `${NOMBRE_EMPRESA} - POS`,
   description: "Sistema de Punto de Venta para Laboratorio Fotográfico",
   manifest: "/manifest.json",
   icons: {
@@ -36,7 +37,7 @@ export const metadata: Metadata = {
   appleWebApp: {
     capable: true,
     statusBarStyle: "black-translucent",
-    title: "PIC PHOTO",
+    title: NOMBRE_EMPRESA,
   },
 };
 

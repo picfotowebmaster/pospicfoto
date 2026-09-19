@@ -5,7 +5,9 @@ import { useRealtime } from "@/lib/services/realtime";
 import {
   fetchPedidosByArea,
   fetchWorkflowRoutes,
+  fetchUltimosMovimientos,
   advancePedido as advancePedidoService,
+  regresarPedido as regresarPedidoService,
 } from "@/lib/services/workflow";
 import { cancelarPedido as cancelarPedidoService } from "@/lib/services/pedidos";
 import { useToast } from "@/components/ui/Toast";
@@ -19,11 +21,23 @@ interface NextAreaInfo {
   multiple: boolean;
 }
 
+function elapsedFromTime(time: string): string {
+  const diffMs = Date.now() - new Date(time).getTime();
+  if (diffMs < 0) return "recién";
+  const mins = Math.floor(diffMs / 60000);
+  if (mins < 60) return `${mins} min`;
+  const hrs = Math.floor(mins / 60);
+  if (hrs < 24) return `${hrs} h`;
+  const days = Math.floor(hrs / 24);
+  return `${days} d`;
+}
+
 export function usePedidosKanban(areaFiltro?: string, onNuevoPedido?: (pedido: Pedido) => void) {
-  const { showError } = useToast();
+  const { showError, showSuccess } = useToast();
   const [pedidos, setPedidos] = useState<Pedido[]>([]);
   const [cargando, setCargando] = useState(true);
   const [routesCache, setRoutesCache] = useState<WorkflowRoute[]>([]);
+  const [tiemposEnColumna, setTiemposEnColumna] = useState<Record<string, string>>({});
 
   const onNuevoPedidoRef = useRef(onNuevoPedido);
 
@@ -36,13 +50,18 @@ export function usePedidosKanban(areaFiltro?: string, onNuevoPedido?: (pedido: P
     try {
       const data = await fetchPedidosByArea(AREAS_ACTIVAS);
       setPedidos(data);
+      if (data.length > 0) {
+        fetchUltimosMovimientos(data.map((p: Pedido) => p.id))
+          .then(setTiemposEnColumna)
+          .catch(() => {});
+      }
     } catch (err) {
       console.error("Error cargando pedidos kanban:", err);
       showError("Error al cargar pedidos de producción.");
     } finally {
       setCargando(false);
     }
-  }, []);
+  }, [showError]);
 
   useEffect(() => {
     cargar();
@@ -103,27 +122,95 @@ export function usePedidosKanban(areaFiltro?: string, onNuevoPedido?: (pedido: P
   const getNextForPedido = useCallback(
     (pedido: Pedido): NextAreaInfo[] => {
       if (!pedido.ruta) return [];
-      return routesCache
-        .filter((r) => r.from_area === pedido.area_actual && r.ruta === pedido.ruta)
-        .map((r) => ({ destination: r.to_area, multiple: r.multiple }));
+      return routesCache.reduce<NextAreaInfo[]>((acc, r) => {
+        if (r.from_area === pedido.area_actual && r.ruta === pedido.ruta) {
+          acc.push({ destination: r.to_area, multiple: r.multiple });
+        }
+        return acc;
+      }, []);
     },
     [routesCache],
   );
 
   const avanzarPedido = useCallback(
     async (pedidoId: string, destino?: string) => {
-      await advancePedidoService(pedidoId, destino);
+      try {
+        await advancePedidoService(pedidoId, destino);
+        showSuccess("Pedido avanzado correctamente");
+      } catch (err) {
+        const message = err instanceof Error ? err.message : "Error al avanzar pedido";
+        showError(message);
+        throw err;
+      }
     },
-    [],
+    [showError, showSuccess],
   );
 
   const cancelarPedido = useCallback(
     async (pedidoId: string) => {
-      await cancelarPedidoService(pedidoId);
-      cargar();
+      try {
+        await cancelarPedidoService(pedidoId);
+        showSuccess("Pedido cancelado");
+        cargar();
+      } catch (err) {
+        const message = err instanceof Error ? err.message : "Error al cancelar pedido";
+        showError(message);
+        throw err;
+      }
     },
-    [cargar],
+    [cargar, showError, showSuccess],
   );
 
-  return { columnas, pedidos, cargando, getNextForPedido, avanzarPedido, cancelarPedido, recargar: cargar };
+  const regresarPedido = useCallback(
+    async (pedidoId: string) => {
+      try {
+        await regresarPedidoService(pedidoId);
+        showSuccess("Pedido regresado al área anterior");
+      } catch (err) {
+        const message = err instanceof Error ? err.message : "Error al regresar pedido";
+        showError(message);
+        throw err;
+      }
+    },
+    [showError, showSuccess],
+  );
+
+  const bulkAvanzar = useCallback(
+    async (ids: string[]) => {
+      let ok = 0;
+      let fail = 0;
+      for (const id of ids) {
+        try {
+          await advancePedidoService(id);
+          ok++;
+        } catch {
+          fail++;
+        }
+      }
+      if (ok > 0) showSuccess(`${ok} pedidos avanzados`);
+      if (fail > 0) showError(`${fail} pedidos no se pudieron avanzar`);
+    },
+    [showError, showSuccess],
+  );
+
+  const getTiempoEnColumna = useCallback(
+    (pedidoId: string) => {
+      const ts = tiemposEnColumna[pedidoId];
+      return ts ? elapsedFromTime(ts) : null;
+    },
+    [tiemposEnColumna],
+  );
+
+  return {
+    columnas,
+    pedidos,
+    cargando,
+    getNextForPedido,
+    avanzarPedido,
+    cancelarPedido,
+    regresarPedido,
+    bulkAvanzar,
+    getTiempoEnColumna,
+    recargar: cargar,
+  };
 }

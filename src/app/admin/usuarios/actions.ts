@@ -1,6 +1,38 @@
 "use server";
 
+import { createServerClient } from "@supabase/ssr";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { cookies } from "next/headers";
+
+async function requireAdmin(): Promise<string> {
+  const cookieStore = await cookies();
+  const supabase = createServerClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+    {
+      cookies: {
+        getAll() { return cookieStore.getAll(); },
+        setAll() {},
+      },
+    },
+  );
+
+  const { data: { user }, error } = await supabase.auth.getUser();
+  if (error || !user) throw new Error("No autenticado");
+
+  const admin = createAdminClient();
+  const { data: profile } = await admin
+    .from("profiles")
+    .select("rol")
+    .eq("id", user.id)
+    .single();
+
+  if (!profile || !["admin", "superadmin"].includes(profile.rol)) {
+    throw new Error("No autorizado");
+  }
+
+  return user.id;
+}
 
 export type UsuarioRow = {
   id: string;
@@ -14,6 +46,8 @@ export type UsuarioRow = {
 };
 
 export async function listarUsuarios(): Promise<UsuarioRow[]> {
+  await requireAdmin();
+
   const client = createAdminClient();
 
   const { data: usersData, error: usersError } =
@@ -43,6 +77,8 @@ export async function listarUsuarios(): Promise<UsuarioRow[]> {
 }
 
 export async function resetPassword(userId: string, newPassword: string) {
+  await requireAdmin();
+
   const client = createAdminClient();
 
   const { error } = await client.auth.admin.updateUserById(userId, {
@@ -54,7 +90,24 @@ export async function resetPassword(userId: string, newPassword: string) {
   return { success: true };
 }
 
+export async function updateUserSucursal(userId: string, sucursalId: string | null) {
+  await requireAdmin();
+
+  const client = createAdminClient();
+
+  const { error } = await client
+    .from("profiles")
+    .update({ sucursal_id: sucursalId || null })
+    .eq("id", userId);
+
+  if (error) throw new Error(error.message);
+
+  return { success: true };
+}
+
 export async function createUser(email: string, password: string, nombre: string, rol: string, sucursal_id?: string) {
+  await requireAdmin();
+
   const client = createAdminClient();
 
   const { data: created, error } = await client.auth.admin.createUser({

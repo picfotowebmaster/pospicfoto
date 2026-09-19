@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useCallback, useEffect, useRef } from "react";
+import { useState, useCallback, useEffect, useRef, useMemo } from "react";
 import type { LineaPedidoDraft, MetodoPago, RutaProduccion } from "@/lib/supabase/types";
 import { sumarLineas, calcularAnticipo, generarIdLocal } from "@/lib/utils/calculos";
 import { ANTICIPO_POR_DEFECTO } from "@/lib/utils/constantes";
@@ -9,6 +9,7 @@ import { savePedidoDraft, getPedidoDraft, clearPedidoDraft } from "@/lib/offline
 interface ClienteData {
   nombre: string;
   telefono: string;
+  email: string;
   fechaEntrega: string;
   horaEntrega: string;
   requiereCorreccion: boolean;
@@ -18,6 +19,7 @@ export function usePedidoActual(sucursalId: string) {
   const [cliente, setCliente] = useState<ClienteData>({
     nombre: "",
     telefono: "",
+    email: "",
     fechaEntrega: "",
     horaEntrega: "",
     requiereCorreccion: false,
@@ -25,7 +27,7 @@ export function usePedidoActual(sucursalId: string) {
   const [lineas, setLineas] = useState<LineaPedidoDraft[]>([]);
   const [porcentajeAnticipo, setPorcentajeAnticipo] = useState(ANTICIPO_POR_DEFECTO);
   const [metodoPago, setMetodoPago] = useState<MetodoPago>("Efectivo");
-  const [ruta, setRuta] = useState<RutaProduccion>("R1");
+  const [rutaDefault, setRutaDefault] = useState<RutaProduccion>("R1");
   const [marcaId, setMarcaId] = useState("");
   const [draftRestored, setDraftRestored] = useState(false);
   const persistTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -36,10 +38,10 @@ export function usePedidoActual(sucursalId: string) {
       lineas,
       porcentajeAnticipo,
       metodoPago,
-      ruta,
+      ruta: rutaDefault,
       marcaId,
     }),
-    [cliente, lineas, porcentajeAnticipo, metodoPago, ruta, marcaId],
+    [cliente, lineas, porcentajeAnticipo, metodoPago, rutaDefault, marcaId],
   );
 
   useEffect(() => {
@@ -61,7 +63,7 @@ export function usePedidoActual(sucursalId: string) {
         if (d.lineas) setLineas(d.lineas as LineaPedidoDraft[]);
         if (typeof d.porcentajeAnticipo === "number") setPorcentajeAnticipo(d.porcentajeAnticipo as number);
         if (typeof d.metodoPago === "string") setMetodoPago(d.metodoPago as MetodoPago);
-        if (typeof d.ruta === "string") setRuta(d.ruta as RutaProduccion);
+        if (typeof d.ruta === "string") setRutaDefault(d.ruta as RutaProduccion);
         if (typeof d.marcaId === "string") setMarcaId(d.marcaId as string);
       }
     } catch {
@@ -98,6 +100,7 @@ export function usePedidoActual(sucursalId: string) {
     setCliente({
       nombre: "",
       telefono: "",
+      email: "",
       fechaEntrega: "",
       horaEntrega: "",
       requiereCorreccion: false,
@@ -105,9 +108,26 @@ export function usePedidoActual(sucursalId: string) {
     setLineas([]);
     setPorcentajeAnticipo(ANTICIPO_POR_DEFECTO);
     setMetodoPago("Efectivo");
-    setRuta("R1");
+    setRutaDefault("R1");
     clearPedidoDraft().catch(() => {});
   }, []);
+
+  const rutasUnicas = useMemo(() => {
+    const set = new Set(lineas.map((l) => l.ruta));
+    return [...set] as RutaProduccion[];
+  }, [lineas]);
+
+  const getLineasPorRuta = useCallback(
+    () => {
+      const groups: Record<string, LineaPedidoDraft[]> = {};
+      for (const l of lineas) {
+        if (!groups[l.ruta]) groups[l.ruta] = [];
+        groups[l.ruta].push(l);
+      }
+      return groups;
+    },
+    [lineas],
+  );
 
   const valido =
     cliente.nombre.trim() !== "" &&
@@ -120,8 +140,27 @@ export function usePedidoActual(sucursalId: string) {
       (l) =>
         l.producto_nombre.trim() !== "" &&
         l.cantidad > 0 &&
-        l.precio_unitario > 0,
+        l.precio_unitario > 0 &&
+        !!l.ruta,
     );
+
+  const pendientes: string[] = [];
+  if (cliente.nombre.trim() === "") pendientes.push("Nombre del cliente");
+  if (cliente.fechaEntrega === "") pendientes.push("Fecha de entrega");
+  if (cliente.horaEntrega === "") pendientes.push("Hora de entrega");
+  if (sucursalId === "") pendientes.push("Sucursal asignada");
+  if (marcaId === "") pendientes.push("Marca");
+  if (lineas.length === 0) pendientes.push("Al menos un producto");
+  else if (
+    lineas.some(
+      (l) =>
+        l.producto_nombre.trim() === "" ||
+        l.cantidad <= 0 ||
+        l.precio_unitario <= 0 ||
+        !l.ruta,
+    )
+  )
+    pendientes.push("Producto con cantidad y precio válidos");
 
   return {
     cliente,
@@ -138,12 +177,15 @@ export function usePedidoActual(sucursalId: string) {
     setPorcentajeAnticipo,
     metodoPago,
     setMetodoPago,
-    ruta,
-    setRuta,
+    rutaDefault,
+    setRutaDefault,
+    rutasUnicas,
+    getLineasPorRuta,
     sucursalId,
     marcaId,
     setMarcaId,
     valido,
+    pendientes,
     draftRestored,
     restoreDraft,
   };

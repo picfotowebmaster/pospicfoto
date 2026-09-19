@@ -12,9 +12,9 @@ import { TablaLineas } from "./_components/TablaLineas";
 import { ResumenPago } from "./_components/ResumenPago";
 import { BotonPagar } from "./_components/BotonPagar";
 import { Button } from "@/components/ui/Button";
-import { crearPedido } from "@/lib/services/pedidos";
+import { crearPedidoAgrupado } from "@/lib/services/pedidos";
 import { supabase } from "@/lib/supabase/client";
-import { RUTAS_PRODUCCION } from "@/lib/utils/constantes";
+import { RUTAS_PRODUCCION, NOMBRE_EMPRESA } from "@/lib/utils/constantes";
 import { fetchAtributosConValores } from "@/lib/services/atributos";
 import { useOffline } from "@/lib/offline/useOffline";
 import { useOfflineSync } from "@/lib/offline/useOfflineSync";
@@ -127,6 +127,7 @@ function MostradorContent() {
         cantidad: linea.cantidad,
         precio_unitario: linea.precio_unitario,
         atributos: linea.atributos,
+        ruta: linea.ruta,
       });
     } else {
       pedido.agregarLinea({
@@ -134,6 +135,7 @@ function MostradorContent() {
         cantidad: linea.cantidad,
         precio_unitario: linea.precio_unitario,
         atributos: linea.atributos,
+        ruta: linea.ruta,
       });
     }
     setMostrandoLinea(false);
@@ -151,6 +153,7 @@ function MostradorContent() {
     const draft = {
       cliente_nombre: pedido.cliente.nombre,
       cliente_telefono: pedido.cliente.telefono,
+      cliente_email: pedido.cliente.email,
       fecha_entrega: pedido.cliente.fechaEntrega,
       hora_entrega: pedido.cliente.horaEntrega,
       requiere_correccion: pedido.cliente.requiereCorreccion,
@@ -159,14 +162,13 @@ function MostradorContent() {
       anticipo: pedido.anticipo,
       total: pedido.total,
       metodo_pago: pedido.metodoPago,
-      ruta: pedido.ruta,
       sucursal_id: sucursalId,
       marca_id: pedido.marcaId,
     };
 
     if (!isOnline) {
       try {
-        await queueOrder(draft);
+        await queueOrder(draft as unknown as Parameters<typeof queueOrder>[0]);
         pedido.limpiar();
         showSuccess("Pedido guardado localmente. Se sincronizará al reconectar.");
         setQueueCount((c) => c + 1);
@@ -179,9 +181,9 @@ function MostradorContent() {
     }
 
     try {
-      const numeroPedido = await crearPedido(draft, session.user.id);
+      const result = await crearPedidoAgrupado(draft, session.user.id);
       pedido.limpiar();
-      router.push(`/mostrador/ticket/${numeroPedido}`);
+      router.push(`/mostrador/ticket/${result.facturaNumero}`);
     } catch (err) {
       console.error("Error al crear pedido:", err);
       showError("Error al crear el pedido. Intenta de nuevo.");
@@ -217,7 +219,7 @@ function MostradorContent() {
     <div className="min-h-screen bg-gray-100 dark:bg-gray-950">
       <header className="bg-white dark:bg-gray-900 shadow-sm border-b border-gray-200 dark:border-gray-800 px-4 py-2 flex items-center justify-between">
         <div>
-          <h1 className="text-lg font-bold text-gray-900 dark:text-gray-100">PIC PHOTO</h1>
+          <h1 className="text-lg font-bold text-gray-900 dark:text-gray-100">{NOMBRE_EMPRESA}</h1>
           <p className="text-xs text-gray-500 dark:text-gray-400">Sistema de Punto de Venta</p>
         </div>
         <form onSubmit={handleBuscarTicket} className="flex items-center gap-1">
@@ -250,6 +252,7 @@ function MostradorContent() {
             <div className="flex items-center justify-between">
               <p className="text-sm text-red-700 dark:text-red-300">{mensajeError}</p>
               <button
+                type="button"
                 onClick={() => setMensajeError("")}
                 className="text-red-500 dark:text-red-400 hover:text-red-700 dark:hover:text-red-300 font-semibold"
               >
@@ -264,6 +267,7 @@ function MostradorContent() {
         <FormCliente
           nombre={pedido.cliente.nombre}
           telefono={pedido.cliente.telefono}
+          email={pedido.cliente.email}
           fechaEntrega={pedido.cliente.fechaEntrega}
           horaEntrega={pedido.cliente.horaEntrega}
           requiereCorreccion={pedido.cliente.requiereCorreccion}
@@ -272,6 +276,9 @@ function MostradorContent() {
           }
           onTelefonoChange={(v) =>
             pedido.setCliente({ ...pedido.cliente, telefono: v })
+          }
+          onEmailChange={(v) =>
+            pedido.setCliente({ ...pedido.cliente, email: v })
           }
           onFechaEntregaChange={(v) =>
             pedido.setCliente({ ...pedido.cliente, fechaEntrega: v })
@@ -319,11 +326,11 @@ function MostradorContent() {
 
         <div className="bg-white rounded-xl shadow p-4">
           <h3 className="font-semibold text-gray-700 text-sm uppercase tracking-wide mb-3">
-            Ruta de Producción
+            Ruta de Producción por Defecto
           </h3>
           <select
-            value={pedido.ruta}
-            onChange={(e) => pedido.setRuta(e.target.value as typeof pedido.ruta)}
+            value={pedido.rutaDefault}
+            onChange={(e) => pedido.setRutaDefault(e.target.value as typeof pedido.rutaDefault)}
             className="w-full border border-gray-300 rounded-lg px-2.5 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white"
           >
             {RUTAS_PRODUCCION.map((r) => (
@@ -332,6 +339,7 @@ function MostradorContent() {
               </option>
             ))}
           </select>
+          <p className="text-xs text-gray-400 mt-1">Cada producto puede cambiarse a una ruta distinta al agregarlo.</p>
         </div>
 
         <div className="bg-white rounded-xl shadow p-4">
@@ -365,6 +373,7 @@ function MostradorContent() {
                   setEditandoLinea(null);
                 }}
                 editData={editandoLinea || undefined}
+                rutaDefault={pedido.rutaDefault}
               />
             </div>
           )}
@@ -390,6 +399,16 @@ function MostradorContent() {
               cargando={pagarCargando}
               valido={pedido.valido}
             />
+            {!pedido.valido && pedido.pendientes.length > 0 && (
+              <div className="text-xs text-gray-500 dark:text-gray-400">
+                <p className="font-medium mb-1">Para habilitar el pago falta:</p>
+                <ul className="list-disc list-inside space-y-0.5">
+                  {pedido.pendientes.map((p) => (
+                    <li key={p}>{p}</li>
+                  ))}
+                </ul>
+              </div>
+            )}
             {!isOnline && (
               <p className="text-xs text-amber-600 text-center">
                 <i className="fas fa-cloud-upload-alt mr-1" />

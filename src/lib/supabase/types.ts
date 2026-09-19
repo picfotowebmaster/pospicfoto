@@ -34,7 +34,8 @@ export type Rol =
   | "taller"
   | "corte"
   | "admin"
-  | "superadmin";
+  | "superadmin"
+  | "contador";
 
 export interface Atributo {
   id: string;
@@ -95,6 +96,20 @@ export interface Pedido {
   total: number;
   metodo_pago: MetodoPago;
   numero_pedido?: string | null;
+  cliente_email?: string | null;
+  factura_email_enviado?: string | null;
+  factura_numero?: string | null;
+  factura_uuid?: string | null;
+  factura_xml_url?: string | null;
+  factura_pdf_url?: string | null;
+  factura_estado?: string | null;
+  factura_error?: string | null;
+  factura_fecha?: string | null;
+  factura_cancelacion_motivo?: string | null;
+  factura_cancelacion_fecha?: string | null;
+  factura_cancelacion_acuse?: string | null;
+  factura_serie?: string | null;
+  factura_folio?: string | null;
   sucursal_id?: string | null;
   marca_id?: string | null;
   created_at: string;
@@ -118,11 +133,13 @@ export interface LineaPedidoDraft {
   cantidad: number;
   precio_unitario: number;
   atributos: Record<string, string>;
+  ruta: RutaProduccion;
 }
 
 export interface PedidoDraft {
   cliente_nombre: string;
   cliente_telefono: string;
+  cliente_email?: string;
   fecha_entrega: string;
   hora_entrega: string;
   requiere_correccion: boolean;

@@ -97,7 +97,7 @@ async function finalizePedido(
   return movePedido(pedidoId, currentArea, "listo", null);
 }
 
-async function movePedido(
+export async function movePedido(
   pedidoId: string,
   fromArea: string,
   toArea: string,
@@ -151,13 +151,62 @@ export async function fetchPedidosByArea(
   return data;
 }
 
-export async function fetchUserRole(userId: string): Promise<string | null> {
+export async function fetchUserRole(): Promise<string | null> {
+  const { data: { user }, error: userError } = await supabase.auth.getUser();
+  if (userError || !user) return null;
+
   const { data, error } = await supabase
     .from("profiles")
     .select("rol")
-    .eq("id", userId)
+    .eq("id", user.id)
     .single();
 
   if (error) return null;
   return data?.rol ?? null;
+}
+
+export async function regresarPedido(
+  pedidoId: string,
+): Promise<PedidoMovimiento> {
+  const { data: movimientos, error: movsErr } = await supabase
+    .from("pedido_movimientos")
+    .select("from_area")
+    .eq("pedido_id", pedidoId)
+    .order("created_at", { ascending: false })
+    .limit(1);
+
+  if (movsErr) throw movsErr;
+  if (!movimientos || movimientos.length === 0) throw new Error("Sin movimientos previos para regresar");
+
+  const areaAnterior = movimientos[0].from_area;
+  if (!areaAnterior) throw new Error("El pedido ya está en su área de origen");
+
+  const { data: pedido, error: pedidoErr } = await supabase
+    .from("pedidos")
+    .select("area_actual")
+    .eq("id", pedidoId)
+    .single();
+
+  if (pedidoErr || !pedido) throw new Error("Pedido no encontrado");
+
+  return movePedido(pedidoId, pedido.area_actual, areaAnterior, null);
+}
+
+export async function fetchUltimosMovimientos(pedidoIds: string[]): Promise<Record<string, string>> {
+  if (pedidoIds.length === 0) return {};
+  const { data, error } = await supabase
+    .from("pedido_movimientos")
+    .select("pedido_id, created_at")
+    .in("pedido_id", pedidoIds)
+    .order("created_at", { ascending: false });
+
+  if (error) throw error;
+
+  const result: Record<string, string> = {};
+  for (const mov of data ?? []) {
+    if (!result[mov.pedido_id]) {
+      result[mov.pedido_id] = mov.created_at;
+    }
+  }
+  return result;
 }

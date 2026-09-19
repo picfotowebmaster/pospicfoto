@@ -7,6 +7,7 @@ export function ThemeToggle() {
 
   return (
     <button
+      type="button"
       onClick={toggle}
       className="text-lg cursor-pointer leading-none select-none px-1"
       title={theme === "dark" ? "Modo claro" : "Modo oscuro"}

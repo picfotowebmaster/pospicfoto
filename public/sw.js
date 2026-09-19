@@ -1,9 +1,7 @@
-const CACHE_NAME = "picphoto-v2";
+const CACHE_NAME = "picphoto-v3";
 
 self.addEventListener("install", (event) => {
-  event.waitUntil(
-    caches.open(CACHE_NAME).then(() => self.skipWaiting())
-  );
+  event.waitUntil(caches.open(CACHE_NAME).then(() => self.skipWaiting()));
 });
 
 self.addEventListener("activate", (event) => {
@@ -19,9 +17,7 @@ self.addEventListener("activate", (event) => {
 self.addEventListener("fetch", (event) => {
   const { request } = event;
   const url = new URL(request.url);
-
   if (request.method !== "GET") return;
-
   if (
     url.pathname.startsWith("/_next/static") ||
     url.pathname.startsWith("/_next/image") ||
@@ -45,14 +41,11 @@ self.addEventListener("fetch", (event) => {
     );
     return;
   }
-
   event.respondWith(
     fetch(request).then((response) => {
       if (response.ok && request.headers.get("accept")?.includes("text/html")) {
         const clone = response.clone();
-        caches.open(CACHE_NAME).then((cache) => {
-          cache.put(request, clone);
-        });
+        caches.open(CACHE_NAME).then((cache) => cache.put(request, clone));
       }
       return response;
     }).catch(() => {
@@ -60,11 +53,57 @@ self.addEventListener("fetch", (event) => {
         if (cached) return cached;
         return caches.match("/").then((rootCached) => {
           return rootCached || new Response(
-            "<html><body style='display:flex;align-items:center;justify-content:center;height:100vh;font-family:sans-serif;background:#1e40af;color:white'><div style='text-align:center'><h1 style='font-size:3rem'>PIC PHOTO</h1><p>Sin conexión</p></div></body></html>",
+            "<html><body style='display:flex;align-items:center;justify-content:center;height:100vh;font-family:sans-serif;background:#1e40af;color:white'><div style='text-align:center'><h1 style='font-size:3rem'>PIC FOTO</h1><p>Sin conexión</p></div></body></html>",
             { status: 503, headers: { "Content-Type": "text/html" } }
           );
         });
       });
+    })
+  );
+});
+
+self.addEventListener("push", (event) => {
+  if (!event.data) return;
+
+  try {
+    const payload = event.data.json();
+    const { title, body, icon, url, tag } = payload;
+
+    event.waitUntil(
+      self.registration.showNotification(title, {
+        body: body || "",
+        icon: icon || "/icons/icon-192.png",
+        badge: "/icons/icon-128.png",
+        tag: tag || "picphoto-notification",
+        data: { url: url || "/produccion/kanban" },
+        vibrate: [200, 100, 200],
+        requireInteraction: true,
+      })
+    );
+  } catch {
+    event.waitUntil(
+      self.registration.showNotification("PIC FOTO", {
+        body: event.data.text(),
+        icon: "/icons/icon-192.png",
+        badge: "/icons/icon-128.png",
+      })
+    );
+  }
+});
+
+self.addEventListener("notificationclick", (event) => {
+  event.notification.close();
+  const url = event.notification.data?.url || "/produccion/kanban";
+  event.waitUntil(
+    clients.matchAll({ type: "window", includeUncontrolled: true }).then((clientList) => {
+      for (const client of clientList) {
+        if (client.url.includes(url) && "focus" in client) {
+          return client.focus();
+        }
+      }
+      if (clients.openWindow) {
+        return clients.openWindow(url);
+      }
     })
   );
 });

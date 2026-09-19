@@ -4,6 +4,7 @@ import { Button } from "@/components/ui/Button";
 import { useAuth } from "@/lib/hooks/useAuth";
 import { getSupabase } from "@/lib/supabase/client";
 import { ThemeToggle } from "@/components/ui/ThemeToggle";
+import { NOMBRE_EMPRESA } from "@/lib/utils/constantes";
 import RoleSwitcher from "./_components/RoleSwitcher";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
@@ -45,7 +46,7 @@ export default function AdminLayout({
     <div className="min-h-screen bg-gray-100 dark:bg-gray-950">
       <header className="bg-white dark:bg-gray-900 shadow-sm border-b border-gray-200 dark:border-gray-800 px-4 py-2 flex items-center justify-between">
         <div>
-          <h1 className="text-lg font-bold text-gray-900 dark:text-gray-100">PIC PHOTO - Admin</h1>
+          <h1 className="text-lg font-bold text-gray-900 dark:text-gray-100">{NOMBRE_EMPRESA} - Admin</h1>
           <p className="text-xs text-gray-500 dark:text-gray-400">Panel de administración</p>
         </div>
         <div className="flex items-center gap-3">

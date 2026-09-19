@@ -24,10 +24,12 @@ export function Button({
   className = "",
   disabled,
   children,
+  type = "button",
   ...props
 }: ButtonProps) {
   return (
     <button
+      type={type}
       className={`font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer ${bases[variant]} ${sizes[size]} ${className}`}
       disabled={disabled}
       {...props}

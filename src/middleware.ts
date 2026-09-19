@@ -8,6 +8,8 @@ const ROLES_PRODUCCION = [
   "taller", "corte", "admin", "superadmin",
 ];
 
+const ROLES_CONTABILIDAD = ["contador", "admin", "superadmin"];
+
 function getSupabaseConfig() {
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
   const key = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
@@ -31,10 +33,18 @@ function getAdminClient() {
   return _adminClient;
 }
 
+const _profileCache = new Map<string, { rol: string | null; expiresAt: number }>();
+const CACHE_TTL = 60_000;
+
 async function getUserRol(user: User): Promise<string | null> {
   const metaRol = (user.user_metadata as Record<string, unknown> | null)?.rol;
   if (typeof metaRol === "string" && metaRol.length > 0) {
     return metaRol;
+  }
+
+  const cached = _profileCache.get(user.id);
+  if (cached && cached.expiresAt > Date.now()) {
+    return cached.rol;
   }
 
   const admin = getAdminClient();
@@ -44,12 +54,25 @@ async function getUserRol(user: User): Promise<string | null> {
     .eq("id", user.id)
     .single() as { data: { rol: string } | null };
 
-  return (profile as { rol: string } | null)?.rol ?? null;
+  const rol = (profile as { rol: string } | null)?.rol ?? null;
+
+  _profileCache.set(user.id, { rol, expiresAt: Date.now() + CACHE_TTL });
+  if (_profileCache.size > 500) {
+    const oldest = [..._profileCache.entries()]
+      .sort((a, b) => a[1].expiresAt - b[1].expiresAt)[0];
+    if (oldest) _profileCache.delete(oldest[0]);
+  }
+
+  return rol;
 }
 
 export async function middleware(request: NextRequest) {
   const config = getSupabaseConfig();
   if (!config) {
+    return NextResponse.next();
+  }
+
+  if (process.env.NEXT_PUBLIC_E2E_TEST === "true") {
     return NextResponse.next();
   }
 
@@ -95,6 +118,26 @@ export async function middleware(request: NextRequest) {
 
     if (!ROLES_PRODUCCION.includes(rol)) {
       return NextResponse.redirect(new URL("/mostrador?mensaje=acceso_denegado", request.url));
+    }
+  }
+
+  if (user && pathname.startsWith("/contabilidad")) {
+    const rol = await getUserRol(user);
+
+    if (!rol) {
+      return NextResponse.redirect(new URL("/mostrador?mensaje=perfil_no_encontrado", request.url));
+    }
+
+    if (!ROLES_CONTABILIDAD.includes(rol)) {
+      return NextResponse.redirect(new URL("/mostrador?mensaje=acceso_denegado", request.url));
+    }
+  }
+
+  if (user && pathname.startsWith("/mostrador") && !pathname.startsWith("/mostrador/ticket")) {
+    const rol = await getUserRol(user);
+
+    if (rol === "contador") {
+      return NextResponse.redirect(new URL("/contabilidad", request.url));
     }
   }
 

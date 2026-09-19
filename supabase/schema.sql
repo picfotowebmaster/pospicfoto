@@ -138,11 +138,13 @@ CREATE POLICY "Atributo valores legibles por autenticados" ON atributo_valores
 CREATE POLICY "Historial legible por autenticados" ON productos_historial
   FOR SELECT TO authenticated USING (true);
 
-CREATE POLICY "Historial insertable por autenticados" ON productos_historial
-  FOR INSERT TO authenticated WITH CHECK (true);
+CREATE POLICY "Historial insertable por mostrador/admin" ON productos_historial
+  FOR INSERT TO authenticated
+  WITH CHECK (EXISTS (SELECT 1 FROM profiles WHERE id = auth.uid() AND rol IN ('mostrador','admin','superadmin')));
 
-CREATE POLICY "Historial actualizable por autenticados" ON productos_historial
-  FOR UPDATE TO authenticated USING (true);
+CREATE POLICY "Historial actualizable por taller/admin" ON productos_historial
+  FOR UPDATE TO authenticated
+  USING (EXISTS (SELECT 1 FROM profiles WHERE id = auth.uid() AND rol IN ('taller','admin','superadmin')));
 
 -- Pedidos: insert por mostrador/admin, lectura por todos autenticados
 CREATE POLICY "Pedidos insert por mostrador/admin" ON pedidos

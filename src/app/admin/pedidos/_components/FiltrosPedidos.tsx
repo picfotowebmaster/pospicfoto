@@ -147,6 +147,7 @@ export function FiltrosPedidos({
       {activos && (
         <div className="pb-0.5">
           <button
+            type="button"
             onClick={onLimpiar}
             className="text-xs text-blue-600 hover:text-blue-800 dark:text-blue-400 dark:hover:text-blue-300 font-medium cursor-pointer"
           >

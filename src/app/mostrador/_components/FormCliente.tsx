@@ -5,11 +5,13 @@ import React from "react";
 interface FormClienteProps {
   nombre: string;
   telefono: string;
+  email: string;
   fechaEntrega: string;
   horaEntrega: string;
   requiereCorreccion: boolean;
   onNombreChange: (v: string) => void;
   onTelefonoChange: (v: string) => void;
+  onEmailChange: (v: string) => void;
   onFechaEntregaChange: (v: string) => void;
   onHoraEntregaChange: (v: string) => void;
   onRequiereCorreccionChange: (v: boolean) => void;
@@ -18,11 +20,13 @@ interface FormClienteProps {
 export function FormCliente({
   nombre,
   telefono,
+  email,
   fechaEntrega,
   horaEntrega,
   requiereCorreccion,
   onNombreChange,
   onTelefonoChange,
+  onEmailChange,
   onFechaEntregaChange,
   onHoraEntregaChange,
   onRequiereCorreccionChange,
@@ -34,10 +38,11 @@ export function FormCliente({
       </h3>
       <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
         <div>
-          <label className="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1">
+          <label htmlFor="cliente-nombre" className="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1">
             Nombre del Cliente *
           </label>
           <input
+            id="cliente-nombre"
             type="text"
             value={nombre}
             onChange={(e) => onNombreChange(e.target.value)}
@@ -46,15 +51,29 @@ export function FormCliente({
           />
         </div>
         <div>
-          <label className="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1">
+          <label htmlFor="cliente-telefono" className="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1">
             Teléfono
           </label>
           <input
+            id="cliente-telefono"
             type="text"
             value={telefono}
             onChange={(e) => onTelefonoChange(e.target.value)}
             className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
             placeholder="55 1234 5678"
+          />
+        </div>
+        <div>
+          <label htmlFor="cliente-email" className="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1">
+            Correo (para factura)
+          </label>
+          <input
+            id="cliente-email"
+            type="email"
+            value={email}
+            onChange={(e) => onEmailChange(e.target.value)}
+            className="w-full border border-gray-300 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-100 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+            placeholder="cliente@correo.com"
           />
         </div>
         <div>
