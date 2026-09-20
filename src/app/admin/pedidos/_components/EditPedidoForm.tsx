@@ -45,6 +45,8 @@ function detalleALinea(d: Pedido["detalle_pedidos"]): LineaPedidoDraft[] {
     precio_unitario: item.precio_unitario,
     atributos: item.atributos,
     ruta: "R1" as RutaProduccion,
+    categoria_id: item.categoria_id ?? null,
+    producto_id: item.producto_id ?? null,
   }));
 }
 

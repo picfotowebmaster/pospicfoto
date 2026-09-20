@@ -70,6 +70,8 @@ export async function crearPedido(draft: PedidoDraft, cajeroId: string): Promise
     precio_unitario: l.precio_unitario,
     importe_linea: l.cantidad * l.precio_unitario,
     atributos: l.atributos,
+    categoria_id: l.categoria_id ?? null,
+    producto_id: l.producto_id ?? null,
   }));
 
   const { error: detalleErr } = await supabase
@@ -148,6 +150,8 @@ async function insertarSubPedido(
     precio_unitario: l.precio_unitario,
     importe_linea: l.cantidad * l.precio_unitario,
     atributos: l.atributos,
+    categoria_id: l.categoria_id ?? null,
+    producto_id: l.producto_id ?? null,
   }));
 
   const { error: detalleErr } = await supabase
@@ -434,6 +438,8 @@ export async function actualizarPedido(
     precio_unitario: l.precio_unitario,
     importe_linea: l.cantidad * l.precio_unitario,
     atributos: l.atributos,
+    categoria_id: l.categoria_id ?? null,
+    producto_id: l.producto_id ?? null,
   }));
 
   if (detalles.length > 0) {

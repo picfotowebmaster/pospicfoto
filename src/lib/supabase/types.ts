@@ -57,6 +57,35 @@ export interface ProductoHistorial {
   ultimo_uso: string;
 }
 
+export interface Categoria {
+  id: string;
+  nombre: string;
+  orden: number;
+  activo: boolean;
+}
+
+export interface Producto {
+  id: string;
+  categoria_id: string;
+  nombre: string;
+  ruta: RutaProduccion;
+  orden: number;
+  activo: boolean;
+}
+
+export interface ProductoAtributo {
+  id: string;
+  producto_id: string;
+  atributo_id: string;
+  orden: number;
+  requerido: boolean;
+}
+
+export interface ProductoConAtributos extends Producto {
+  atributos: (Atributo & { valores: AtributoValor[] })[];
+  categoria_nombre: string;
+}
+
 export interface Sucursal {
   id: string;
   nombre: string;
@@ -125,6 +154,8 @@ export interface DetallePedido {
   precio_unitario: number;
   importe_linea: number;
   atributos: Record<string, string>;
+  categoria_id?: string | null;
+  producto_id?: string | null;
 }
 
 export interface LineaPedidoDraft {
@@ -134,6 +165,8 @@ export interface LineaPedidoDraft {
   precio_unitario: number;
   atributos: Record<string, string>;
   ruta: RutaProduccion;
+  categoria_id?: string | null;
+  producto_id?: string | null;
 }
 
 export interface PedidoDraft {

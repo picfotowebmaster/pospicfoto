@@ -1,11 +1,13 @@
 import { saveCatalogo, getCatalogo, catalogoStaleMs } from "./db";
 import { fetchAtributosConValores } from "@/lib/services/atributos";
+import { fetchCatalogo } from "@/lib/services/catalogo";
 import { supabase } from "@/lib/supabase/client";
 
 const CATALOG_KEYS = {
   ATRIBUTOS: "atributos",
   MARCAS: "marcas",
   SUCURSALES: "sucursales",
+  CATALOGO: "catalogoProductos",
 } as const;
 
 const STALE_THRESHOLD_MS = 5 * 60 * 1000;
@@ -16,6 +18,13 @@ export async function syncCatalogFromServer(): Promise<void> {
     await saveCatalogo(CATALOG_KEYS.ATRIBUTOS, atributos);
   } catch {
     // silencioso si falla la red
+  }
+
+  try {
+    const catalogo = await fetchCatalogo();
+    await saveCatalogo(CATALOG_KEYS.CATALOGO, catalogo);
+  } catch {
+    // silencioso
   }
 
   try {
@@ -38,18 +47,23 @@ export async function syncCatalogFromServer(): Promise<void> {
 }
 
 export async function getCatalogFromCache() {
-  const [atributos, marcas, sucursales] = await Promise.all([
+  const [atributos, marcas, sucursales, catalogo] = await Promise.all([
     getCatalogo(CATALOG_KEYS.ATRIBUTOS),
     getCatalogo(CATALOG_KEYS.MARCAS),
     getCatalogo(CATALOG_KEYS.SUCURSALES),
+    getCatalogo(CATALOG_KEYS.CATALOGO),
   ]);
 
-  return { atributos, marcas, sucursales };
+  return { atributos, marcas, sucursales, catalogo };
 }
 
 export async function isCatalogStale(): Promise<boolean> {
-  const stale = await catalogoStaleMs(CATALOG_KEYS.ATRIBUTOS);
-  return stale === null || stale > STALE_THRESHOLD_MS;
+  const stale = await catalogoStaleMs(CATALOG_KEYS.CATALOGO);
+  if (stale === null) {
+    const fallback = await catalogoStaleMs(CATALOG_KEYS.ATRIBUTOS);
+    return fallback === null || fallback > STALE_THRESHOLD_MS;
+  }
+  return stale > STALE_THRESHOLD_MS;
 }
 
 export async function loadCatalog(isOnline: boolean) {

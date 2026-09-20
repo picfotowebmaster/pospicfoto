@@ -2,21 +2,26 @@
 
 import React, { useState, useEffect } from "react";
 import { Button } from "@/components/ui/Button";
+import { fetchAtributos, fetchValores } from "@/lib/services/atributos";
 import {
-  fetchAtributos,
-  fetchValores,
-  insertAtributo,
-  insertAtributoValor,
+  crearAtributo,
+  crearValor,
   toggleAtributoActivo,
-} from "@/lib/services/atributos";
+  eliminarAtributo,
+} from "./catalogo/actions";
+import { ConfirmModal } from "@/components/ui/ConfirmModal";
+import { useToast } from "@/components/ui/Toast";
 import type { Atributo, AtributoValor } from "@/lib/supabase/types";
 
 export default function AdminPage() {
+  const { showError, showSuccess } = useToast();
   const [atributos, setAtributos] = useState<Atributo[]>([]);
   const [selectedAtributo, setSelectedAtributo] = useState<Atributo | null>(null);
   const [valores, setValores] = useState<AtributoValor[]>([]);
   const [nuevoAtributo, setNuevoAtributo] = useState("");
   const [nuevoValor, setNuevoValor] = useState("");
+  const [atributoAEliminar, setAtributoAEliminar] = useState<Atributo | null>(null);
+  const [eliminando, setEliminando] = useState(false);
 
   async function cargarAtributos() {
     const data = await fetchAtributos();
@@ -34,21 +39,54 @@ export default function AdminPage() {
 
   async function handleAddAtributo() {
     if (!nuevoAtributo.trim()) return;
-    await insertAtributo(nuevoAtributo.trim());
-    setNuevoAtributo("");
-    cargarAtributos();
+    try {
+      await crearAtributo(nuevoAtributo);
+      setNuevoAtributo("");
+      await cargarAtributos();
+      showSuccess("Atributo agregado");
+    } catch (err) {
+      showError(err instanceof Error ? err.message : "Error al agregar atributo");
+    }
   }
 
   async function handleAddValor() {
     if (!nuevoValor.trim() || !selectedAtributo) return;
-    await insertAtributoValor(selectedAtributo.id, nuevoValor.trim());
-    setNuevoValor("");
-    cargarValores(selectedAtributo.id);
+    try {
+      await crearValor(selectedAtributo.id, nuevoValor);
+      setNuevoValor("");
+      await cargarValores(selectedAtributo.id);
+      showSuccess("Valor agregado");
+    } catch (err) {
+      showError(err instanceof Error ? err.message : "Error al agregar valor");
+    }
   }
 
   async function handleToggleActivo(atributo: Atributo) {
-    await toggleAtributoActivo(atributo.id, !atributo.activo);
-    cargarAtributos();
+    try {
+      await toggleAtributoActivo(atributo.id, !atributo.activo);
+      await cargarAtributos();
+    } catch (err) {
+      showError(err instanceof Error ? err.message : "Error al actualizar atributo");
+    }
+  }
+
+  async function handleConfirmarEliminar() {
+    if (!atributoAEliminar || eliminando) return;
+    setEliminando(true);
+    try {
+      await eliminarAtributo(atributoAEliminar.id);
+      if (selectedAtributo?.id === atributoAEliminar.id) {
+        setSelectedAtributo(null);
+        setValores([]);
+      }
+      await cargarAtributos();
+      showSuccess("Atributo eliminado");
+      setAtributoAEliminar(null);
+    } catch (err) {
+      showError(err instanceof Error ? err.message : "Error al eliminar atributo");
+    } finally {
+      setEliminando(false);
+    }
   }
 
   function selectAtributo(atributo: Atributo) {
@@ -87,16 +125,29 @@ export default function AdminPage() {
                 } ${!a.activo ? "opacity-50" : ""}`}
               >
                 <span>{a.nombre}</span>
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    handleToggleActivo(a);
-                  }}
-                >
-                  {a.activo ? "✓" : "✕"}
-                </Button>
+                <div className="flex items-center gap-1">
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      handleToggleActivo(a);
+                    }}
+                  >
+                    {a.activo ? "✓" : "✕"}
+                  </Button>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    aria-label={`Eliminar ${a.nombre}`}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setAtributoAEliminar(a);
+                    }}
+                  >
+                    <i className="fas fa-trash text-red-500" />
+                  </Button>
+                </div>
               </div>
             ))}
           </div>
@@ -149,6 +200,15 @@ export default function AdminPage() {
             </div>
           )}
         </div>
+
+        <ConfirmModal
+          open={atributoAEliminar !== null}
+          title="Eliminar atributo"
+          message={`¿Eliminar «${atributoAEliminar?.nombre ?? ""}»? También se eliminarán todos sus valores.`}
+          confirmLabel={eliminando ? "Eliminando..." : "Eliminar"}
+          onConfirm={handleConfirmarEliminar}
+          onCancel={() => setAtributoAEliminar(null)}
+        />
       </div>
   );
 }

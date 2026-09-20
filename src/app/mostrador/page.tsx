@@ -16,6 +16,7 @@ import { crearPedidoAgrupado } from "@/lib/services/pedidos";
 import { supabase } from "@/lib/supabase/client";
 import { RUTAS_PRODUCCION, NOMBRE_EMPRESA } from "@/lib/utils/constantes";
 import { fetchAtributosConValores } from "@/lib/services/atributos";
+import { fetchCatalogo, type Catalogo } from "@/lib/services/catalogo";
 import { useOffline } from "@/lib/offline/useOffline";
 import { useOfflineSync } from "@/lib/offline/useOfflineSync";
 import { queueOrder, getQueueCount } from "@/lib/offline/orderQueue";
@@ -35,6 +36,7 @@ function MostradorContent() {
   const { isOnline } = useOffline();
   useOfflineSync({ cajeroId: session?.user.id, isOnline });
   const [atributosPool, setAtributosPool] = useState<AtributoConValores[]>([]);
+  const [catalogo, setCatalogo] = useState<Catalogo | null>(null);
   const [mostrandoLinea, setMostrandoLinea] = useState(false);
   const [editandoLinea, setEditandoLinea] = useState<LineaPedidoDraft | null>(null);
   const [pagarCargando, setPagarCargando] = useState(false);
@@ -57,6 +59,7 @@ function MostradorContent() {
   useEffect(() => {
     loadCatalog(isOnline).then((cached) => {
       if (cached.atributos) setAtributosPool(cached.atributos as AtributoConValores[]);
+      if (cached.catalogo) setCatalogo(cached.catalogo as Catalogo);
       if (cached.marcas) {
         setMarcas(cached.marcas as { id: string; nombre: string; codigo: string }[]);
       }
@@ -86,6 +89,9 @@ function MostradorContent() {
     if (isOnline) {
       fetchAtributosConValores()
         .then(setAtributosPool)
+        .catch(() => {});
+      fetchCatalogo()
+        .then(setCatalogo)
         .catch(() => {});
       supabase
         .from("marcas")
@@ -122,22 +128,16 @@ function MostradorContent() {
   function handleSaveLinea(linea: LineaPedidoDraft) {
     if (editandoLinea) {
       pedido.eliminarLinea(editandoLinea.id);
-      pedido.agregarLinea({
-        producto_nombre: linea.producto_nombre,
-        cantidad: linea.cantidad,
-        precio_unitario: linea.precio_unitario,
-        atributos: linea.atributos,
-        ruta: linea.ruta,
-      });
-    } else {
-      pedido.agregarLinea({
-        producto_nombre: linea.producto_nombre,
-        cantidad: linea.cantidad,
-        precio_unitario: linea.precio_unitario,
-        atributos: linea.atributos,
-        ruta: linea.ruta,
-      });
     }
+    pedido.agregarLinea({
+      producto_nombre: linea.producto_nombre,
+      cantidad: linea.cantidad,
+      precio_unitario: linea.precio_unitario,
+      atributos: linea.atributos,
+      ruta: linea.ruta,
+      categoria_id: linea.categoria_id ?? null,
+      producto_id: linea.producto_id ?? null,
+    });
     setMostrandoLinea(false);
     setEditandoLinea(null);
   }
@@ -374,6 +374,7 @@ function MostradorContent() {
                 }}
                 editData={editandoLinea || undefined}
                 rutaDefault={pedido.rutaDefault}
+                catalogo={catalogo ?? undefined}
               />
             </div>
           )}
