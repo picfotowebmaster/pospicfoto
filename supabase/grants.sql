@@ -31,3 +31,7 @@ GRANT SELECT, INSERT ON public.pedido_movimientos TO authenticated;
 -- Sucursales y Marcas
 GRANT SELECT ON public.sucursales TO authenticated;
 GRANT SELECT ON public.marcas TO authenticated;
+
+-- Secuencias usadas por generar_numero_pedido() y generar_folio_factura()
+GRANT USAGE ON SEQUENCE public.pedido_global_seq TO anon, authenticated, service_role;
+GRANT USAGE ON SEQUENCE public.factura_folio_seq TO anon, authenticated, service_role;
