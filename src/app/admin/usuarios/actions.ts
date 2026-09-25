@@ -4,7 +4,23 @@ import { createServerClient } from "@supabase/ssr";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { cookies } from "next/headers";
 
-async function requireAdmin(): Promise<string> {
+const ROLES_ASIGNABLES = [
+  "mostrador",
+  "diseno",
+  "impresion",
+  "laminado",
+  "montaje",
+  "books",
+  "bastidores",
+  "marcos",
+  "taller",
+  "corte",
+  "admin",
+  "superadmin",
+  "contador",
+] as const;
+
+async function obtenerPerfilAutenticado(): Promise<{ id: string; rol: string }> {
   const cookieStore = await cookies();
   const supabase = createServerClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -27,11 +43,25 @@ async function requireAdmin(): Promise<string> {
     .eq("id", user.id)
     .single();
 
-  if (!profile || !["admin", "superadmin"].includes(profile.rol)) {
+  if (!profile) throw new Error("No autorizado");
+
+  return { id: user.id, rol: profile.rol };
+}
+
+async function requireAdmin(): Promise<string> {
+  const { id, rol } = await obtenerPerfilAutenticado();
+  if (!["admin", "superadmin"].includes(rol)) {
     throw new Error("No autorizado");
   }
+  return id;
+}
 
-  return user.id;
+async function requireSuperadmin(): Promise<string> {
+  const { id, rol } = await obtenerPerfilAutenticado();
+  if (rol !== "superadmin") {
+    throw new Error("No autorizado");
+  }
+  return id;
 }
 
 export type UsuarioRow = {
@@ -98,6 +128,29 @@ export async function updateUserSucursal(userId: string, sucursalId: string | nu
   const { error } = await client
     .from("profiles")
     .update({ sucursal_id: sucursalId || null })
+    .eq("id", userId);
+
+  if (error) throw new Error(error.message);
+
+  return { success: true };
+}
+
+export async function updateUserRol(userId: string, rol: string) {
+  const currentUserId = await requireSuperadmin();
+
+  if (userId === currentUserId) {
+    throw new Error("No puedes cambiar tu propio rol.");
+  }
+
+  if (!ROLES_ASIGNABLES.includes(rol as (typeof ROLES_ASIGNABLES)[number])) {
+    throw new Error("Rol inválido.");
+  }
+
+  const client = createAdminClient();
+
+  const { error } = await client
+    .from("profiles")
+    .update({ rol })
     .eq("id", userId);
 
   if (error) throw new Error(error.message);

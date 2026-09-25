@@ -2,8 +2,45 @@
 
 import { useState, useEffect, useCallback } from "react";
 import { Button } from "@/components/ui/Button";
+import { ConfirmModal } from "@/components/ui/ConfirmModal";
 import { supabase } from "@/lib/supabase/client";
-import { listarUsuarios, resetPassword, createUser, updateUserSucursal, type UsuarioRow } from "./actions";
+import { useAuth } from "@/lib/hooks/useAuth";
+import { listarUsuarios, resetPassword, createUser, updateUserSucursal, updateUserRol, type UsuarioRow } from "./actions";
+
+const ROLES = [
+  { value: "mostrador", label: "Mostrador" },
+  { value: "diseno", label: "Diseño" },
+  { value: "impresion", label: "Impresión" },
+  { value: "laminado", label: "Laminado" },
+  { value: "montaje", label: "Montaje" },
+  { value: "books", label: "Books" },
+  { value: "bastidores", label: "Bastidores" },
+  { value: "marcos", label: "Marcos" },
+  { value: "taller", label: "Taller" },
+  { value: "corte", label: "Corte" },
+  { value: "contador", label: "Contador" },
+  { value: "admin", label: "Admin" },
+  { value: "superadmin", label: "Superadmin" },
+];
+
+const ROLES_SENSIBLES = ["admin", "superadmin"];
+
+function colorRol(rol: string | null) {
+  switch (rol) {
+    case "superadmin":
+      return "bg-red-100 text-red-700";
+    case "admin":
+      return "bg-purple-100 text-purple-700";
+    case "taller":
+      return "bg-blue-100 text-blue-700";
+    case "corte":
+      return "bg-amber-100 text-amber-700";
+    case "contador":
+      return "bg-teal-100 text-teal-700";
+    default:
+      return "bg-gray-100 text-gray-600";
+  }
+}
 
 function ResetModal({
   usuario,
@@ -252,11 +289,11 @@ function CreateModal({
               onChange={(e) => setRol(e.target.value)}
               className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white"
             >
-              <option value="mostrador">Mostrador</option>
-              <option value="taller">Taller</option>
-              <option value="corte">Corte</option>
-              <option value="contador">Contador</option>
-              <option value="admin">Admin</option>
+              {ROLES.map((r) => (
+                <option key={r.value} value={r.value}>
+                  {r.label}
+                </option>
+              ))}
             </select>
           </div>
 
@@ -284,12 +321,18 @@ function CreateModal({
 }
 
 export default function UsuariosPage() {
+  const { session } = useAuth();
+  const currentUserId = session?.user.id;
   const [usuarios, setUsuarios] = useState<UsuarioRow[]>([]);
   const [cargando, setCargando] = useState(true);
   const [error, setError] = useState("");
   const [modalUsuario, setModalUsuario] = useState<UsuarioRow | null>(null);
   const [showCreate, setShowCreate] = useState(false);
   const [sucursales, setSucursales] = useState<{ id: string; nombre: string }[]>([]);
+  const [pendienteRol, setPendienteRol] = useState<{
+    usuario: UsuarioRow;
+    nuevoRol: string;
+  } | null>(null);
 
   const cargar = useCallback(async () => {
     setCargando(true);
@@ -304,6 +347,34 @@ export default function UsuariosPage() {
     }
     setCargando(false);
   }, []);
+
+  async function aplicarCambioRol(usuario: UsuarioRow, nuevoRol: string) {
+    setError("");
+    try {
+      await updateUserRol(usuario.id, nuevoRol);
+      await cargar();
+    } catch (err: unknown) {
+      setError(
+        err instanceof Error ? err.message : "Error al actualizar el rol."
+      );
+      await cargar();
+    }
+  }
+
+  function handleRolChange(usuario: UsuarioRow, nuevoRol: string) {
+    const actual = usuario.rol ?? "";
+    if (nuevoRol === actual) return;
+
+    const esSensible =
+      ROLES_SENSIBLES.includes(nuevoRol) ||
+      ROLES_SENSIBLES.includes(actual);
+
+    if (esSensible) {
+      setPendienteRol({ usuario, nuevoRol });
+    } else {
+      aplicarCambioRol(usuario, nuevoRol);
+    }
+  }
 
   useEffect(() => {
     cargar();
@@ -392,23 +463,21 @@ export default function UsuariosPage() {
                       </select>
                     </td>
                     <td className="py-2 px-3">
-                      <span
-                        className={`inline-block px-2 py-0.5 rounded-full text-xs font-medium ${
-                          u.rol === "superadmin"
-                            ? "bg-red-100 text-red-700"
-                            : u.rol === "admin"
-                              ? "bg-purple-100 text-purple-700"
-                            : u.rol === "taller"
-                              ? "bg-blue-100 text-blue-700"
-                              : u.rol === "corte"
-                                ? "bg-amber-100 text-amber-700"
-                                : u.rol === "contador"
-                                  ? "bg-teal-100 text-teal-700"
-                                  : "bg-gray-100 text-gray-600"
-                        }`}
+                      <select
+                        value={u.rol || ""}
+                        disabled={u.id === currentUserId}
+                        onChange={(e) => handleRolChange(u, e.target.value)}
+                        className={`border border-gray-200 rounded-lg px-2 py-1 text-xs font-medium focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:opacity-60 disabled:cursor-not-allowed ${colorRol(
+                          u.rol
+                        )}`}
                       >
-                        {u.rol || "—"}
-                      </span>
+                        {!u.rol && <option value="">—</option>}
+                        {ROLES.map((r) => (
+                          <option key={r.value} value={r.value}>
+                            {r.label}
+                          </option>
+                        ))}
+                      </select>
                     </td>
                     <td className="py-2 px-3 text-gray-500 text-xs">
                       {u.creado
@@ -465,6 +534,27 @@ export default function UsuariosPage() {
           }}
         />
       )}
+
+      <ConfirmModal
+        open={pendienteRol !== null}
+        title="Cambiar rol"
+        message={
+          pendienteRol
+            ? `¿Cambiar el rol de ${pendienteRol.usuario.email ?? "este usuario"} de "${
+                pendienteRol.usuario.rol ?? "—"
+              }" a "${pendienteRol.nuevoRol}"?`
+            : ""
+        }
+        confirmLabel="Cambiar rol"
+        variant="warning"
+        onConfirm={() => {
+          if (!pendienteRol) return;
+          const { usuario, nuevoRol } = pendienteRol;
+          setPendienteRol(null);
+          aplicarCambioRol(usuario, nuevoRol);
+        }}
+        onCancel={() => setPendienteRol(null)}
+      />
     </div>
   );
 }
