@@ -94,6 +94,33 @@ export default async function DashboardPage() {
         </div>
       </header>
 
+      <nav className="bg-white dark:bg-gray-900 border-b border-gray-200 dark:border-gray-800">
+        <div className="max-w-5xl mx-auto flex gap-1 px-4">
+          <Link
+            href="/mostrador"
+            className="px-4 py-2.5 text-sm font-medium transition-colors border-b-2 -mb-px border-transparent text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200"
+          >
+            Nuevo Pedido
+          </Link>
+          {esProduccion && (
+            <Link
+              href="/produccion/kanban"
+              className="px-4 py-2.5 text-sm font-medium transition-colors border-b-2 -mb-px border-transparent text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200"
+            >
+              Kanban Producci&oacute;n
+            </Link>
+          )}
+          {esAdmin && (
+            <Link
+              href="/admin"
+              className="px-4 py-2.5 text-sm font-medium transition-colors border-b-2 -mb-px border-transparent text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200"
+            >
+              Administraci&oacute;n
+            </Link>
+          )}
+        </div>
+      </nav>
+
       <div className="max-w-5xl mx-auto p-4 space-y-6">
         <div className="grid grid-cols-2 gap-4">
           <DashboardCard titulo="Pedidos de hoy" valor={pedidosHoy} color="bg-blue-500" />
@@ -136,36 +163,6 @@ export default async function DashboardPage() {
                 />
               );
             })}
-          </div>
-        </section>
-
-        <section>
-          <h2 className="text-sm font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide mb-3">
-            Navegaci&oacute;n r&aacute;pida
-          </h2>
-          <div className="flex flex-wrap gap-3">
-            <Link
-              href="/mostrador"
-              className="inline-flex items-center px-4 py-2 bg-blue-600 text-white rounded-lg text-sm font-medium hover:bg-blue-700 transition-colors"
-            >
-              Nuevo Pedido
-            </Link>
-            {esProduccion && (
-              <Link
-                href="/produccion/kanban"
-                className="inline-flex items-center px-4 py-2 bg-indigo-600 text-white rounded-lg text-sm font-medium hover:bg-indigo-700 transition-colors"
-              >
-                Kanban Producci&oacute;n
-              </Link>
-            )}
-            {esAdmin && (
-              <Link
-                href="/admin"
-                className="inline-flex items-center px-4 py-2 bg-gray-600 text-white rounded-lg text-sm font-medium hover:bg-gray-700 transition-colors"
-              >
-                Administraci&oacute;n
-              </Link>
-            )}
           </div>
         </section>
       </div>
