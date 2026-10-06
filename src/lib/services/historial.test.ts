@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { supabase } from "@/lib/supabase/client";
-import { buscarHistorial, upsertHistorial } from "./historial";
+import { buscarHistorial, fetchProductosFrecuentes, upsertHistorial } from "./historial";
 
 describe("buscarHistorial", () => {
   it("retorna array vacio si termino tiene menos de 2 caracteres", async () => {
@@ -48,6 +48,38 @@ describe("buscarHistorial", () => {
 
     const result = await buscarHistorial("Producto");
     expect(result).toHaveLength(10);
+  });
+});
+
+describe("fetchProductosFrecuentes", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it("devuelve los más usados ordenados", async () => {
+    const mockData = [
+      { id: "h1", nombre: "Foto 4x6", atributos: {}, veces_usado: 10, ultimo_uso: "" },
+    ];
+    const limit = vi.fn().mockResolvedValue({ data: mockData, error: null });
+    vi.mocked(supabase.from).mockReturnValue({
+      select: vi.fn().mockReturnThis(),
+      order: vi.fn().mockReturnThis(),
+      limit,
+    } as ReturnType<typeof supabase.from>);
+
+    const result = await fetchProductosFrecuentes(8);
+    expect(result).toEqual(mockData);
+    expect(limit).toHaveBeenCalledWith(8);
+  });
+
+  it("lanza error si la query falla", async () => {
+    vi.mocked(supabase.from).mockReturnValue({
+      select: vi.fn().mockReturnThis(),
+      order: vi.fn().mockReturnThis(),
+      limit: vi.fn().mockResolvedValue({ data: null, error: new Error("boom") }),
+    } as ReturnType<typeof supabase.from>);
+
+    await expect(fetchProductosFrecuentes()).rejects.toThrow("boom");
   });
 });
 

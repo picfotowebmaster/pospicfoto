@@ -7,6 +7,7 @@ import { TablaPedidos } from "./TablaPedidos";
 import { Paginador } from "./Paginador";
 import { Button } from "@/components/ui/Button";
 import { fetchAtributosConValores } from "@/lib/services/atributos";
+import { descargarCSV } from "@/lib/utils/csv";
 import type { Atributo, AtributoValor } from "@/lib/supabase/types";
 
 type AtributoConValores = Atributo & { valores: AtributoValor[] };
@@ -18,6 +19,9 @@ export function HistorialPedidos() {
     error,
     pagina,
     hasMore,
+    total,
+    porPagina,
+    setPorPagina,
     setPagina,
     filtros,
     actualizarFiltros,
@@ -33,6 +37,26 @@ export function HistorialPedidos() {
       .catch(() => {});
   }, []);
 
+  function exportar() {
+    if (pedidos.length === 0) return;
+    const filas = [
+      ["Pedido", "Cliente", "Teléfono", "Fecha entrega", "Hora", "Total", "Anticipo", "Pago", "Área", "Estado"],
+      ...pedidos.map((p) => [
+        p.numero_pedido,
+        p.cliente_nombre,
+        p.cliente_telefono,
+        p.fecha_entrega,
+        p.hora_entrega,
+        p.total,
+        p.anticipo,
+        p.metodo_pago,
+        p.area_actual,
+        p.estado,
+      ]),
+    ];
+    descargarCSV(`pedidos-${new Date().toISOString().slice(0, 10)}.csv`, filas);
+  }
+
   return (
     <div className="max-w-6xl mx-auto p-4">
       <div className="bg-white dark:bg-gray-900 rounded-xl shadow p-4 space-y-4">
@@ -40,9 +64,15 @@ export function HistorialPedidos() {
           <h2 className="font-semibold text-gray-700 dark:text-gray-300 text-sm uppercase">
             Pedidos
           </h2>
-          <Button size="sm" variant="ghost" onClick={recargar}>
-            Refrescar
-          </Button>
+          <div className="flex items-center gap-2">
+            <Button size="sm" variant="ghost" onClick={exportar} disabled={pedidos.length === 0}>
+              <i className="fas fa-file-csv mr-1" />
+              Exportar CSV
+            </Button>
+            <Button size="sm" variant="ghost" onClick={recargar}>
+              Refrescar
+            </Button>
+          </div>
         </div>
 
         <FiltrosPedidos
@@ -74,7 +104,10 @@ export function HistorialPedidos() {
             <Paginador
               pagina={pagina}
               hasMore={hasMore}
+              total={total}
+              porPagina={porPagina}
               onChange={setPagina}
+              onPorPaginaChange={setPorPagina}
             />
           </>
         )}

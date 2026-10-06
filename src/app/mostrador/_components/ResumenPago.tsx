@@ -1,13 +1,8 @@
 "use client";
 
 import React from "react";
-import { Button } from "@/components/ui/Button";
 import type { MetodoPago } from "@/lib/supabase/types";
-import {
-  ANTICIPO_POR_DEFECTO,
-  ANTICIPO_OPCIONES,
-  METODOS_PAGO,
-} from "@/lib/utils/constantes";
+import { ANTICIPO_OPCIONES, METODOS_PAGO } from "@/lib/utils/constantes";
 
 interface ResumenPagoProps {
   subtotal: number;

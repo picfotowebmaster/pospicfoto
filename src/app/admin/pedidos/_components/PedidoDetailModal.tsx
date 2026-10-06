@@ -4,6 +4,7 @@ import { useEffect } from "react";
 import { Badge } from "@/components/ui/Badge";
 import { Button } from "@/components/ui/Button";
 import { ESTADOS_PEDIDO, AREAS_PRODUCCION_DATA } from "@/lib/utils/constantes";
+import { PedidoTimeline } from "@/components/pedidos/PedidoTimeline";
 import { EditPedidoForm } from "./EditPedidoForm";
 import type { Pedido, Atributo, AtributoValor, MetodoPago, RutaProduccion, LineaPedidoDraft } from "@/lib/supabase/types";
 
@@ -150,7 +151,30 @@ function DetallePedido({
             Requiere corrección
           </span>
         )}
+        {pedido.prioridad === "urgente" && (
+          <span className="rounded px-3 py-1 text-xs font-semibold bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-300">
+            <i className="fas fa-flag mr-1" />
+            Prioritario
+          </span>
+        )}
       </div>
+
+      {pedido.requiere_correccion && pedido.motivo_correccion && (
+        <div className="bg-orange-50 dark:bg-orange-900/20 border border-orange-200 dark:border-orange-800 rounded-lg p-3">
+          <p className="text-xs text-gray-700 dark:text-gray-200">
+            <span className="font-semibold">Motivo de corrección:</span> {pedido.motivo_correccion}
+          </p>
+        </div>
+      )}
+
+      {pedido.notas && (
+        <div className="bg-gray-50 dark:bg-gray-800 rounded-lg p-3">
+          <p className="text-[10px] text-gray-400 dark:text-gray-500 uppercase tracking-wider font-medium mb-1">
+            Notas
+          </p>
+          <p className="text-xs text-gray-700 dark:text-gray-200 whitespace-pre-wrap">{pedido.notas}</p>
+        </div>
+      )}
 
       {pedido.estado === "entregado" && (
         <div className="bg-gray-50 dark:bg-gray-800 rounded-lg p-3 border border-gray-100 dark:border-gray-700">
@@ -246,6 +270,14 @@ function DetallePedido({
             ))}
           </div>
         )}
+      </div>
+
+      <div>
+        <h3 className="text-sm font-bold text-gray-900 dark:text-gray-100 mb-3 flex items-center gap-2">
+          <i className="fas fa-clock-rotate-left text-gray-400" />
+          Historial de producción
+        </h3>
+        <PedidoTimeline pedidoId={pedido.id} areas={AREAS_PRODUCCION_DATA} />
       </div>
     </div>
   );

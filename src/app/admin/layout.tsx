@@ -5,7 +5,7 @@ import { useAuth } from "@/lib/hooks/useAuth";
 import { getSupabase } from "@/lib/supabase/client";
 import { ThemeToggle } from "@/components/ui/ThemeToggle";
 import { NOMBRE_EMPRESA } from "@/lib/utils/constantes";
-import RoleSwitcher from "./_components/RoleSwitcher";
+import RoleSwitcher from "@/app/_components/RoleSwitcher";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useState, useEffect } from "react";

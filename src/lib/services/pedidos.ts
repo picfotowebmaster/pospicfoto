@@ -1,5 +1,5 @@
 import { supabase } from "../supabase/client";
-import type { PedidoDraft, Pedido, MetodoPago, RutaProduccion, LineaPedidoDraft } from "../supabase/types";
+import type { PedidoDraft, Pedido, MetodoPago, RutaProduccion, LineaPedidoDraft, PrioridadPedido } from "../supabase/types";
 import { upsertHistorial } from "./historial";
 
 export interface FiltrosPedidos {
@@ -485,6 +485,122 @@ function aplicarFiltros(query: any, filtros: FiltrosPedidos) {
     q = q.eq("area_actual", filtros.areaActual);
   }
   return q;
+}
+
+export interface ClienteHistorial {
+  nombre: string;
+  telefono: string | null;
+  email: string | null;
+}
+
+export async function buscarClientes(termino: string): Promise<ClienteHistorial[]> {
+  const t = termino.trim();
+  if (t.length < 2) return [];
+
+  const { data, error } = await supabase
+    .from("pedidos")
+    .select("cliente_nombre, cliente_telefono, cliente_email")
+    .or(`cliente_telefono.ilike.%${t}%,cliente_nombre.ilike.%${t}%`)
+    .order("created_at", { ascending: false })
+    .limit(25);
+
+  if (error) throw error;
+
+  const seen = new Set<string>();
+  const result: ClienteHistorial[] = [];
+  for (const row of (data ?? []) as {
+    cliente_nombre: string;
+    cliente_telefono: string | null;
+    cliente_email: string | null;
+  }[]) {
+    const key = (row.cliente_telefono || row.cliente_nombre || "").toLowerCase();
+    if (!key || seen.has(key)) continue;
+    seen.add(key);
+    result.push({
+      nombre: row.cliente_nombre,
+      telefono: row.cliente_telefono,
+      email: row.cliente_email,
+    });
+    if (result.length >= 8) break;
+  }
+  return result;
+}
+
+export async function liquidarSaldo(id: string, metodo: MetodoPago): Promise<void> {
+  const { error } = await supabase
+    .from("pedidos")
+    .update({
+      saldo_cobrado: true,
+      saldo_metodo_pago: metodo,
+      saldo_cobrado_en: new Date().toISOString(),
+    })
+    .eq("id", id);
+
+  if (error) throw error;
+}
+
+export async function actualizarPrioridad(
+  id: string,
+  prioridad: PrioridadPedido,
+): Promise<void> {
+  const { error } = await supabase
+    .from("pedidos")
+    .update({ prioridad })
+    .eq("id", id);
+
+  if (error) throw error;
+}
+
+export async function asignarPedido(
+  id: string,
+  usuarioId: string | null,
+): Promise<void> {
+  const { error } = await supabase
+    .from("pedidos")
+    .update({ asignado_a: usuarioId })
+    .eq("id", id);
+
+  if (error) throw error;
+}
+
+export async function actualizarNotas(
+  id: string,
+  notas: string | null,
+): Promise<void> {
+  const { error } = await supabase
+    .from("pedidos")
+    .update({ notas: notas && notas.trim() !== "" ? notas : null })
+    .eq("id", id);
+
+  if (error) throw error;
+}
+
+export async function actualizarCorreccion(
+  id: string,
+  requiere: boolean,
+  motivo: string | null,
+): Promise<void> {
+  const { error } = await supabase
+    .from("pedidos")
+    .update({
+      requiere_correccion: requiere,
+      motivo_correccion: requiere && motivo && motivo.trim() !== "" ? motivo : null,
+    })
+    .eq("id", id);
+
+  if (error) throw error;
+}
+
+export async function contarPedidos(
+  filtros: Omit<FiltrosPedidos, "pagina" | "porPagina">,
+): Promise<number> {
+  const { count, error } = await aplicarFiltros(
+    supabase.from("pedidos").select("*", { count: "exact", head: true }),
+    { ...filtros, pagina: 1, porPagina: 1 },
+  );
+
+  if (error) throw error;
+  return count ?? 0;
 }
 
 export async function listarPedidos(

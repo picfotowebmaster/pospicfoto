@@ -206,7 +206,7 @@ describe("KanbanColumna", () => {
     expect(nombres[0]).toBe("Temprano");
   });
 
-  it("procesa drop con datos validos", async () => {
+  it("procesa drop cuando el destino es valido", async () => {
     const { container } = render(
       <KanbanColumna
         area={area}
@@ -216,7 +216,11 @@ describe("KanbanColumna", () => {
       />,
     );
     const column = container.firstElementChild!;
-    const dt = createDataTransfer({ pedidoId: "p-other", hasMultiple: false });
+    const dt = createDataTransfer({
+      pedidoId: "p-other",
+      hasMultiple: false,
+      validDestinations: ["diseno"],
+    });
     fireEvent.drop(column, { dataTransfer: dt });
     await waitFor(() => expect(onAvanzarPedido).toHaveBeenCalledWith("p-other"));
   });
@@ -231,8 +235,34 @@ describe("KanbanColumna", () => {
       />,
     );
     const column = container.firstElementChild!;
-    const dt = createDataTransfer({ pedidoId: "p-other", hasMultiple: true });
+    const dt = createDataTransfer({
+      pedidoId: "p-other",
+      hasMultiple: true,
+      validDestinations: ["diseno", "montaje"],
+    });
     fireEvent.drop(column, { dataTransfer: dt });
     await waitFor(() => expect(onAvanzarPedido).toHaveBeenCalledWith("p-other", "diseno"));
+  });
+
+  it("no mueve y avisa cuando el destino es invalido", async () => {
+    const onDropInvalido = vi.fn();
+    const { container } = render(
+      <KanbanColumna
+        area={area}
+        pedidos={[]}
+        getNextForPedido={getNextForPedido}
+        onAvanzarPedido={onAvanzarPedido}
+        onDropInvalido={onDropInvalido}
+      />,
+    );
+    const column = container.firstElementChild!;
+    const dt = createDataTransfer({
+      pedidoId: "p-other",
+      hasMultiple: false,
+      validDestinations: ["impresion"],
+    });
+    fireEvent.drop(column, { dataTransfer: dt });
+    await waitFor(() => expect(onDropInvalido).toHaveBeenCalledWith("Diseño"));
+    expect(onAvanzarPedido).not.toHaveBeenCalled();
   });
 });

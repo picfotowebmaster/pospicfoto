@@ -1,30 +1,18 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState } from "react";
+import { useOffline } from "@/lib/offline/useOffline";
 
 export default function OfflineBanner() {
-  const [isOnline, setIsOnline] = useState(true);
+  const { isOnline } = useOffline();
   const [dismissed, setDismissed] = useState(false);
+  const [prevOnline, setPrevOnline] = useState(isOnline);
 
-  useEffect(() => {
-    setIsOnline(navigator.onLine);
-
-    function handleOnline() {
-      setIsOnline(true);
-    }
-    function handleOffline() {
-      setIsOnline(false);
-      setDismissed(false);
-    }
-
-    window.addEventListener("online", handleOnline);
-    window.addEventListener("offline", handleOffline);
-
-    return () => {
-      window.removeEventListener("online", handleOnline);
-      window.removeEventListener("offline", handleOffline);
-    };
-  }, []);
+  // Al volver a estar offline, volver a mostrar el aviso.
+  if (isOnline !== prevOnline) {
+    setPrevOnline(isOnline);
+    if (!isOnline) setDismissed(false);
+  }
 
   if (isOnline || dismissed) return null;
 

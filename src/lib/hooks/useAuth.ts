@@ -9,7 +9,10 @@ import type { Profile } from "@/lib/supabase/types";
 export function useAuth() {
   const router = useRouter();
   const [session, setSession] = useState<Session | null>(null);
-  const [profile, setProfile] = useState<Profile | null>(null);
+  const [profileRecord, setProfileRecord] = useState<{
+    userId: string;
+    profile: Profile | null;
+  } | null>(null);
   const hasSupabase = supabase != null;
   const [cargando, setCargando] = useState(hasSupabase);
 
@@ -31,18 +34,23 @@ export function useAuth() {
   }, [hasSupabase]);
 
   useEffect(() => {
-    if (!session?.user.id) {
-      setProfile(null);
-      return;
-    }
+    if (!session?.user.id) return;
+    const userId = session.user.id;
     supabase
       .from("profiles")
       .select("*")
-      .eq("id", session.user.id)
+      .eq("id", userId)
       .single()
-      .then(({ data }: { data: unknown }) => setProfile(data as Profile | null))
-      .catch(() => setProfile(null));
+      .then(({ data }: { data: unknown }) =>
+        setProfileRecord({ userId, profile: data as Profile | null }),
+      )
+      .catch(() => setProfileRecord({ userId, profile: null }));
   }, [session?.user.id]);
+
+  const profile =
+    profileRecord && profileRecord.userId === session?.user.id
+      ? profileRecord.profile
+      : null;
 
   const signIn = async (email: string, password: string) => {
     if (!supabase) return { error: new Error("Cliente de Supabase no inicializado.") };

@@ -1,6 +1,20 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { supabase } from "@/lib/supabase/client";
-import { crearPedido, fetchPedido, fetchPedidosPorEstado, cancelarPedido, listarPedidos, actualizarPedido } from "./pedidos";
+import {
+  crearPedido,
+  fetchPedido,
+  fetchPedidosPorEstado,
+  cancelarPedido,
+  listarPedidos,
+  actualizarPedido,
+  actualizarPrioridad,
+  asignarPedido,
+  actualizarNotas,
+  actualizarCorreccion,
+  buscarClientes,
+  liquidarSaldo,
+  contarPedidos,
+} from "./pedidos";
 import type { PedidoDraft } from "@/lib/supabase/types";
 
 vi.mock("@/lib/services/historial", () => ({
@@ -25,7 +39,7 @@ const mockDraft: PedidoDraft = {
 
 function qb(terminalMethod: string | null = null, data: unknown = null, error: Error | null = null) {
   const builder: Record<string, ReturnType<typeof vi.fn>> = {};
-  const methods = ["select", "insert", "update", "delete", "eq", "neq", "gt", "gte", "lt", "lte", "ilike", "in", "order", "limit", "range", "single", "maybeSingle"];
+  const methods = ["select", "insert", "update", "delete", "eq", "neq", "gt", "gte", "lt", "lte", "ilike", "in", "or", "order", "limit", "range", "single", "maybeSingle"];
   for (const m of methods) {
     builder[m] = terminalMethod === m
       ? vi.fn().mockResolvedValue(error ? { data, error } : { data, error: null })
@@ -45,9 +59,7 @@ describe("crearPedido", () => {
   beforeEach(() => vi.clearAllMocks());
 
   it("crea pedido exitosamente", async () => {
-    let fromCalls = 0;
     mockFrom((table: string) => {
-      fromCalls++;
       if (table === "marcas") return qb("single", { codigo: "PIC" }) as ReturnType<typeof supabase.from>;
       if (table === "sucursales") return qb("single", { codigo: "PAL" }) as ReturnType<typeof supabase.from>;
       if (table === "pedidos") return qb("single", { id: "p1", numero_pedido: "PIC-PAL-00042" }) as ReturnType<typeof supabase.from>;
@@ -127,7 +139,7 @@ describe("fetchPedidosPorEstado", () => {
 describe("cancelarPedido", () => {
   it("cambia a cancelado con movimiento", async () => {
     let fromCalls = 0;
-    mockFrom((table: string) => {
+    mockFrom(() => {
       fromCalls++;
       if (fromCalls === 1) return qb("single", { area_actual: "mostrador" }) as ReturnType<typeof supabase.from>;
       if (fromCalls === 2) return qb("eq", null) as ReturnType<typeof supabase.from>;
@@ -175,5 +187,131 @@ describe("actualizarPedido", () => {
       lineas: [{ id: "l1", producto_nombre: "P", cantidad: 1, precio_unitario: 200, atributos: {}, ruta: "R2" }],
     });
     expect(supabase.from).toHaveBeenCalled();
+  });
+});
+
+describe("colaboración de pedidos", () => {
+  beforeEach(() => vi.clearAllMocks());
+
+  it("actualizarPrioridad hace update con la prioridad", async () => {
+    const b = qb("eq", null);
+    vi.mocked(supabase.from).mockReturnValue(b as ReturnType<typeof supabase.from>);
+    await actualizarPrioridad("p1", "urgente");
+    expect(b.update).toHaveBeenCalledWith({ prioridad: "urgente" });
+    expect(b.eq).toHaveBeenCalledWith("id", "p1");
+  });
+
+  it("actualizarPrioridad lanza error de supabase", async () => {
+    vi.mocked(supabase.from).mockReturnValue(qb("eq", null, new Error("boom")) as ReturnType<typeof supabase.from>);
+    await expect(actualizarPrioridad("p1", "urgente")).rejects.toThrow("boom");
+  });
+
+  it("asignarPedido permite liberar con null", async () => {
+    const b = qb("eq", null);
+    vi.mocked(supabase.from).mockReturnValue(b as ReturnType<typeof supabase.from>);
+    await asignarPedido("p1", null);
+    expect(b.update).toHaveBeenCalledWith({ asignado_a: null });
+  });
+
+  it("actualizarNotas convierte vacío a null", async () => {
+    const b = qb("eq", null);
+    vi.mocked(supabase.from).mockReturnValue(b as ReturnType<typeof supabase.from>);
+    await actualizarNotas("p1", "   ");
+    expect(b.update).toHaveBeenCalledWith({ notas: null });
+  });
+
+  it("actualizarCorreccion normaliza motivo al quitar", async () => {
+    const b = qb("eq", null);
+    vi.mocked(supabase.from).mockReturnValue(b as ReturnType<typeof supabase.from>);
+    await actualizarCorreccion("p1", false, "motivo viejo");
+    expect(b.update).toHaveBeenCalledWith({
+      requiere_correccion: false,
+      motivo_correccion: null,
+    });
+  });
+
+  it("actualizarCorreccion guarda motivo al activar", async () => {
+    const b = qb("eq", null);
+    vi.mocked(supabase.from).mockReturnValue(b as ReturnType<typeof supabase.from>);
+    await actualizarCorreccion("p1", true, "Color incorrecto");
+    expect(b.update).toHaveBeenCalledWith({
+      requiere_correccion: true,
+      motivo_correccion: "Color incorrecto",
+    });
+  });
+});
+
+describe("buscarClientes", () => {
+  beforeEach(() => vi.clearAllMocks());
+
+  it("retorna vacío con menos de 2 caracteres", async () => {
+    const result = await buscarClientes("a");
+    expect(result).toEqual([]);
+  });
+
+  it("deduplica por teléfono y devuelve máximo 8", async () => {
+    const rows = [
+      { cliente_nombre: "Ana", cliente_telefono: "5551111111", cliente_email: null },
+      { cliente_nombre: "Ana Duplicada", cliente_telefono: "5551111111", cliente_email: "a@x.com" },
+      { cliente_nombre: "Luis", cliente_telefono: "5552222222", cliente_email: null },
+    ];
+    vi.mocked(supabase.from).mockReturnValue(
+      qb("limit", rows) as ReturnType<typeof supabase.from>,
+    );
+    const result = await buscarClientes("55");
+    expect(result).toHaveLength(2);
+    expect(result[0].nombre).toBe("Ana");
+    expect(result[1].nombre).toBe("Luis");
+  });
+
+  it("propaga error de supabase", async () => {
+    vi.mocked(supabase.from).mockReturnValue(
+      qb("limit", null, new Error("db")) as ReturnType<typeof supabase.from>,
+    );
+    await expect(buscarClientes("55")).rejects.toThrow("db");
+  });
+});
+
+describe("liquidarSaldo", () => {
+  beforeEach(() => vi.clearAllMocks());
+
+  it("marca el saldo como cobrado con método", async () => {
+    const b = qb("eq", null);
+    vi.mocked(supabase.from).mockReturnValue(b as ReturnType<typeof supabase.from>);
+    await liquidarSaldo("p1", "Tarjeta");
+    expect(b.update).toHaveBeenCalledWith(
+      expect.objectContaining({ saldo_cobrado: true, saldo_metodo_pago: "Tarjeta" }),
+    );
+    expect(b.eq).toHaveBeenCalledWith("id", "p1");
+  });
+});
+
+describe("contarPedidos", () => {
+  beforeEach(() => vi.clearAllMocks());
+
+  it("devuelve el conteo exacto", async () => {
+    vi.mocked(supabase.from).mockReturnValue({
+      select: vi.fn().mockResolvedValue({ count: 42, error: null }),
+    } as unknown as ReturnType<typeof supabase.from>);
+
+    const total = await contarPedidos({});
+    expect(total).toBe(42);
+  });
+
+  it("devuelve 0 si count es null", async () => {
+    vi.mocked(supabase.from).mockReturnValue({
+      select: vi.fn().mockResolvedValue({ count: null, error: null }),
+    } as unknown as ReturnType<typeof supabase.from>);
+
+    const total = await contarPedidos({});
+    expect(total).toBe(0);
+  });
+
+  it("propaga error de supabase", async () => {
+    vi.mocked(supabase.from).mockReturnValue({
+      select: vi.fn().mockResolvedValue({ count: null, error: new Error("db") }),
+    } as unknown as ReturnType<typeof supabase.from>);
+
+    await expect(contarPedidos({})).rejects.toThrow("db");
   });
 });

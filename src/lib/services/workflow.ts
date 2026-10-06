@@ -192,6 +192,19 @@ export async function regresarPedido(
   return movePedido(pedidoId, pedido.area_actual, areaAnterior, null);
 }
 
+export async function fetchMovimientosByPedido(
+  pedidoId: string,
+): Promise<PedidoMovimiento[]> {
+  const { data, error } = await supabase
+    .from("pedido_movimientos")
+    .select("*")
+    .eq("pedido_id", pedidoId)
+    .order("created_at", { ascending: false });
+
+  if (error) throw error;
+  return (data ?? []) as PedidoMovimiento[];
+}
+
 export async function fetchUltimosMovimientos(pedidoIds: string[]): Promise<Record<string, string>> {
   if (pedidoIds.length === 0) return {};
   const { data, error } = await supabase

@@ -15,7 +15,6 @@ export function useAutocompletar<T>({
   onSelect,
   renderItem,
   minChars = 2,
-  idFromItem,
 }: AutocompletarOptions<T>) {
   const [termino, setTermino] = useState("");
   const [opciones, setOpciones] = useState<T[]>([]);

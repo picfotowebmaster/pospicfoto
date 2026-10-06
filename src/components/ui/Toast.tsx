@@ -4,15 +4,21 @@ import { createContext, use, useState, useCallback, useMemo, type ReactNode } fr
 
 type ToastType = "error" | "success" | "info";
 
+export interface ToastAction {
+  label: string;
+  onClick: () => void;
+}
+
 interface ToastItem {
   id: string;
   type: ToastType;
   message: string;
   entering: boolean;
+  action?: ToastAction;
 }
 
 interface ToastContextValue {
-  showToast: (type: ToastType, message: string) => void;
+  showToast: (type: ToastType, message: string, action?: ToastAction) => void;
   showError: (message: string) => void;
   showSuccess: (message: string) => void;
 }
@@ -32,9 +38,9 @@ export function ToastProvider({ children }: { children: ReactNode }) {
     setToasts((prev) => prev.filter((t) => t.id !== id));
   }, []);
 
-  const showToast = useCallback((type: ToastType, message: string) => {
+  const showToast = useCallback((type: ToastType, message: string, action?: ToastAction) => {
     const id = `gt-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
-    setToasts((prev) => [...prev, { id, type, message, entering: false }]);
+    setToasts((prev) => [...prev, { id, type, message, entering: false, action }]);
 
     requestAnimationFrame(() => {
       setToasts((prev) =>
@@ -81,6 +87,18 @@ export function ToastProvider({ children }: { children: ReactNode }) {
                   ×
                 </button>
               </div>
+              {toast.action && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    removeToast(toast.id);
+                    toast.action?.onClick();
+                  }}
+                  className="mt-2 text-xs font-semibold underline underline-offset-2 hover:opacity-80 cursor-pointer"
+                >
+                  {toast.action.label}
+                </button>
+              )}
             </div>
           );
         })}

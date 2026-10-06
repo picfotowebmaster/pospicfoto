@@ -1,6 +1,9 @@
 "use client";
 
 import React from "react";
+import { Autocompletar } from "@/components/ui/Autocompletar";
+import { useAutocompletar } from "@/lib/hooks/useAutocompletar";
+import { buscarClientes, type ClienteHistorial } from "@/lib/services/pedidos";
 
 interface FormClienteProps {
   nombre: string;
@@ -31,6 +34,21 @@ export function FormCliente({
   onHoraEntregaChange,
   onRequiereCorreccionChange,
 }: FormClienteProps) {
+  const renderCliente = (c: ClienteHistorial) =>
+    c.telefono ? `${c.nombre} · ${c.telefono}` : c.nombre;
+
+  const autocompletar = useAutocompletar<ClienteHistorial>({
+    fetchFn: buscarClientes,
+    onSelect: (c) => {
+      onNombreChange(c.nombre);
+      onTelefonoChange(c.telefono ?? "");
+      onEmailChange(c.email ?? "");
+    },
+    renderItem: renderCliente,
+    minChars: 2,
+    idFromItem: (c) => `${c.telefono ?? ""}-${c.nombre}`,
+  });
+
   return (
     <div className="bg-white dark:bg-gray-900 rounded-xl shadow p-4 space-y-3">
       <h3 className="font-semibold text-gray-700 dark:text-gray-300 text-sm uppercase tracking-wide">
@@ -52,15 +70,26 @@ export function FormCliente({
         </div>
         <div>
           <label htmlFor="cliente-telefono" className="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1">
-            Teléfono
+            Teléfono <span className="text-gray-400">(busca clientes existentes)</span>
           </label>
-          <input
+          <Autocompletar
             id="cliente-telefono"
-            type="text"
-            value={telefono}
-            onChange={(e) => onTelefonoChange(e.target.value)}
-            className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
             placeholder="55 1234 5678"
+            valor={telefono}
+            onChange={(v) => {
+              autocompletar.buscar(v);
+              onTelefonoChange(v);
+            }}
+            opciones={autocompletar.opciones}
+            renderOpcion={renderCliente}
+            onSelect={autocompletar.seleccionar}
+            abierto={autocompletar.abierto}
+            cargando={autocompletar.cargando}
+            indiceSeleccionado={autocompletar.indiceSeleccionado}
+            onKeyDown={autocompletar.tecla}
+            containerRef={autocompletar.containerRef}
+            inputRef={autocompletar.inputRef}
+            idFromItem={(c) => `${c.telefono ?? ""}-${c.nombre}`}
           />
         </div>
         <div>

@@ -1,11 +1,17 @@
 import { useEffect } from "react";
 import { supabase } from "@/lib/supabase/client";
 
+export type RealtimePayload = {
+  eventType: "INSERT" | "UPDATE" | "DELETE";
+  new: Record<string, unknown>;
+  old: Record<string, unknown>;
+};
+
 export function useRealtime(
   channel: string,
   table: string,
   event: "INSERT" | "UPDATE" | "DELETE" | "*",
-  callback: (payload: any) => void,
+  callback: (payload: RealtimePayload) => void,
 ) {
   useEffect(() => {
     const subscription = supabase

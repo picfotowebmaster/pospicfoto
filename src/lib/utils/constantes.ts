@@ -69,6 +69,18 @@ export const AREAS_PRODUCCION_DATA = [
   { id: "entregado", nombre: "Entregado", color: "bg-gray-500", orden: 100 },
 ];
 
+export const WIP_LIMITS: Record<string, number> = {
+  mostrador: 20,
+  diseno: 12,
+  impresion: 10,
+  laminado: 10,
+  montaje: 10,
+  books: 8,
+  bastidores: 8,
+  marcos: 8,
+  listo: 15,
+};
+
 export const SUCURSALES = [
   { codigo: "PAL" as const, nombre: "Palma" },
   { codigo: "CUB" as const, nombre: "Cuba" },

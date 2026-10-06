@@ -92,6 +92,32 @@ async function deleteSubscription(
   if (error) console.error("Error deleting push subscription:", error);
 }
 
+export interface PushAreaParams {
+  title: string;
+  body?: string;
+  area?: string | null;
+  roles?: string[];
+  url?: string;
+  tag?: string;
+}
+
+export async function enviarPushArea(params: PushAreaParams): Promise<void> {
+  try {
+    await supabase.functions.invoke("send-push", {
+      body: {
+        title: params.title,
+        body: params.body ?? "",
+        area: params.area ?? undefined,
+        roles: params.roles,
+        url: params.url ?? "/produccion/kanban",
+        tag: params.tag ?? "picphoto-general",
+      },
+    });
+  } catch (err) {
+    console.error("Error enviando push:", err);
+  }
+}
+
 export function getVapidPublicKey(): string {
   return VAPID_PUBLIC_KEY;
 }

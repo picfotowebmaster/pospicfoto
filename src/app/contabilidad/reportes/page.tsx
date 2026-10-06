@@ -109,7 +109,7 @@ export default function ReportesContabilidadPage() {
     }
 
     cargar();
-  }, [periodo, dias]);
+  }, [periodo, dias, showError]);
 
   return (
     <div className="max-w-6xl mx-auto p-4 space-y-6">

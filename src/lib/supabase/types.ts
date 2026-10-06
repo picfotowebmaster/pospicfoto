@@ -22,6 +22,10 @@ export type AreaProduccion =
 
 export type RutaProduccion = "R1" | "R2" | "R3" | "R4";
 
+export type PrioridadPedido = "normal" | "urgente";
+
+export type TipoComentario = "comentario" | "incidencia";
+
 export type Rol =
   | "mostrador"
   | "diseno"
@@ -141,9 +145,27 @@ export interface Pedido {
   factura_folio?: string | null;
   sucursal_id?: string | null;
   marca_id?: string | null;
+  prioridad?: PrioridadPedido | null;
+  asignado_a?: string | null;
+  motivo_correccion?: string | null;
+  notas?: string | null;
+  orden_manual?: number | null;
+  saldo_cobrado?: boolean | null;
+  saldo_metodo_pago?: MetodoPago | null;
+  saldo_cobrado_en?: string | null;
   created_at: string;
   updated_at: string;
   detalle_pedidos?: DetallePedido[];
+}
+
+export interface PedidoComentario {
+  id: string;
+  pedido_id: string;
+  autor_id: string | null;
+  tipo: TipoComentario;
+  texto: string;
+  foto_url: string | null;
+  created_at: string;
 }
 
 export interface DetallePedido {

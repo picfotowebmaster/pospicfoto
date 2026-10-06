@@ -4,14 +4,12 @@ import { useState, useEffect, useRef } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { supabase } from "@/lib/supabase/client";
-import { useAuth } from "@/lib/hooks/useAuth";
 import type { AuthChangeEvent, Session } from "@supabase/supabase-js";
 import { Button } from "@/components/ui/Button";
 import { NOMBRE_EMPRESA } from "@/lib/utils/constantes";
 
 export default function ResetPasswordPage() {
   const router = useRouter();
-  const { signOut } = useAuth();
   const [password, setPassword] = useState("");
   const [confirmar, setConfirmar] = useState("");
   const [error, setError] = useState("");

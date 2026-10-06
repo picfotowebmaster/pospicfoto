@@ -6,6 +6,8 @@ import { supabase } from "@/lib/supabase/client";
 import { useToast } from "@/components/ui/Toast";
 import { PendientesTabla } from "./_components/PendientesTabla";
 import { TiempoProduccion } from "./_components/TiempoProduccion";
+import { KpisProduccion } from "./_components/KpisProduccion";
+import { fetchKpisProduccion, type KpisProduccion as Kpis } from "@/lib/services/kpis";
 import type { Pedido } from "@/lib/supabase/types";
 
 const VentasChart = dynamic(
@@ -61,6 +63,7 @@ export default function ReportesPage() {
   const [metodosPago, setMetodosPago] = useState<MetodoPagoData[]>([]);
   const [pendientes, setPendientes] = useState<Pedido[]>([]);
   const [tiempos, setTiempos] = useState<TiempoRow[]>([]);
+  const [kpis, setKpis] = useState<Kpis | null>(null);
 
   const periodoActual = PERIODOS.find((p) => p.key === periodo) ?? PERIODOS[2];
   const dias = periodoActual.days;
@@ -71,7 +74,7 @@ export default function ReportesPage() {
     async function cargar() {
       setCargando(true);
       try {
-        const [ventasRes, metodosRes, pendientesRes, tiemposRes] = await Promise.all([
+        const [ventasRes, metodosRes, pendientesRes, tiemposRes, kpisData] = await Promise.all([
           supabase
             .from("pedidos")
             .select("fecha_recepcion, total")
@@ -88,6 +91,7 @@ export default function ReportesPage() {
             .order("fecha_entrega", { ascending: true })
             .order("hora_entrega", { ascending: true }),
           supabase.rpc("tiempo_produccion_promedio", { dias }),
+          fetchKpisProduccion(dias).catch(() => null),
         ]);
 
         if (ventasRes.data) {
@@ -127,6 +131,8 @@ export default function ReportesPage() {
         } else if (tiemposRes.error) {
           setTiempos([]);
         }
+
+        setKpis(kpisData);
       } catch (err) {
         console.error("Error cargando reportes:", err);
         showError("Error al cargar reportes.");
@@ -136,7 +142,7 @@ export default function ReportesPage() {
     }
 
     cargar();
-  }, [periodo, dias]);
+  }, [periodo, dias, showError]);
 
   return (
     <div className="max-w-6xl mx-auto p-4 space-y-6">
@@ -164,6 +170,11 @@ export default function ReportesPage() {
         <div className="text-center text-gray-400 dark:text-gray-500 py-20">Cargando reportes...</div>
       ) : (
         <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
+          {kpis && (
+            <div className="xl:col-span-2">
+              <KpisProduccion data={kpis} />
+            </div>
+          )}
           <VentasChart data={ventas} />
           <MetodoPagoChart data={metodosPago} />
           <div className="xl:col-span-2">

@@ -1,5 +1,4 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { supabase } from "@/lib/supabase/client";
 import { queueOrder, syncQueue, getQueueCount } from "./orderQueue";
 import { crearPedido } from "@/lib/services/pedidos";
 

@@ -377,8 +377,22 @@ export default function UsuariosPage() {
   }
 
   useEffect(() => {
-    cargar();
-  }, [cargar]);
+    let ignore = false;
+    listarUsuarios()
+      .then((data) => {
+        if (!ignore) setUsuarios(data);
+      })
+      .catch((err: unknown) => {
+        if (!ignore)
+          setError(err instanceof Error ? err.message : "Error al cargar usuarios.");
+      })
+      .finally(() => {
+        if (!ignore) setCargando(false);
+      });
+    return () => {
+      ignore = true;
+    };
+  }, []);
 
   useEffect(() => {
     supabase

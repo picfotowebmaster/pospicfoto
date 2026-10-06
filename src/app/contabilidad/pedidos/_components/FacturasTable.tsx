@@ -4,6 +4,7 @@ import { useState } from "react";
 import { Badge } from "@/components/ui/Badge";
 import { Button } from "@/components/ui/Button";
 import { useToast } from "@/components/ui/Toast";
+import { PedidoTimeline } from "@/components/pedidos/PedidoTimeline";
 import type { Pedido } from "@/lib/supabase/types";
 
 const COLOR_PAGO: Record<string, string> = {
@@ -34,6 +35,7 @@ export function FacturasTable({ pedidos, onFacturado }: FacturasTableProps) {
   const [facturando, setFacturando] = useState<string | null>(null);
   const [cancelando, setCancelando] = useState<string | null>(null);
   const [cancelModal, setCancelModal] = useState<Pedido | null>(null);
+  const [detalleModal, setDetalleModal] = useState<Pedido | null>(null);
   const [motivo, setMotivo] = useState("02");
   const [uuidRelacionado, setUuidRelacionado] = useState("");
 
@@ -182,6 +184,14 @@ export function FacturasTable({ pedidos, onFacturado }: FacturasTableProps) {
                 </td>
                 <td className="py-2 px-3 text-right">
                   <div className="flex items-center justify-end gap-2">
+                    <button
+                      type="button"
+                      onClick={() => setDetalleModal(p)}
+                      className="text-xs text-gray-500 hover:text-gray-800 dark:hover:text-gray-200 cursor-pointer"
+                      title="Ver historial y detalle"
+                    >
+                      Detalle
+                    </button>
                     <a
                       href={`/mostrador/ticket/${p.numero_pedido || p.id}`}
                       className="text-xs text-blue-600 hover:text-blue-800 cursor-pointer"
@@ -317,6 +327,57 @@ export function FacturasTable({ pedidos, onFacturado }: FacturasTableProps) {
                 {cancelando === cancelModal.id ? "..." : "Sí, cancelar factura"}
               </button>
             </div>
+          </div>
+        </div>
+      )}
+
+      {detalleModal && (
+        <div className="fixed inset-0 z-70 flex items-center justify-center p-4">
+          <div
+            className="absolute inset-0 bg-black/50 dark:bg-black/70"
+            onClick={() => setDetalleModal(null)}
+          />
+          <div className="relative bg-white dark:bg-gray-900 rounded-xl shadow-2xl p-5 w-full max-w-lg max-h-[85vh] overflow-y-auto border border-gray-200 dark:border-gray-700">
+            <div className="flex items-start justify-between gap-3 mb-4">
+              <div>
+                <h3 className="text-lg font-bold text-gray-900 dark:text-gray-100">
+                  {detalleModal.cliente_nombre}
+                </h3>
+                <p className="text-xs font-mono text-gray-400 dark:text-gray-500">
+                  {detalleModal.numero_pedido || "—"}
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setDetalleModal(null)}
+                className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-200 cursor-pointer"
+                aria-label="Cerrar"
+              >
+                <i className="fas fa-times text-lg" />
+              </button>
+            </div>
+
+            <div className="grid grid-cols-2 gap-3 text-xs mb-4">
+              <div className="bg-gray-50 dark:bg-gray-800 rounded-lg p-3">
+                <p className="text-[10px] text-gray-400 dark:text-gray-500 uppercase font-medium">Total</p>
+                <p className="text-sm font-semibold text-gray-900 dark:text-gray-100">${detalleModal.total.toFixed(2)}</p>
+              </div>
+              <div className="bg-gray-50 dark:bg-gray-800 rounded-lg p-3">
+                <p className="text-[10px] text-gray-400 dark:text-gray-500 uppercase font-medium">Saldo</p>
+                <p className="text-sm font-semibold text-gray-900 dark:text-gray-100">
+                  ${(detalleModal.total - detalleModal.anticipo).toFixed(2)}
+                  {detalleModal.saldo_cobrado && (
+                    <span className="ml-1 text-green-600 dark:text-green-400 text-[10px]">cobrado</span>
+                  )}
+                </p>
+              </div>
+            </div>
+
+            <h4 className="text-sm font-bold text-gray-900 dark:text-gray-100 mb-3 flex items-center gap-2">
+              <i className="fas fa-clock-rotate-left text-gray-400" />
+              Historial de producción
+            </h4>
+            <PedidoTimeline pedidoId={detalleModal.id} />
           </div>
         </div>
       )}

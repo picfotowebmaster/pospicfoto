@@ -18,6 +18,8 @@ interface AutocompletarProps<T> {
   className?: string;
   permitirLibre?: boolean;
   idFromItem?: (item: T) => string;
+  id?: string;
+  dark?: boolean;
 }
 
 export function Autocompletar<T>({
@@ -35,17 +37,24 @@ export function Autocompletar<T>({
   inputRef,
   className = "",
   idFromItem,
+  id,
+  dark,
 }: AutocompletarProps<T>) {
   return (
     <div ref={containerRef} className={`relative ${className}`}>
       <input
+        id={id}
         ref={inputRef}
         type="text"
         value={valor}
         onChange={(e) => onChange(e.target.value)}
         onKeyDown={onKeyDown}
         placeholder={placeholder}
-        className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+        className={`w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent ${
+          dark
+            ? "border-gray-700 bg-gray-800 text-gray-100"
+            : "border-gray-300"
+        }`}
       />
       {cargando && (
         <div className="absolute right-3 top-2.5">
@@ -53,13 +62,13 @@ export function Autocompletar<T>({
         </div>
       )}
       {abierto && opciones.length > 0 && (
-        <ul className="absolute z-50 w-full mt-1 bg-white border border-gray-200 rounded-lg shadow-lg max-h-48 overflow-y-auto">
+        <ul className="absolute z-50 w-full mt-1 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg shadow-lg max-h-48 overflow-y-auto">
           {opciones.map((opcion, idx) => (
             <li
               key={idFromItem ? idFromItem(opcion) : idx}
               onMouseDown={() => onSelect(opcion)}
-              className={`px-3 py-2 text-sm cursor-pointer hover:bg-blue-50 ${
-                idx === indiceSeleccionado ? "bg-blue-100" : ""
+              className={`px-3 py-2 text-sm cursor-pointer text-gray-700 dark:text-gray-200 hover:bg-blue-50 dark:hover:bg-gray-700 ${
+                idx === indiceSeleccionado ? "bg-blue-100 dark:bg-gray-700" : ""
               }`}
             >
               {renderOpcion(opcion)}

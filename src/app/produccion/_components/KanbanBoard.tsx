@@ -3,8 +3,8 @@
 import React, { useState, useCallback, useRef } from "react";
 import { KanbanColumna } from "./KanbanColumna";
 import { KanbanSkeleton } from "@/components/ui/Skeleton";
-import { Button } from "@/components/ui/Button";
-import type { Pedido } from "@/lib/supabase/types";
+import type { Pedido, PrioridadPedido } from "@/lib/supabase/types";
+import type { SlaLevel } from "@/lib/utils/pedido";
 
 export type NextAreaInfo = {
   destination: string;
@@ -20,12 +20,17 @@ interface KanbanBoardProps {
   onRegresarPedido?: (pedidoId: string) => Promise<void>;
   onBulkAvanzar?: (ids: string[]) => Promise<void>;
   getTiempoEnColumna?: (pedidoId: string) => string | null;
+  getTiempoEnColumnaNivel?: (pedidoId: string) => SlaLevel | null;
   hayFiltrosActivos?: boolean;
   loading?: boolean;
   onClickDetalle?: (pedido: Pedido) => void;
   collapsedColumns?: Set<string>;
   onToggleColumnCollapse?: (areaId: string) => void;
   wipLimits?: Record<string, number>;
+  onDropInvalido?: (areaNombre: string) => void;
+  usuarioId?: string | null;
+  onCambiarPrioridad?: (pedidoId: string, prioridad: PrioridadPedido) => Promise<void>;
+  onAsignar?: (pedidoId: string, usuarioId: string | null) => Promise<void>;
 }
 
 export function KanbanBoard({
@@ -37,12 +42,17 @@ export function KanbanBoard({
   onRegresarPedido,
   onBulkAvanzar,
   getTiempoEnColumna,
+  getTiempoEnColumnaNivel,
   hayFiltrosActivos,
   loading,
   onClickDetalle,
   collapsedColumns,
   onToggleColumnCollapse,
   wipLimits,
+  onDropInvalido,
+  usuarioId,
+  onCambiarPrioridad,
+  onAsignar,
 }: KanbanBoardProps) {
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [modoSeleccion, setModoSeleccion] = useState(false);
@@ -183,6 +193,10 @@ export function KanbanBoard({
             onCancelarPedido={onCancelarPedido}
             onRegresarPedido={onRegresarPedido}
             getTiempoEnColumna={getTiempoEnColumna}
+            getTiempoEnColumnaNivel={getTiempoEnColumnaNivel}
+            usuarioId={usuarioId}
+            onCambiarPrioridad={onCambiarPrioridad}
+            onAsignar={onAsignar}
             modoSeleccion={modoSeleccion}
             selectedIds={selectedIds}
             onToggleSeleccion={onBulkAvanzar ? toggleSeleccion : undefined}
@@ -192,6 +206,7 @@ export function KanbanBoard({
             wipLimit={wipLimits?.[area.id]}
             onClickDetalle={onClickDetalle}
             columnRef={(el) => { columnRefs.current.set(area.id, el); }}
+            onDropInvalido={onDropInvalido}
           />
         ))}
       </div>

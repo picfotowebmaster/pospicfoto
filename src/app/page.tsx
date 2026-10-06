@@ -2,6 +2,7 @@ import { createClient } from "@/lib/supabase/server";
 import { redirect } from "next/navigation";
 import { DashboardCard } from "./_components/DashboardCard";
 import { SignOutButton } from "./_components/SignOutButton";
+import RoleSwitcher from "./_components/RoleSwitcher";
 import { ThemeToggle } from "@/components/ui/ThemeToggle";
 import { AREAS_PRODUCCION_DATA, ESTADOS_PEDIDO, NOMBRE_EMPRESA } from "@/lib/utils/constantes";
 import Link from "next/link";
@@ -89,6 +90,7 @@ export default async function DashboardPage() {
         </div>
         <div className="flex items-center gap-3">
           <span className="text-sm text-gray-600 dark:text-gray-300">{user.email}</span>
+          <RoleSwitcher />
           <ThemeToggle />
           <SignOutButton />
         </div>

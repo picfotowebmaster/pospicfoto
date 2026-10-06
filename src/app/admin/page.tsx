@@ -34,7 +34,15 @@ export default function AdminPage() {
   }
 
   useEffect(() => {
-    cargarAtributos();
+    let ignore = false;
+    fetchAtributos()
+      .then((data) => {
+        if (!ignore) setAtributos(data);
+      })
+      .catch(() => {});
+    return () => {
+      ignore = true;
+    };
   }, []);
 
   async function handleAddAtributo() {

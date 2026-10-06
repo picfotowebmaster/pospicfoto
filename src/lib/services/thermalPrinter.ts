@@ -1,9 +1,5 @@
 import { NOMBRE_EMPRESA } from "@/lib/utils/constantes";
 
-const LF = "\n";
-const ESC = "\x1b";
-const GS = "\x1d";
-
 export function encodeText(text: string): Uint8Array {
   return new TextEncoder().encode(text);
 }

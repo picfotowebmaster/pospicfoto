@@ -77,10 +77,9 @@ export function usePedidoActual(sucursalId: string) {
   const total = subtotal;
 
   const agregarLinea = useCallback((linea: Omit<LineaPedidoDraft, "id">) => {
-    setLineas((prev) => [
-      ...prev,
-      { ...linea, id: generarIdLocal() },
-    ]);
+    const nueva: LineaPedidoDraft = { ...linea, id: generarIdLocal() };
+    setLineas((prev) => [...prev, nueva]);
+    return nueva;
   }, []);
 
   const eliminarLinea = useCallback((id: string) => {

@@ -12,7 +12,7 @@ serve(async (req: Request) => {
   }
 
   try {
-    const { title, body, url, tag } = await req.json();
+    const { title, body, url, tag, area, roles } = await req.json();
 
     if (!title) {
       return new Response(JSON.stringify({ error: "title is required" }), {
@@ -45,6 +45,30 @@ serve(async (req: Request) => {
       );
     }
 
+    // Enrutamiento: por roles explícitos, o por área (operarios del área + admin).
+    let destinatarios = subscriptions;
+    if (Array.isArray(roles) && roles.length > 0) {
+      const rolPorUsuario = await getRolesPorUsuario(supabaseAdmin, subscriptions);
+      destinatarios = subscriptions.filter((s: { user_id: string }) => {
+        const rol = rolPorUsuario.get(s.user_id);
+        return rol !== undefined && roles.includes(rol);
+      });
+    } else if (area) {
+      const rolPorUsuario = await getRolesPorUsuario(supabaseAdmin, subscriptions);
+      const adminRoles = ["admin", "superadmin"];
+      destinatarios = subscriptions.filter((s: { user_id: string }) => {
+        const rol = rolPorUsuario.get(s.user_id);
+        return rol !== undefined && (rol === area || adminRoles.includes(rol));
+      });
+    }
+
+    if (destinatarios.length === 0) {
+      return new Response(
+        JSON.stringify({ sent: 0, message: "No matching subscriptions" }),
+        { headers: { "Content-Type": "application/json" } },
+      );
+    }
+
     const publicKey = Deno.env.get("VAPID_PUBLIC_KEY")!;
     const privateKey = Deno.env.get("VAPID_PRIVATE_KEY")!;
 
@@ -60,7 +84,7 @@ serve(async (req: Request) => {
     const results = await Promise.allSettled(
       subscriptions.map(async (sub: { endpoint: string; p256dh: string; auth: string }) => {
         try {
-          const encrypted = await encryptPayload(payload, sub.p256dh, sub.auth, publicKey, privateKey);
+          const encrypted = await encryptPayload(payload, sub.p256dh, sub.auth);
           const response = await fetch(sub.endpoint, {
             method: "POST",
             headers: {
@@ -101,13 +125,32 @@ serve(async (req: Request) => {
   }
 });
 
+async function getRolesPorUsuario(
+  supabaseAdmin: ReturnType<typeof createClient>,
+  subscriptions: { user_id: string }[],
+): Promise<Map<string, string>> {
+  const userIds = [
+    ...new Set(subscriptions.map((s) => s.user_id).filter(Boolean)),
+  ];
+  const mapa = new Map<string, string>();
+  if (userIds.length === 0) return mapa;
+
+  const { data } = await supabaseAdmin
+    .from("profiles")
+    .select("id, rol")
+    .in("id", userIds);
+
+  for (const p of (data ?? []) as { id: string; rol: string }[]) {
+    mapa.set(p.id, p.rol);
+  }
+  return mapa;
+}
+
 async function getVapidHeaders(
   publicKey: string,
   privateKey: string,
   subject: string,
 ): Promise<Record<string, string>> {
-  const { encodeBase64Url } = await import("https://deno.land/std@0.168.0/encoding/base64url.ts");
-
   const publicKeyBytes = base64UrlToBytes(publicKey);
   const privateKeyBytes = base64UrlToBytes(privateKey);
 
@@ -166,8 +209,6 @@ async function encryptPayload(
   payload: string,
   p256dh: string,
   auth: string,
-  vapidPublicKey: string,
-  vapidPrivateKey: string,
 ): Promise<Uint8Array> {
   const salt = crypto.getRandomValues(new Uint8Array(16));
   const authSecret = base64UrlToBytes(auth);

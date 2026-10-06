@@ -18,19 +18,21 @@ export function CampoAtributo({
   onChange,
 }: CampoAtributoProps) {
   const [termino, setTermino] = React.useState(valor);
+  const [prevValor, setPrevValor] = React.useState(valor);
   const [abierto, setAbierto] = React.useState(false);
   const containerRef = React.useRef<HTMLDivElement>(null);
   const inputRef = React.useRef<HTMLInputElement>(null);
+
+  if (valor !== prevValor) {
+    setPrevValor(valor);
+    setTermino(valor);
+  }
 
   const filtrados = termino
     ? valores.filter((v) =>
         v.valor.toLowerCase().includes(termino.toLowerCase()),
       )
     : valores;
-
-  React.useEffect(() => {
-    setTermino(valor);
-  }, [valor]);
 
   React.useEffect(() => {
     function clickFuera(e: MouseEvent) {

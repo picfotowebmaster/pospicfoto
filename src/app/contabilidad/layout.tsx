@@ -4,6 +4,7 @@ import { Button } from "@/components/ui/Button";
 import { useAuth } from "@/lib/hooks/useAuth";
 import { ThemeToggle } from "@/components/ui/ThemeToggle";
 import { NOMBRE_EMPRESA } from "@/lib/utils/constantes";
+import RoleSwitcher from "@/app/_components/RoleSwitcher";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 
@@ -33,6 +34,7 @@ export default function ContabilidadLayout({
         </div>
         <div className="flex items-center gap-3">
           <ThemeToggle />
+          <RoleSwitcher />
           <span className="text-sm text-gray-600 dark:text-gray-300">
             {session?.user.email}
           </span>

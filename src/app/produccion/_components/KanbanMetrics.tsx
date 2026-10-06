@@ -2,16 +2,8 @@
 
 import React, { useMemo } from "react";
 import { StatsSkeleton } from "@/components/ui/Skeleton";
+import { getSlaLevel } from "@/lib/utils/pedido";
 import type { Pedido } from "@/lib/supabase/types";
-
-function getSlaLevel(fechaEntrega: string, horaEntrega: string): "ok" | "warning" | "danger" {
-  const due = new Date(`${fechaEntrega}T${horaEntrega}`).getTime();
-  const now = Date.now();
-  const diffMs = due - now;
-  if (diffMs < 0) return "danger";
-  if (diffMs < 24 * 60 * 60 * 1000) return "warning";
-  return "ok";
-}
 
 interface MetricsData {
   totalPedidos: number;
@@ -28,10 +20,6 @@ interface KanbanMetricsProps {
 }
 
 export function KanbanMetrics({ data, loading }: KanbanMetricsProps) {
-  if (loading) return <StatsSkeleton />;
-
-  if (data.totalPedidos === 0) return null;
-
   const areaConMasPedidos = useMemo(() => {
     let max = { id: "", nombre: "", count: 0 };
     for (const area of data.areas) {
@@ -51,6 +39,10 @@ export function KanbanMetrics({ data, loading }: KanbanMetricsProps) {
     result.sort((a, b) => b.vencidos - a.vencidos);
     return result;
   }, [data.columnas, data.areas]);
+
+  if (loading) return <StatsSkeleton />;
+
+  if (data.totalPedidos === 0) return null;
 
   const metrics = [
     {

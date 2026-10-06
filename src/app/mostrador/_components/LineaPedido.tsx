@@ -16,7 +16,7 @@ import type { LineaPedidoDraft, RutaProduccion } from "@/lib/supabase/types";
 import { generarIdLocal } from "@/lib/utils/calculos";
 import { RUTAS_PRODUCCION } from "@/lib/utils/constantes";
 
-function inferRuta(productoNombre: string): RutaProduccion {
+export function inferRuta(productoNombre: string): RutaProduccion {
   const lower = productoNombre.toLowerCase();
   if (/marco|moldura|enmarc|frame/i.test(lower)) return "R2";
   if (/book|album|fotolibro|photobook/i.test(lower)) return "R3";
@@ -56,7 +56,9 @@ export function LineaPedido({
   const [ruta, setRuta] = useState<RutaProduccion>(
     editData?.ruta || rutaDefault,
   );
-  const [modoLibre, setModoLibre] = useState(!catalogo);
+  const [modoLibre, setModoLibre] = useState(
+    editData ? !editData.producto_id : !catalogo,
+  );
   const [categoriaId, setCategoriaId] = useState(editData?.categoria_id || "");
   const [productoId, setProductoId] = useState(editData?.producto_id || "");
 

@@ -13,6 +13,9 @@ export default function FacturasPage() {
     error,
     pagina,
     hasMore,
+    total,
+    porPagina,
+    setPorPagina,
     setPagina,
     filtros,
     actualizarFiltros,
@@ -58,7 +61,14 @@ export default function FacturasPage() {
         ) : (
           <>
             <FacturasTable pedidos={pedidos} onFacturado={recargar} />
-            <Paginador pagina={pagina} hasMore={hasMore} onChange={setPagina} />
+            <Paginador
+              pagina={pagina}
+              hasMore={hasMore}
+              total={total}
+              porPagina={porPagina}
+              onChange={setPagina}
+              onPorPaginaChange={setPorPagina}
+            />
           </>
         )}
       </div>

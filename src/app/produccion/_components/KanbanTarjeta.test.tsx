@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { render, screen, fireEvent, waitFor } from "@testing-library/react";
+import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { KanbanTarjeta } from "./KanbanTarjeta";
 import type { Pedido } from "@/lib/supabase/types";
@@ -168,6 +168,7 @@ describe("KanbanTarjeta", () => {
         {...baseProps}
       />,
     );
+    await userEvent.click(screen.getByLabelText("Más acciones"));
     await userEvent.click(screen.getByText("Cancelar"));
     expect(screen.getByText("Cancelar pedido")).toBeInTheDocument();
   });
@@ -180,6 +181,7 @@ describe("KanbanTarjeta", () => {
         {...baseProps}
       />,
     );
+    await userEvent.click(screen.getByLabelText("Más acciones"));
     await userEvent.click(screen.getByText("Regresar"));
     expect(screen.getByText("Regresar pedido")).toBeInTheDocument();
   });

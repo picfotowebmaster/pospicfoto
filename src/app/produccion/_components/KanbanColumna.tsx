@@ -3,7 +3,9 @@
 import React, { useMemo, useState, type DragEvent } from "react";
 import { KanbanTarjeta } from "./KanbanTarjeta";
 import { Tooltip } from "@/components/ui/Tooltip";
-import type { Pedido } from "@/lib/supabase/types";
+import { getKanbanDrag, isValidKanbanDrop, setKanbanDrag } from "./kanbanDrag";
+import type { Pedido, PrioridadPedido } from "@/lib/supabase/types";
+import type { SlaLevel } from "@/lib/utils/pedido";
 import type { NextAreaInfo } from "./KanbanBoard";
 
 interface KanbanColumnaProps {
@@ -14,6 +16,10 @@ interface KanbanColumnaProps {
   onCancelarPedido?: (pedidoId: string) => Promise<void>;
   onRegresarPedido?: (pedidoId: string) => Promise<void>;
   getTiempoEnColumna?: (pedidoId: string) => string | null;
+  getTiempoEnColumnaNivel?: (pedidoId: string) => SlaLevel | null;
+  usuarioId?: string | null;
+  onCambiarPrioridad?: (pedidoId: string, prioridad: PrioridadPedido) => Promise<void>;
+  onAsignar?: (pedidoId: string, usuarioId: string | null) => Promise<void>;
   modoSeleccion?: boolean;
   selectedIds?: Set<string>;
   onToggleSeleccion?: (id: string) => void;
@@ -23,6 +29,7 @@ interface KanbanColumnaProps {
   wipLimit?: number;
   onClickDetalle?: (pedido: Pedido) => void;
   columnRef?: (el: HTMLDivElement | null) => void;
+  onDropInvalido?: (areaNombre: string) => void;
 }
 
 const COLOR_MAP: Record<string, { bg: string; text: string; border: string; dot: string }> = {
@@ -46,6 +53,10 @@ export function KanbanColumna({
   onCancelarPedido,
   onRegresarPedido,
   getTiempoEnColumna,
+  getTiempoEnColumnaNivel,
+  usuarioId,
+  onCambiarPrioridad,
+  onAsignar,
   modoSeleccion,
   selectedIds,
   onToggleSeleccion,
@@ -55,12 +66,16 @@ export function KanbanColumna({
   wipLimit,
   onClickDetalle,
   columnRef,
+  onDropInvalido,
 }: KanbanColumnaProps) {
   const colores = COLOR_MAP[area.color] || COLOR_MAP["bg-gray-500"];
   const [dragOver, setDragOver] = useState(false);
 
   const ordenados = useMemo(() => {
     return [...pedidos].sort((a, b) => {
+      const pa = a.prioridad === "urgente" ? 0 : 1;
+      const pb = b.prioridad === "urgente" ? 0 : 1;
+      if (pa !== pb) return pa - pb;
       const fa = `${a.fecha_entrega}T${a.hora_entrega}`;
       const fb = `${b.fecha_entrega}T${b.hora_entrega}`;
       return fa.localeCompare(fb);
@@ -72,8 +87,10 @@ export function KanbanColumna({
 
   function handleDragOver(e: DragEvent) {
     e.preventDefault();
-    e.dataTransfer.dropEffect = "move";
-    setDragOver(true);
+    const info = getKanbanDrag();
+    const valido = info ? isValidKanbanDrop(info, area.id) : true;
+    e.dataTransfer.dropEffect = valido ? "move" : "none";
+    setDragOver(valido);
   }
 
   function handleDragLeave() {
@@ -86,11 +103,29 @@ export function KanbanColumna({
     try {
       const raw = e.dataTransfer.getData("text/plain");
       if (!raw) return;
-      const { pedidoId, hasMultiple } = JSON.parse(raw);
+      const payload = JSON.parse(raw) as {
+        pedidoId?: string;
+        hasMultiple?: boolean;
+        validDestinations?: string[];
+      };
+      const pedidoId = payload.pedidoId;
       if (!pedidoId) return;
+
+      const store = getKanbanDrag();
+      const destinos =
+        payload.validDestinations ??
+        store?.destinations.map((d) => d.destination) ??
+        [];
+
+      if (!destinos.includes(area.id)) {
+        setKanbanDrag(null);
+        onDropInvalido?.(area.nombre);
+        return;
+      }
+
       const pedido = pedidos.find((p) => p.id === pedidoId);
       if (pedido) return;
-      if (hasMultiple) {
+      if (payload.hasMultiple) {
         await onAvanzarPedido(pedidoId, area.id);
       } else {
         await onAvanzarPedido(pedidoId);
@@ -170,6 +205,10 @@ export function KanbanColumna({
               onCancelarPedido={onCancelarPedido}
               onRegresarPedido={onRegresarPedido}
               tiempoEnColumna={getTiempoEnColumna?.(pedido.id)}
+              tiempoEnColumnaNivel={getTiempoEnColumnaNivel?.(pedido.id)}
+              usuarioId={usuarioId}
+              onCambiarPrioridad={onCambiarPrioridad}
+              onAsignar={onAsignar}
               modoSeleccion={modoSeleccion}
               isSelected={selectedIds?.has(pedido.id) ?? false}
               onToggleSeleccion={onToggleSeleccion}

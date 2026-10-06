@@ -1,9 +1,11 @@
 import { describe, it, expect, vi } from "vitest";
 import { renderHook, waitFor, act } from "@testing-library/react";
 import { useHistorialPedidos } from "./useHistorialPedidos";
+import type { Pedido } from "@/lib/supabase/types";
 
 vi.mock("@/lib/services/pedidos", () => ({
   listarPedidos: vi.fn(),
+  contarPedidos: vi.fn().mockResolvedValue(0),
 }));
 
 import { listarPedidos } from "@/lib/services/pedidos";
@@ -11,7 +13,7 @@ import { listarPedidos } from "@/lib/services/pedidos";
 describe("useHistorialPedidos", () => {
   it("carga pedidos iniciales", async () => {
     vi.mocked(listarPedidos).mockResolvedValue({
-      pedidos: [{ id: "p1", cliente_nombre: "Juan", detalle_pedidos: [] } as any],
+      pedidos: [{ id: "p1", cliente_nombre: "Juan", detalle_pedidos: [] } as unknown as Pedido],
       hasMore: false,
     });
 
@@ -41,7 +43,7 @@ describe("useHistorialPedidos", () => {
 
   it("cambia de pagina", async () => {
     vi.mocked(listarPedidos).mockResolvedValue({
-      pedidos: [{ id: "p2", cliente_nombre: "Pedro", detalle_pedidos: [] } as any],
+      pedidos: [{ id: "p2", cliente_nombre: "Pedro", detalle_pedidos: [] } as unknown as Pedido],
       hasMore: true,
     });
 

@@ -7,10 +7,13 @@ import { usePedidoActual } from "@/lib/hooks/usePedidoActual";
 import { useToast } from "@/components/ui/Toast";
 import { ThemeToggle } from "@/components/ui/ThemeToggle";
 import { FormCliente } from "./_components/FormCliente";
-import { LineaPedido } from "./_components/LineaPedido";
+import { LineaPedido, inferRuta } from "./_components/LineaPedido";
+import { fetchProductosFrecuentes } from "@/lib/services/historial";
+import { enviarPushArea } from "@/lib/services/notifications";
 import { TablaLineas } from "./_components/TablaLineas";
 import { ResumenPago } from "./_components/ResumenPago";
 import { BotonPagar } from "./_components/BotonPagar";
+import { ModalConfirmarPedido } from "./_components/ModalConfirmarPedido";
 import { Button } from "@/components/ui/Button";
 import { crearPedidoAgrupado } from "@/lib/services/pedidos";
 import { supabase } from "@/lib/supabase/client";
@@ -22,7 +25,8 @@ import { useOfflineSync } from "@/lib/offline/useOfflineSync";
 import { queueOrder, getQueueCount } from "@/lib/offline/orderQueue";
 import { loadCatalog } from "@/lib/offline/catalogSync";
 import OfflineIndicator from "../_components/OfflineIndicator";
-import type { Atributo, AtributoValor } from "@/lib/supabase/types";
+import RoleSwitcher from "@/app/_components/RoleSwitcher";
+import type { Atributo, AtributoValor, ProductoHistorial } from "@/lib/supabase/types";
 import type { LineaPedidoDraft } from "@/lib/supabase/types";
 type AtributoConValores = Atributo & { valores: AtributoValor[] };
 
@@ -40,21 +44,23 @@ function MostradorContent() {
   const [mostrandoLinea, setMostrandoLinea] = useState(false);
   const [editandoLinea, setEditandoLinea] = useState<LineaPedidoDraft | null>(null);
   const [pagarCargando, setPagarCargando] = useState(false);
-  const [mensajeError, setMensajeError] = useState("");
+  const [mensajeDescartado, setMensajeDescartado] = useState(false);
   const [ticketBusqueda, setTicketBusqueda] = useState("");
   const [buscandoTicket, setBuscandoTicket] = useState(false);
   const [sucursalNombre, setSucursalNombre] = useState("");
   const [marcas, setMarcas] = useState<{ id: string; nombre: string; codigo: string }[]>([]);
   const [queueCount, setQueueCount] = useState(0);
+  const [frecuentes, setFrecuentes] = useState<ProductoHistorial[]>([]);
+  const [confirmando, setConfirmando] = useState(false);
 
-  useEffect(() => {
-    const mensaje = searchParams.get("mensaje");
-    if (mensaje === "acceso_denegado") {
-      setMensajeError("No tienes permisos para acceder a esa sección.");
-    } else if (mensaje === "perfil_no_encontrado") {
-      setMensajeError("Tu perfil de usuario no fue encontrado. Contacta al administrador.");
-    }
-  }, [searchParams]);
+  const mensajeParam = searchParams.get("mensaje");
+  const mensajeError = mensajeDescartado
+    ? ""
+    : mensajeParam === "acceso_denegado"
+      ? "No tienes permisos para acceder a esa sección."
+      : mensajeParam === "perfil_no_encontrado"
+        ? "Tu perfil de usuario no fue encontrado. Contacta al administrador."
+        : "";
 
   useEffect(() => {
     loadCatalog(isOnline).then((cached) => {
@@ -103,9 +109,17 @@ function MostradorContent() {
     }
   }, [isOnline]);
 
+  const restoreDraft = pedido.restoreDraft;
   useEffect(() => {
-    pedido.restoreDraft();
-  }, []);
+    restoreDraft();
+  }, [restoreDraft]);
+
+  useEffect(() => {
+    if (!isOnline) return;
+    fetchProductosFrecuentes(8)
+      .then(setFrecuentes)
+      .catch(() => {});
+  }, [isOnline]);
 
   useEffect(() => {
     getQueueCount().then(setQueueCount).catch(() => {});
@@ -123,6 +137,19 @@ function MostradorContent() {
   function handleEditarLinea(linea: LineaPedidoDraft) {
     setEditandoLinea(linea);
     setMostrandoLinea(true);
+  }
+
+  function handleAgregarFrecuente(h: ProductoHistorial) {
+    const nueva = pedido.agregarLinea({
+      producto_nombre: h.nombre,
+      cantidad: 1,
+      precio_unitario: 0,
+      atributos: h.atributos || {},
+      ruta: inferRuta(h.nombre),
+      categoria_id: null,
+      producto_id: null,
+    });
+    handleEditarLinea(nueva);
   }
 
   function handleSaveLinea(linea: LineaPedidoDraft) {
@@ -182,6 +209,12 @@ function MostradorContent() {
 
     try {
       const result = await crearPedidoAgrupado(draft, session.user.id);
+      enviarPushArea({
+        title: "Nuevo pedido",
+        body: `${pedido.cliente.nombre} · ${result.facturaNumero}`,
+        area: "mostrador",
+        tag: "nuevo-pedido",
+      });
       pedido.limpiar();
       router.push(`/mostrador/ticket/${result.facturaNumero}`);
     } catch (err) {
@@ -237,6 +270,7 @@ function MostradorContent() {
         <div className="flex items-center gap-3">
           <OfflineIndicator />
           <ThemeToggle />
+          <RoleSwitcher />
           <span className="text-sm text-gray-600 dark:text-gray-300">
             {session?.user.email}
           </span>
@@ -253,7 +287,7 @@ function MostradorContent() {
               <p className="text-sm text-red-700 dark:text-red-300">{mensajeError}</p>
               <button
                 type="button"
-                onClick={() => setMensajeError("")}
+                onClick={() => setMensajeDescartado(true)}
                 className="text-red-500 dark:text-red-400 hover:text-red-700 dark:hover:text-red-300 font-semibold"
               >
                 <i className="fas fa-times" />
@@ -356,6 +390,26 @@ function MostradorContent() {
             </Button>
           </div>
 
+          {frecuentes.length > 0 && !mostrandoLinea && (
+            <div className="flex flex-wrap items-center gap-1.5 mb-3">
+              <span className="text-xs text-gray-400 dark:text-gray-500 mr-1">
+                <i className="fas fa-bolt text-amber-500 mr-1" />
+                Frecuentes:
+              </span>
+              {frecuentes.map((h) => (
+                <button
+                  key={h.id}
+                  type="button"
+                  onClick={() => handleAgregarFrecuente(h)}
+                  className="text-xs rounded-full border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800 text-gray-600 dark:text-gray-300 px-2.5 py-1 hover:border-blue-400 hover:text-blue-600 dark:hover:text-blue-400 transition-colors cursor-pointer"
+                  title={`Usado ${h.veces_usado} vez/veces`}
+                >
+                  {h.nombre}
+                </button>
+              ))}
+            </div>
+          )}
+
           <TablaLineas
             lineas={pedido.lineas}
             onEditar={handleEditarLinea}
@@ -396,7 +450,7 @@ function MostradorContent() {
               Acción
             </h3>
             <BotonPagar
-              onClick={handlePagar}
+              onClick={async () => setConfirmando(true)}
               cargando={pagarCargando}
               valido={pedido.valido}
             />
@@ -425,6 +479,24 @@ function MostradorContent() {
           </div>
         </div>
       </div>
+
+      <ModalConfirmarPedido
+        open={confirmando}
+        clienteNombre={pedido.cliente.nombre}
+        telefono={pedido.cliente.telefono}
+        fechaEntrega={pedido.cliente.fechaEntrega}
+        horaEntrega={pedido.cliente.horaEntrega}
+        lineas={pedido.lineas}
+        subtotal={pedido.subtotal}
+        anticipo={pedido.anticipo}
+        total={pedido.total}
+        metodoPago={pedido.metodoPago}
+        cargando={pagarCargando}
+        onConfirm={() => {
+          handlePagar().finally(() => setConfirmando(false));
+        }}
+        onCancel={() => setConfirmando(false)}
+      />
     </div>
   );
 }

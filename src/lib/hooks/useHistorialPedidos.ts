@@ -1,30 +1,34 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
-import { listarPedidos, type FiltrosPedidos } from "@/lib/services/pedidos";
+import { listarPedidos, contarPedidos, type FiltrosPedidos } from "@/lib/services/pedidos";
 import type { Pedido } from "@/lib/supabase/types";
 
 export function useHistorialPedidos() {
   const [pedidos, setPedidos] = useState<Pedido[]>([]);
   const [hasMore, setHasMore] = useState(false);
+  const [total, setTotal] = useState(0);
   const [cargando, setCargando] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [pagina, setPagina] = useState(1);
+  const [porPagina, setPorPaginaState] = useState(20);
   const [filtros, setFiltros] = useState<
     Omit<FiltrosPedidos, "pagina" | "porPagina">
   >({ numeroPedido: "" });
   const [trigger, setTrigger] = useState(0);
 
-  const porPagina = 20;
-
   useEffect(() => {
     let ignore = false;
 
-    listarPedidos({ ...filtros, pagina, porPagina })
-      .then((result) => {
+    Promise.all([
+      listarPedidos({ ...filtros, pagina, porPagina }),
+      contarPedidos(filtros).catch(() => 0),
+    ])
+      .then(([result, count]) => {
         if (!ignore) {
           setPedidos(result.pedidos);
           setHasMore(result.hasMore);
+          setTotal(count);
           setError(null);
           setCargando(false);
         }
@@ -45,7 +49,7 @@ export function useHistorialPedidos() {
     return () => {
       ignore = true;
     };
-  }, [trigger, pagina, filtros]);
+  }, [trigger, pagina, filtros, porPagina]);
 
   const actualizarFiltros = useCallback(
     (nuevos: Partial<typeof filtros>) => {
@@ -72,12 +76,21 @@ export function useHistorialPedidos() {
     setCargando(true);
   }, []);
 
+  const cambiarPorPagina = useCallback((n: number) => {
+    setPorPaginaState(n);
+    setPagina(1);
+    setCargando(true);
+  }, []);
+
   return {
     pedidos,
     cargando,
     error,
     pagina,
     hasMore,
+    total,
+    porPagina,
+    setPorPagina: cambiarPorPagina,
     setPagina: cambiarPagina,
     filtros,
     actualizarFiltros,
