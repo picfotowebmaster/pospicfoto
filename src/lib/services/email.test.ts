@@ -103,7 +103,7 @@ describe("enviarTicketPorCorreo", () => {
     vi.clearAllMocks();
     sendMock.mockResolvedValue({ data: { id: "email-2" }, error: null, headers: null });
     process.env.RESEND_API_KEY = "test-key";
-    process.env.RESEND_FROM_EMAIL = "miorden@picfoto.mx";
+    process.env.RESEND_FROM_EMAIL = "remitente@example.com";
   });
 
   afterEach(() => {
