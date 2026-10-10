@@ -43,7 +43,7 @@ describe("usePedidoActual", () => {
 
   it("restaura draft si existe", async () => {
     vi.mocked(getPedidoDraft).mockResolvedValue({
-      cliente: { nombre: "Carlos", telefono: "55", fechaEntrega: "2026-01-01", horaEntrega: "10:00", requiereCorreccion: false },
+      cliente: { nombre: "Carlos", telefono: "55", fechaEntrega: "2026-01-01", horaEntrega: "10:00" },
       lineas: [{ id: "l1", producto_nombre: "Foto", cantidad: 1, precio_unitario: 10, atributos: {}, ruta: "R2" }],
       porcentajeAnticipo: 100,
       metodoPago: "Tarjeta",

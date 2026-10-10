@@ -25,7 +25,9 @@ INSERT INTO atributos (nombre) VALUES
   ('Textura'),
   ('Tipo de Bastidor'),
   ('Tipo de Corte'),
-  ('Tipo de Impresión');
+  ('Tipo de Impresión'),
+  ('Requiero Diseño'),
+  ('Corrección de Color');
 
 -- =============================================
 -- Ancho de Rollo
@@ -557,6 +559,24 @@ SELECT a.id, v FROM atributos a, (VALUES
 ) AS t(v) WHERE a.nombre = 'Tipo de Impresión';
 
 -- =============================================
+-- Requiero Diseño
+-- =============================================
+INSERT INTO atributo_valores (atributo_id, valor)
+SELECT a.id, v FROM atributos a, (VALUES
+  ('No'),
+  ('Si')
+) AS t(v) WHERE a.nombre = 'Requiero Diseño';
+
+-- =============================================
+-- Corrección de Color
+-- =============================================
+INSERT INTO atributo_valores (atributo_id, valor)
+SELECT a.id, v FROM atributos a, (VALUES
+  ('No'),
+  ('Si')
+) AS t(v) WHERE a.nombre = 'Corrección de Color';
+
+-- =============================================
 -- CATEGORÍAS
 -- =============================================
 INSERT INTO categorias (nombre, orden) VALUES
@@ -707,7 +727,7 @@ SELECT p.id, a.id, v.orden FROM (VALUES
   ('Photo Books', 'Pasta Sencilla', 'Pasta Color', 1),
   ('Acrílicos', 'Acrílico con Marco y Chapetones', 'Tipo de Bastidor', 1),
   ('Ink Jet / Papeles y Materiales', 'Papel Ink Mate', 'Largo de Rollo', 1),
-  ('Photo Books', 'Color Book Pasta Dura', 'Pasta Color', 1),
+  ('Photo Books', 'Color Book Pasta Dura', 'Pasta Color', 5),
   ('Mini Books', 'Pasta Sencilla', 'Pasta Color', 1),
   ('Ink Jet / Papeles y Materiales', 'Papel InkJet Mate', 'Largo de Rollo', 1),
   ('Ink Jet / Papeles y Materiales', 'Rollos de Tela Canvas', 'Largo de Rollo', 1),
@@ -724,7 +744,7 @@ SELECT p.id, a.id, v.orden FROM (VALUES
   ('Acrílicos', 'FlexiGlass Flotado', 'Tipo de Bastidor', 1),
   ('Bastidores', 'Foto Bastidor', 'Tipo de Corte', 1),
   ('Estuches y Cajas', 'Caja para Book con Ventana de Acrílico', 'Color Vinipiel', 2),
-  ('Photo Books', 'Color Book Pasta Dura', 'Color Vinipiel', 2),
+  ('Photo Books', 'Color Book Pasta Dura', 'Hojas y Páginas', 1),
   ('Photo Books', 'Pasta Acolchada', 'Color Vinipiel', 2),
   ('Photo Books', 'Pasta Acrílico de 2mm', 'Color Vinipiel', 2),
   ('Photo Books', 'Pasta Dura', 'Color Vinipiel', 2),
@@ -778,7 +798,8 @@ SELECT p.id, a.id, v.orden FROM (VALUES
   ('Photo Books', 'Pasta Vinipiel con Relieve', 'Filo de Bastidor', 3),
   ('Photo Books', 'Pasta Foto Laminada con Vinipiel', 'Filo de Bastidor', 3),
   ('Photo Books', 'Pasta Acolchada', 'Filo de Bastidor', 3),
-  ('Photo Books', 'Color Book Pasta Dura', 'Filo de Bastidor', 3),
+  ('Photo Books', 'Color Book Pasta Dura', 'Requiero Diseño', 3),
+  ('Photo Books', 'Color Book Pasta Dura', 'Corrección de Color', 4),
   ('Photo Books', 'Pasta Dura con Caja Deslizable', 'Filo de Bastidor', 3),
   ('Photo Books', 'Pasta Acrílico de 2mm', 'Filo de Bastidor', 3),
   ('Photo Books', 'Pasta Acrílico de 2mm', 'Hoja Extra', 4),
@@ -788,10 +809,155 @@ SELECT p.id, a.id, v.orden FROM (VALUES
   ('Photo Books', 'Pasta Foto Laminada con Vinipiel', 'Hoja Extra', 4),
   ('Photo Books', 'Pasta Dura con Caja Deslizable', 'Hoja Extra', 4),
   ('Photo Books', 'Pasta Dura', 'Hoja Extra', 4),
-  ('Photo Books', 'Color Book Pasta Dura', 'Hoja Extra', 4),
+  ('Photo Books', 'Color Book Pasta Dura', 'Hoja Extra', 2),
   ('Photo Books', 'Pasta Vinipiel Foto-Ventana con Relieve', 'Hoja Extra', 4)
 ) AS v(categoria, producto, atributo, orden)
 JOIN categorias c ON c.nombre = v.categoria
 JOIN productos p ON p.categoria_id = c.id AND p.nombre = v.producto
 JOIN atributos a ON a.nombre = v.atributo
 ON CONFLICT (producto_id, atributo_id) DO NOTHING;
+
+-- =============================================
+-- PHOTO BOOKS: ajuste "exacto como la web" (atributos)
+-- =============================================
+DELETE FROM producto_atributos
+WHERE producto_id IN (
+  SELECT p.id FROM productos p
+  JOIN categorias c ON c.id = p.categoria_id
+  WHERE c.nombre = 'Photo Books'
+);
+
+WITH map_productos(producto, perfil) AS (
+  VALUES
+    ('Color Book Pasta Dura', 'A'),
+    ('Pasta Acolchada', 'B'),
+    ('Pasta Acrílico de 2mm', 'B'),
+    ('Pasta Foto Laminada con Vinipiel', 'B'),
+    ('Pasta Vinipiel con Relieve', 'B'),
+    ('Pasta Vinipiel Foto-Ventana con Relieve', 'B'),
+    ('Pasta Dura', 'C'),
+    ('Pasta Dura con Caja Deslizable', 'C'),
+    ('Pasta Sencilla', 'D')
+),
+map_atributos(perfil, atributo, orden) AS (
+  VALUES
+    ('A', 'Book Tamaño', 0), ('A', 'Hojas y Páginas', 1), ('A', 'Hoja Extra', 2),
+    ('A', 'Requiero Diseño', 3), ('A', 'Corrección de Color', 4), ('A', 'Pasta Color', 5),
+    ('B', 'Book Tamaño', 0), ('B', 'Hojas y Páginas', 1), ('B', 'Hoja Extra', 2),
+    ('B', 'Requiero Diseño', 3), ('B', 'Corrección de Color', 4), ('B', 'Color Vinipiel', 5),
+    ('C', 'Book Tamaño', 0), ('C', 'Hojas y Páginas', 1), ('C', 'Hoja Extra', 2),
+    ('C', 'Requiero Diseño', 3), ('C', 'Corrección de Color', 4),
+    ('D', 'Book Tamaño', 0), ('D', 'Hojas y Páginas', 1),
+    ('D', 'Requiero Diseño', 2), ('D', 'Corrección de Color', 3)
+)
+INSERT INTO producto_atributos (producto_id, atributo_id, orden, requerido)
+SELECT p.id, a.id, ma.orden, true
+FROM map_productos mp
+JOIN categorias c ON c.nombre = 'Photo Books'
+JOIN productos p ON p.nombre = mp.producto AND p.categoria_id = c.id
+JOIN map_atributos ma ON ma.perfil = mp.perfil
+JOIN atributos a ON a.nombre = ma.atributo
+ON CONFLICT (producto_id, atributo_id) DO UPDATE
+  SET orden = EXCLUDED.orden, requerido = EXCLUDED.requerido;
+
+-- =============================================
+-- PHOTO BOOKS: ajuste "exacto como la web" (valores por producto)
+-- =============================================
+CREATE TABLE IF NOT EXISTS producto_atributo_valores (
+  id                   UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  producto_atributo_id UUID NOT NULL REFERENCES producto_atributos(id) ON DELETE CASCADE,
+  valor_id             UUID NOT NULL REFERENCES atributo_valores(id) ON DELETE CASCADE,
+  orden                INT DEFAULT 0,
+  UNIQUE (producto_atributo_id, valor_id)
+);
+
+INSERT INTO atributo_valores (atributo_id, valor)
+SELECT a.id, v.valor
+FROM atributos a
+JOIN (VALUES ('8.5x11"'), ('11x8.5"')) AS v(valor) ON true
+WHERE a.nombre = 'Book Tamaño'
+ON CONFLICT (atributo_id, valor) DO NOTHING;
+
+DELETE FROM producto_atributo_valores pav
+USING producto_atributos pa, productos p, categorias c
+WHERE pav.producto_atributo_id = pa.id
+  AND pa.producto_id = p.id
+  AND p.categoria_id = c.id
+  AND c.nombre = 'Photo Books';
+
+WITH map_producto_atributo(producto, atributo, set_name) AS (
+  VALUES
+    ('Color Book Pasta Dura', 'Book Tamaño', 'BT_STD'),
+    ('Color Book Pasta Dura', 'Hojas y Páginas', 'HP_3'),
+    ('Color Book Pasta Dura', 'Hoja Extra', 'HE_5'),
+    ('Color Book Pasta Dura', 'Requiero Diseño', 'SN'),
+    ('Color Book Pasta Dura', 'Corrección de Color', 'SN'),
+    ('Color Book Pasta Dura', 'Pasta Color', 'PC_15'),
+    ('Pasta Acolchada', 'Book Tamaño', 'BT_STD'),
+    ('Pasta Acolchada', 'Hojas y Páginas', 'HP_3'),
+    ('Pasta Acolchada', 'Hoja Extra', 'HE_5'),
+    ('Pasta Acolchada', 'Requiero Diseño', 'SN'),
+    ('Pasta Acolchada', 'Corrección de Color', 'SN'),
+    ('Pasta Acolchada', 'Color Vinipiel', 'VIN_A'),
+    ('Pasta Acrílico de 2mm', 'Book Tamaño', 'BT_PLAIN'),
+    ('Pasta Acrílico de 2mm', 'Hojas y Páginas', 'HP_3'),
+    ('Pasta Acrílico de 2mm', 'Hoja Extra', 'HE_5'),
+    ('Pasta Acrílico de 2mm', 'Requiero Diseño', 'SN'),
+    ('Pasta Acrílico de 2mm', 'Corrección de Color', 'SN'),
+    ('Pasta Acrílico de 2mm', 'Color Vinipiel', 'VIN_A'),
+    ('Pasta Foto Laminada con Vinipiel', 'Book Tamaño', 'BT_STD'),
+    ('Pasta Foto Laminada con Vinipiel', 'Hojas y Páginas', 'HP_3'),
+    ('Pasta Foto Laminada con Vinipiel', 'Hoja Extra', 'HE_5'),
+    ('Pasta Foto Laminada con Vinipiel', 'Requiero Diseño', 'SN'),
+    ('Pasta Foto Laminada con Vinipiel', 'Corrección de Color', 'SN'),
+    ('Pasta Foto Laminada con Vinipiel', 'Color Vinipiel', 'VIN_A'),
+    ('Pasta Vinipiel con Relieve', 'Book Tamaño', 'BT_STD'),
+    ('Pasta Vinipiel con Relieve', 'Hojas y Páginas', 'HP_3'),
+    ('Pasta Vinipiel con Relieve', 'Hoja Extra', 'HE_5'),
+    ('Pasta Vinipiel con Relieve', 'Requiero Diseño', 'SN'),
+    ('Pasta Vinipiel con Relieve', 'Corrección de Color', 'SN'),
+    ('Pasta Vinipiel con Relieve', 'Color Vinipiel', 'VIN_B'),
+    ('Pasta Vinipiel Foto-Ventana con Relieve', 'Book Tamaño', 'BT_STD'),
+    ('Pasta Vinipiel Foto-Ventana con Relieve', 'Hojas y Páginas', 'HP_3'),
+    ('Pasta Vinipiel Foto-Ventana con Relieve', 'Hoja Extra', 'HE_5'),
+    ('Pasta Vinipiel Foto-Ventana con Relieve', 'Requiero Diseño', 'SN'),
+    ('Pasta Vinipiel Foto-Ventana con Relieve', 'Corrección de Color', 'SN'),
+    ('Pasta Vinipiel Foto-Ventana con Relieve', 'Color Vinipiel', 'VIN_B'),
+    ('Pasta Dura', 'Book Tamaño', 'BT_STD'),
+    ('Pasta Dura', 'Hojas y Páginas', 'HP_3'),
+    ('Pasta Dura', 'Hoja Extra', 'HE_5'),
+    ('Pasta Dura', 'Requiero Diseño', 'SN'),
+    ('Pasta Dura', 'Corrección de Color', 'SN'),
+    ('Pasta Dura con Caja Deslizable', 'Book Tamaño', 'BT_STD'),
+    ('Pasta Dura con Caja Deslizable', 'Hojas y Páginas', 'HP_3'),
+    ('Pasta Dura con Caja Deslizable', 'Hoja Extra', 'HE_5'),
+    ('Pasta Dura con Caja Deslizable', 'Requiero Diseño', 'SN'),
+    ('Pasta Dura con Caja Deslizable', 'Corrección de Color', 'SN'),
+    ('Pasta Sencilla', 'Book Tamaño', 'BT_PLAIN'),
+    ('Pasta Sencilla', 'Hojas y Páginas', 'HP_1'),
+    ('Pasta Sencilla', 'Requiero Diseño', 'SN'),
+    ('Pasta Sencilla', 'Corrección de Color', 'SN')
+),
+sets(set_name, valores) AS (
+  VALUES
+    ('BT_STD', ARRAY['8x10"', '8.5x11" Horizontal', '11x8.5" Vertical', '10x10"', '12x12"', '11x14" Horizontal', '14x11" Vertical']),
+    ('BT_PLAIN', ARRAY['8x10"', '8.5x11"', '11x8.5"', '10x10"', '12x12"', '11x14" Horizontal', '14x11" Vertical']),
+    ('HP_3', ARRAY['10 Hojas 20 Páginas', '15 Hojas 30 Páginas', '20 Hojas 40 Páginas']),
+    ('HP_1', ARRAY['10 Hojas 20 Páginas']),
+    ('HE_5', ARRAY['Ninguna', '1 Hoja', '2 Hojas', '3 Hojas', '4 Hojas']),
+    ('SN', ARRAY['No', 'Si']),
+    ('PC_15', ARRAY['Amarillo', 'Azul Cielo', 'Azul Marino', 'Blanco', 'Chocolate', 'Crema', 'Gris', 'Lila', 'Negro', 'Pistache', 'Rojo', 'Rosa Pastel', 'Uva', 'Verde', 'Vino']),
+    ('VIN_A', ARRAY['Acuático', 'Azul Rey', 'Banana', 'Ferrero', 'Fucsia', 'Ladrillo', 'Leche', 'Marrón', 'Negro Arroyo', 'Oxford', 'Palomitas', 'Peach', 'Pétalo', 'Pinot', 'Rojo Labial', 'Silken', 'Silver', 'Testa', 'Topo', 'Yellow', 'Azul Marino', 'Beige', 'Chocolate', 'Gris', 'Negro', 'Tabaco']),
+    ('VIN_B', ARRAY['Acuático', 'Azul Rey', 'Banana', 'Ferrero', 'Fucsia', 'Ladrillo', 'Leche', 'Marrón', 'Oxford', 'Palomitas', 'Peach', 'Pétalo', 'Pinot', 'Rojo Labial', 'Silken', 'Silver', 'Testa', 'Topo', 'Yellow', 'Azul Marino', 'Beige', 'Chocolate', 'Gris', 'Negro', 'Tabaco'])
+)
+INSERT INTO producto_atributo_valores (producto_atributo_id, valor_id, orden)
+SELECT pa.id, av.id, v.ord - 1
+FROM map_producto_atributo mpa
+JOIN categorias c ON c.nombre = 'Photo Books'
+JOIN productos p ON p.nombre = mpa.producto AND p.categoria_id = c.id
+JOIN producto_atributos pa ON pa.producto_id = p.id
+JOIN atributos a ON a.id = pa.atributo_id AND a.nombre = mpa.atributo
+JOIN sets s ON s.set_name = mpa.set_name
+CROSS JOIN LATERAL unnest(s.valores) WITH ORDINALITY AS v(valor, ord)
+JOIN atributo_valores av ON av.atributo_id = a.id AND av.valor = v.valor
+ON CONFLICT (producto_atributo_id, valor_id) DO UPDATE SET orden = EXCLUDED.orden;

@@ -47,9 +47,15 @@ async function requireAdmin(): Promise<string> {
   return user.id;
 }
 
+export interface ProductoAtributoAdmin {
+  atributo_id: string;
+  requerido: boolean;
+  valor_ids: string[];
+}
+
 export interface ProductoAdmin extends Producto {
   categoria_nombre: string;
-  atributo_ids: string[];
+  atributos: ProductoAtributoAdmin[];
 }
 
 export interface CatalogoAdmin {
@@ -62,11 +68,12 @@ export async function listarCatalogoAdmin(): Promise<CatalogoAdmin> {
   await requireAdmin();
   const client = createAdminClient();
 
-  const [cats, prods, mapping, attrs] = await Promise.all([
+  const [cats, prods, mapping, attrs, pav] = await Promise.all([
     client.from("categorias").select("*").order("orden").order("nombre"),
     client.from("productos").select("*").order("orden").order("nombre"),
     client.from("producto_atributos").select("*").order("orden"),
     client.from("atributos").select("*, atributo_valores(*)").order("nombre"),
+    client.from("producto_atributo_valores").select("producto_atributo_id, valor_id, orden").order("orden"),
   ]);
 
   if (cats.error) throw new Error(cats.error.message);
@@ -79,15 +86,28 @@ export async function listarCatalogoAdmin(): Promise<CatalogoAdmin> {
   const map = (mapping.data ?? []) as ProductoAtributo[];
   const catById = new Map(categorias.map((c) => [c.id, c.nombre]));
 
+  const valoresPorPa = new Map<string, string[]>();
+  if (!pav.error) {
+    for (const row of (pav.data ?? []) as { producto_atributo_id: string; valor_id: string }[]) {
+      const lista = valoresPorPa.get(row.producto_atributo_id) ?? [];
+      lista.push(row.valor_id);
+      valoresPorPa.set(row.producto_atributo_id, lista);
+    }
+  }
+
   return {
     categorias,
     productos: productos.map((p) => ({
       ...p,
       categoria_nombre: catById.get(p.categoria_id) ?? "",
-      atributo_ids: map
+      atributos: map
         .filter((m) => m.producto_id === p.id)
         .sort((a, b) => a.orden - b.orden)
-        .map((m) => m.atributo_id),
+        .map((m) => ({
+          atributo_id: m.atributo_id,
+          requerido: m.requerido ?? false,
+          valor_ids: valoresPorPa.get(m.id) ?? [],
+        })),
     })),
     atributos: ((attrs.data ?? []) as (Atributo & { atributo_valores: AtributoValor[] })[]).map(
       (a) => ({ id: a.id, nombre: a.nombre, activo: a.activo, valores: a.atributo_valores ?? [] }),
@@ -158,21 +178,50 @@ export async function eliminarProducto(id: string) {
   if (error) throw new Error(error.message);
 }
 
-export async function guardarProductoAtributos(productoId: string, atributoIds: string[]) {
+export async function guardarProductoAtributos(
+  productoId: string,
+  items: ProductoAtributoAdmin[],
+) {
   await requireAdmin();
   const client = createAdminClient();
+
+  // El borrado en cascada limpia producto_atributo_valores
   const { error: delErr } = await client
     .from("producto_atributos")
     .delete()
     .eq("producto_id", productoId);
   if (delErr) throw new Error(delErr.message);
-  if (atributoIds.length === 0) return;
-  const { error } = await client.from("producto_atributos").insert(
-    atributoIds.map((atributo_id, index) => ({
-      producto_id: productoId,
-      atributo_id,
-      orden: index,
-    })),
-  );
+  if (items.length === 0) return;
+
+  const { data: inserted, error } = await client
+    .from("producto_atributos")
+    .insert(
+      items.map((item, index) => ({
+        producto_id: productoId,
+        atributo_id: item.atributo_id,
+        orden: index,
+        requerido: item.requerido,
+      })),
+    )
+    .select("id, atributo_id");
   if (error) throw new Error(error.message);
+
+  const idPorAtributo = new Map(
+    (inserted ?? []).map((r: { id: string; atributo_id: string }) => [r.atributo_id, r.id]),
+  );
+
+  const filasValores: { producto_atributo_id: string; valor_id: string; orden: number }[] = [];
+  for (const item of items) {
+    const paId = idPorAtributo.get(item.atributo_id);
+    if (!paId) continue;
+    (item.valor_ids ?? []).forEach((valor_id, i) => {
+      filasValores.push({ producto_atributo_id: paId, valor_id, orden: i });
+    });
+  }
+  if (filasValores.length === 0) return;
+
+  const { error: pavErr } = await client
+    .from("producto_atributo_valores")
+    .insert(filasValores);
+  if (pavErr) throw new Error(pavErr.message);
 }

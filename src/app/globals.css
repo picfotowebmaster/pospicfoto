@@ -1,5 +1,6 @@
 @import "tailwindcss";
 @import "@fortawesome/fontawesome-free/css/all.min.css";
+@import "react-datepicker/dist/react-datepicker.css";
 
 @custom-variant dark (&:where(.dark, .dark *));
 
@@ -46,6 +47,68 @@
 
 body {
   font-family: Arial, Helvetica, sans-serif;
+}
+
+.react-datepicker-wrapper {
+  display: block;
+  width: 100%;
+}
+
+.pos-datepicker-popper {
+  z-index: 70;
+}
+
+.pos-date-calendar.react-datepicker {
+  overflow: hidden;
+  border: 1px solid #e5e7eb;
+  border-radius: 0.75rem;
+  box-shadow: 0 12px 24px rgb(15 23 42 / 14%);
+  font-family: Arial, Helvetica, sans-serif;
+}
+
+.pos-date-calendar .react-datepicker__header {
+  border-bottom: 1px solid #e5e7eb;
+  background: #f9fafb;
+}
+
+.pos-date-calendar .react-datepicker__day--selected,
+.pos-date-calendar .react-datepicker__day--keyboard-selected,
+.pos-date-calendar .react-datepicker__time-list-item--selected {
+  border-radius: 0.5rem;
+  background: #2563eb;
+  color: white;
+}
+
+.pos-date-calendar .react-datepicker__day--selected:hover,
+.pos-date-calendar .react-datepicker__time-list-item--selected:hover {
+  background: #1d4ed8;
+}
+
+.dark .pos-date-calendar.react-datepicker,
+.dark .pos-date-calendar .react-datepicker__time-container,
+.dark .pos-date-calendar .react-datepicker__time,
+.dark .pos-date-calendar .react-datepicker__time-list {
+  border-color: #374151;
+  background: #111827;
+  color: #f3f4f6;
+}
+
+.dark .pos-date-calendar .react-datepicker__header {
+  border-color: #374151;
+  background: #1f2937;
+}
+
+.dark .pos-date-calendar .react-datepicker__current-month,
+.dark .pos-date-calendar .react-datepicker__day-name,
+.dark .pos-date-calendar .react-datepicker__day,
+.dark .pos-date-calendar .react-datepicker__time-name,
+.dark .pos-date-calendar .react-datepicker__time-list-item {
+  color: #f3f4f6;
+}
+
+.dark .pos-date-calendar .react-datepicker__day:hover,
+.dark .pos-date-calendar .react-datepicker__time-list-item:hover {
+  background: #374151;
 }
 
 @media (max-width: 768px) {

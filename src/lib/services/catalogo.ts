@@ -13,8 +13,15 @@ export interface Catalogo {
   productos: ProductoConAtributos[];
 }
 
+interface ProductoAtributoValorRow {
+  producto_atributo_id: string;
+  valor_id: string;
+  orden: number;
+  atributo_valores: AtributoValor | null;
+}
+
 export async function fetchCatalogo(): Promise<Catalogo> {
-  const [catsRes, prodsRes, mapRes, attrsRes] = await Promise.all([
+  const [catsRes, prodsRes, mapRes, attrsRes, pavRes] = await Promise.all([
     supabase.from("categorias").select("*").eq("activo", true).order("orden").order("nombre"),
     supabase.from("productos").select("*").eq("activo", true).order("orden").order("nombre"),
     supabase.from("producto_atributos").select("*").order("orden"),
@@ -23,6 +30,10 @@ export async function fetchCatalogo(): Promise<Catalogo> {
       .select("*, atributo_valores(*)")
       .eq("activo", true)
       .order("nombre"),
+    supabase
+      .from("producto_atributo_valores")
+      .select("producto_atributo_id, valor_id, orden, atributo_valores(id, atributo_id, valor)")
+      .order("orden"),
   ]);
 
   if (catsRes.error) throw catsRes.error;
@@ -44,6 +55,17 @@ export async function fetchCatalogo(): Promise<Catalogo> {
     });
   }
 
+  const valoresPorProductoAtributo = new Map<string, AtributoValor[]>();
+  if (!pavRes.error) {
+    for (const row of (pavRes.data ?? []) as ProductoAtributoValorRow[]) {
+      const av = row.atributo_valores;
+      if (!av) continue;
+      const lista = valoresPorProductoAtributo.get(row.producto_atributo_id) ?? [];
+      lista.push({ id: av.id, atributo_id: av.atributo_id, valor: av.valor });
+      valoresPorProductoAtributo.set(row.producto_atributo_id, lista);
+    }
+  }
+
   const catById = new Map(categorias.map((c) => [c.id, c.nombre]));
 
   const productosConAtributos: ProductoConAtributos[] = productos.map((p) => ({
@@ -52,7 +74,15 @@ export async function fetchCatalogo(): Promise<Catalogo> {
     atributos: mapping
       .filter((m) => m.producto_id === p.id)
       .sort((x, y) => x.orden - y.orden)
-      .map((m) => attrsById.get(m.atributo_id))
+      .map((m) => {
+        const base = attrsById.get(m.atributo_id);
+        if (!base) return null;
+        const porProducto = valoresPorProductoAtributo.get(m.id);
+        return {
+          ...base,
+          valores: porProducto && porProducto.length > 0 ? porProducto : base.valores,
+        };
+      })
       .filter((a): a is Atributo & { valores: AtributoValor[] } => Boolean(a)),
   }));
 

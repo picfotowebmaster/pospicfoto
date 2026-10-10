@@ -67,6 +67,7 @@ export function TablaLineas({ lineas, onEditar, onEliminar }: TablaLineasProps) 
                     <Button
                       variant="ghost"
                       size="sm"
+                      aria-label={`Editar ${linea.producto_nombre}`}
                       onClick={() => onEditar(linea)}
                     >
                       <i className="fas fa-edit" />

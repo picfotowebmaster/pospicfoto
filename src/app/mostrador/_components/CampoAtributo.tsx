@@ -9,14 +9,39 @@ interface CampoAtributoProps {
   valor: string;
   valores: AtributoValor[];
   onChange: (valor: string) => void;
+  variante?: "select" | "libre";
 }
 
-export function CampoAtributo({
+function SelectAtributo({
   atributo,
   valor,
   valores,
   onChange,
 }: CampoAtributoProps) {
+  const enLista = valores.some((v) => v.valor === valor);
+  return (
+    <div>
+      <label className="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1">
+        {atributo.nombre}
+      </label>
+      <select
+        value={valor}
+        onChange={(e) => onChange(e.target.value)}
+        className="w-full border border-gray-300 dark:border-gray-600 rounded-lg px-2.5 py-2 text-sm bg-white dark:bg-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-blue-500"
+      >
+        <option value="">Elige una opción…</option>
+        {!enLista && valor && <option value={valor}>{valor}</option>}
+        {valores.map((v) => (
+          <option key={v.id} value={v.valor}>
+            {v.valor}
+          </option>
+        ))}
+      </select>
+    </div>
+  );
+}
+
+function LibreAtributo({ atributo, valor, valores, onChange }: CampoAtributoProps) {
   const [termino, setTermino] = React.useState(valor);
   const [prevValor, setPrevValor] = React.useState(valor);
   const [abierto, setAbierto] = React.useState(false);
@@ -78,5 +103,13 @@ export function CampoAtributo({
         idFromItem={(v) => v.id}
       />
     </div>
+  );
+}
+
+export function CampoAtributo(props: CampoAtributoProps) {
+  return props.variante === "libre" ? (
+    <LibreAtributo {...props} />
+  ) : (
+    <SelectAtributo {...props} />
   );
 }

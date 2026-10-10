@@ -85,6 +85,13 @@ export interface ProductoAtributo {
   requerido: boolean;
 }
 
+export interface ProductoAtributoValor {
+  id: string;
+  producto_atributo_id: string;
+  valor_id: string;
+  orden: number;
+}
+
 export interface ProductoConAtributos extends Producto {
   atributos: (Atributo & { valores: AtributoValor[] })[];
   categoria_nombre: string;

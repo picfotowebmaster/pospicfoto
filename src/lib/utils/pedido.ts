@@ -44,6 +44,18 @@ export function formatRelativeDue(
   return diffMs < 0 ? `venció hace ${txt}` : `vence en ${txt}`;
 }
 
+export function redondearA30Min(hhmm: string): string {
+  if (!hhmm) return "";
+  const [hStr, mStr] = hhmm.split(":");
+  const horas = Number(hStr);
+  const minutos = Number(mStr);
+  if (Number.isNaN(horas) || Number.isNaN(minutos)) return hhmm;
+  const redondeados = Math.round(minutos / 30) * 30;
+  const totalHoras = (horas + Math.floor(redondeados / 60)) % 24;
+  const minutosFinales = redondeados % 60;
+  return `${String(totalHoras).padStart(2, "0")}:${String(minutosFinales).padStart(2, "0")}`;
+}
+
 export function getRutaLabel(ruta?: string | null): string {
   if (!ruta) return "";
   return RUTA_LABELS[ruta] || ruta;

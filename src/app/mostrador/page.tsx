@@ -7,8 +7,7 @@ import { usePedidoActual } from "@/lib/hooks/usePedidoActual";
 import { useToast } from "@/components/ui/Toast";
 import { ThemeToggle } from "@/components/ui/ThemeToggle";
 import { FormCliente } from "./_components/FormCliente";
-import { LineaPedido, inferRuta } from "./_components/LineaPedido";
-import { fetchProductosFrecuentes } from "@/lib/services/historial";
+import { ModalLineaPedido } from "./_components/ModalLineaPedido";
 import { enviarPushArea } from "@/lib/services/notifications";
 import { TablaLineas } from "./_components/TablaLineas";
 import { ResumenPago } from "./_components/ResumenPago";
@@ -26,8 +25,7 @@ import { queueOrder, getQueueCount } from "@/lib/offline/orderQueue";
 import { loadCatalog } from "@/lib/offline/catalogSync";
 import OfflineIndicator from "../_components/OfflineIndicator";
 import RoleSwitcher from "@/app/_components/RoleSwitcher";
-import type { Atributo, AtributoValor, ProductoHistorial } from "@/lib/supabase/types";
-import type { LineaPedidoDraft } from "@/lib/supabase/types";
+import type { Atributo, AtributoValor, LineaPedidoDraft } from "@/lib/supabase/types";
 type AtributoConValores = Atributo & { valores: AtributoValor[] };
 
 function MostradorContent() {
@@ -50,7 +48,6 @@ function MostradorContent() {
   const [sucursalNombre, setSucursalNombre] = useState("");
   const [marcas, setMarcas] = useState<{ id: string; nombre: string; codigo: string }[]>([]);
   const [queueCount, setQueueCount] = useState(0);
-  const [frecuentes, setFrecuentes] = useState<ProductoHistorial[]>([]);
   const [confirmando, setConfirmando] = useState(false);
 
   const mensajeParam = searchParams.get("mensaje");
@@ -115,13 +112,6 @@ function MostradorContent() {
   }, [restoreDraft]);
 
   useEffect(() => {
-    if (!isOnline) return;
-    fetchProductosFrecuentes(8)
-      .then(setFrecuentes)
-      .catch(() => {});
-  }, [isOnline]);
-
-  useEffect(() => {
     getQueueCount().then(setQueueCount).catch(() => {});
     const interval = setInterval(() => {
       getQueueCount().then(setQueueCount).catch(() => {});
@@ -137,19 +127,6 @@ function MostradorContent() {
   function handleEditarLinea(linea: LineaPedidoDraft) {
     setEditandoLinea(linea);
     setMostrandoLinea(true);
-  }
-
-  function handleAgregarFrecuente(h: ProductoHistorial) {
-    const nueva = pedido.agregarLinea({
-      producto_nombre: h.nombre,
-      cantidad: 1,
-      precio_unitario: 0,
-      atributos: h.atributos || {},
-      ruta: inferRuta(h.nombre),
-      categoria_id: null,
-      producto_id: null,
-    });
-    handleEditarLinea(nueva);
   }
 
   function handleSaveLinea(linea: LineaPedidoDraft) {
@@ -177,13 +154,18 @@ function MostradorContent() {
     }
     setPagarCargando(true);
 
+    const requiereCorreccion = pedido.lineas.some(
+      (l) =>
+        (l.atributos["Corrección de Color"] || "").trim().toLowerCase() === "si",
+    );
+
     const draft = {
       cliente_nombre: pedido.cliente.nombre,
       cliente_telefono: pedido.cliente.telefono,
       cliente_email: pedido.cliente.email,
       fecha_entrega: pedido.cliente.fechaEntrega,
       hora_entrega: pedido.cliente.horaEntrega,
-      requiere_correccion: pedido.cliente.requiereCorreccion,
+      requiere_correccion: requiereCorreccion,
       lineas: pedido.lineas,
       subtotal: pedido.subtotal,
       anticipo: pedido.anticipo,
@@ -304,7 +286,6 @@ function MostradorContent() {
           email={pedido.cliente.email}
           fechaEntrega={pedido.cliente.fechaEntrega}
           horaEntrega={pedido.cliente.horaEntrega}
-          requiereCorreccion={pedido.cliente.requiereCorreccion}
           onNombreChange={(v) =>
             pedido.setCliente({ ...pedido.cliente, nombre: v })
           }
@@ -319,9 +300,6 @@ function MostradorContent() {
           }
           onHoraEntregaChange={(v) =>
             pedido.setCliente({ ...pedido.cliente, horaEntrega: v })
-          }
-          onRequiereCorreccionChange={(v) =>
-            pedido.setCliente({ ...pedido.cliente, requiereCorreccion: v })
           }
         />
 
@@ -390,48 +368,12 @@ function MostradorContent() {
             </Button>
           </div>
 
-          {frecuentes.length > 0 && !mostrandoLinea && (
-            <div className="flex flex-wrap items-center gap-1.5 mb-3">
-              <span className="text-xs text-gray-400 dark:text-gray-500 mr-1">
-                <i className="fas fa-bolt text-amber-500 mr-1" />
-                Frecuentes:
-              </span>
-              {frecuentes.map((h) => (
-                <button
-                  key={h.id}
-                  type="button"
-                  onClick={() => handleAgregarFrecuente(h)}
-                  className="text-xs rounded-full border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800 text-gray-600 dark:text-gray-300 px-2.5 py-1 hover:border-blue-400 hover:text-blue-600 dark:hover:text-blue-400 transition-colors cursor-pointer"
-                  title={`Usado ${h.veces_usado} vez/veces`}
-                >
-                  {h.nombre}
-                </button>
-              ))}
-            </div>
-          )}
-
           <TablaLineas
             lineas={pedido.lineas}
             onEditar={handleEditarLinea}
             onEliminar={pedido.eliminarLinea}
           />
 
-          {mostrandoLinea && (
-            <div className="mt-3">
-              <LineaPedido
-                id={editandoLinea?.id || ""}
-                atributosPool={atributosPool}
-                onSave={handleSaveLinea}
-                onCancel={() => {
-                  setMostrandoLinea(false);
-                  setEditandoLinea(null);
-                }}
-                editData={editandoLinea || undefined}
-                rutaDefault={pedido.rutaDefault}
-                catalogo={catalogo ?? undefined}
-              />
-            </div>
-          )}
         </div>
 
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
@@ -479,6 +421,19 @@ function MostradorContent() {
           </div>
         </div>
       </div>
+
+      <ModalLineaPedido
+        open={mostrandoLinea}
+        atributosPool={atributosPool}
+        onSave={handleSaveLinea}
+        onCancel={() => {
+          setMostrandoLinea(false);
+          setEditandoLinea(null);
+        }}
+        editData={editandoLinea ?? undefined}
+        rutaDefault={pedido.rutaDefault}
+        catalogo={catalogo ?? undefined}
+      />
 
       <ModalConfirmarPedido
         open={confirmando}

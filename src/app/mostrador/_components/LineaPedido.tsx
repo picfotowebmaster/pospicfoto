@@ -2,15 +2,11 @@
 
 import React, { useState } from "react";
 import { Button } from "@/components/ui/Button";
-import { Autocompletar } from "@/components/ui/Autocompletar";
-import { useAutocompletar } from "@/lib/hooks/useAutocompletar";
-import { buscarHistorial } from "@/lib/services/historial";
 import type { Catalogo } from "@/lib/services/catalogo";
 import { CampoAtributo } from "./CampoAtributo";
 import type {
   Atributo,
   AtributoValor,
-  ProductoHistorial,
 } from "@/lib/supabase/types";
 import type { LineaPedidoDraft, RutaProduccion } from "@/lib/supabase/types";
 import { generarIdLocal } from "@/lib/utils/calculos";
@@ -34,9 +30,11 @@ interface LineaPedidoProps {
   catalogo?: Catalogo;
 }
 
+const ETIQUETA_PASO =
+  "block text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide";
+
 export function LineaPedido({
   id,
-  atributosPool,
   onSave,
   onCancel,
   editData,
@@ -57,27 +55,15 @@ export function LineaPedido({
     editData?.ruta || rutaDefault,
   );
   const [modoLibre, setModoLibre] = useState(
-    editData ? !editData.producto_id : !catalogo,
+    editData ? !editData.producto_id && !editData.categoria_id : !catalogo,
   );
   const [categoriaId, setCategoriaId] = useState(editData?.categoria_id || "");
   const [productoId, setProductoId] = useState(editData?.producto_id || "");
 
-  const autocompletar = useAutocompletar<ProductoHistorial>({
-    fetchFn: buscarHistorial,
-    onSelect: (item) => {
-      setDescripcion(item.nombre);
-      setAtributos(item.atributos || {});
-      setRuta(inferRuta(item.nombre));
-    },
-    renderItem: (h) => h.nombre,
-    minChars: 2,
-    idFromItem: (h) => h.id,
-  });
-
   const productosCategoria =
     catalogo?.productos.filter((p) => p.categoria_id === categoriaId) ?? [];
   const producto = catalogo?.productos.find((p) => p.id === productoId) ?? null;
-  const atributosVisibles = modoLibre ? atributosPool : (producto?.atributos ?? []);
+  const atributosVisibles = producto?.atributos ?? [];
 
   function seleccionarCategoria(idCat: string) {
     setCategoriaId(idCat);
@@ -96,8 +82,17 @@ export function LineaPedido({
     }
   }
 
+  const atributosCompletos =
+    modoLibre ||
+    atributosVisibles.every(
+      (attr) => (atributos[attr.nombre] || "").trim() !== "",
+    );
+
   const puedeGuardar =
-    descripcion.trim().length > 0 && (modoLibre || Boolean(productoId));
+    descripcion.trim().length > 0 &&
+    (modoLibre || Boolean(productoId)) &&
+    atributosCompletos &&
+    (!modoLibre || precioUnitario > 0);
 
   function handleSave() {
     onSave({
@@ -138,66 +133,46 @@ export function LineaPedido({
       )}
 
       {catalogo && !modoLibre && (
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
-          <div>
-            <label className="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1">
-              Categoría *
-            </label>
-            <select
-              value={categoriaId}
-              onChange={(e) => seleccionarCategoria(e.target.value)}
-              className="w-full border border-gray-300 dark:border-gray-600 rounded-lg px-2.5 py-2 text-sm bg-white dark:bg-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-500"
-            >
-              <option value="">Seleccionar categoría...</option>
-              {catalogo.categorias.map((c) => (
-                <option key={c.id} value={c.id}>
-                  {c.nombre}
-                </option>
-              ))}
-            </select>
+        <>
+          <span className={ETIQUETA_PASO}>1. Categoría y producto</span>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
+            <div>
+              <label className="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1">
+                Categoría *
+              </label>
+              <select
+                value={categoriaId}
+                onChange={(e) => seleccionarCategoria(e.target.value)}
+                className="w-full border border-gray-300 dark:border-gray-600 rounded-lg px-2.5 py-2 text-sm bg-white dark:bg-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-500"
+              >
+                <option value="">Seleccionar categoría...</option>
+                {catalogo.categorias.map((c) => (
+                  <option key={c.id} value={c.id}>
+                    {c.nombre}
+                  </option>
+                ))}
+              </select>
+            </div>
+            <div>
+              <label className="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1">
+                Producto *
+              </label>
+              <select
+                value={productoId}
+                onChange={(e) => seleccionarProducto(e.target.value)}
+                disabled={!categoriaId}
+                className="w-full border border-gray-300 dark:border-gray-600 rounded-lg px-2.5 py-2 text-sm bg-white dark:bg-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:opacity-50"
+              >
+                <option value="">Seleccionar producto...</option>
+                {productosCategoria.map((p) => (
+                  <option key={p.id} value={p.id}>
+                    {p.nombre}
+                  </option>
+                ))}
+              </select>
+            </div>
           </div>
-          <div>
-            <label className="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1">
-              Producto *
-            </label>
-            <select
-              value={productoId}
-              onChange={(e) => seleccionarProducto(e.target.value)}
-              disabled={!categoriaId}
-              className="w-full border border-gray-300 dark:border-gray-600 rounded-lg px-2.5 py-2 text-sm bg-white dark:bg-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:opacity-50"
-            >
-              <option value="">Seleccionar producto...</option>
-              {productosCategoria.map((p) => (
-                <option key={p.id} value={p.id}>
-                  {p.nombre}
-                </option>
-              ))}
-            </select>
-          </div>
-        </div>
-      )}
-
-      {modoLibre && (
-        <div className="relative">
-          <label className="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1">
-            Producto *
-          </label>
-          <Autocompletar
-            placeholder="Buscar producto..."
-            valor={autocompletar.termino}
-            onChange={autocompletar.buscar}
-            opciones={autocompletar.opciones}
-            renderOpcion={(h) => h.nombre}
-            onSelect={autocompletar.seleccionar}
-            abierto={autocompletar.abierto}
-            cargando={autocompletar.cargando}
-            indiceSeleccionado={autocompletar.indiceSeleccionado}
-            onKeyDown={autocompletar.tecla}
-            containerRef={autocompletar.containerRef}
-            inputRef={autocompletar.inputRef}
-            idFromItem={(h) => h.id}
-          />
-        </div>
+        </>
       )}
 
       <div>
@@ -213,73 +188,93 @@ export function LineaPedido({
         />
       </div>
 
-      {atributosVisibles.length > 0 && (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-2">
-          {atributosVisibles.map((attr) => (
-            <CampoAtributo
-              key={attr.id}
-              atributo={attr}
-              valor={atributos[attr.nombre] || ""}
-              valores={attr.valores}
-              onChange={(val) =>
-                setAtributos((prev) => ({ ...prev, [attr.nombre]: val }))
-              }
-            />
-          ))}
+      {!modoLibre && atributosVisibles.length > 0 && (
+        <div className="space-y-2">
+          <div className="flex items-center justify-between">
+            <span className={ETIQUETA_PASO}>2. Opciones del producto</span>
+            {!atributosCompletos && (
+              <span className="text-xs text-amber-600 dark:text-amber-400">
+                Selecciona todas las opciones
+              </span>
+            )}
+          </div>
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-2">
+            {atributosVisibles.map((attr) => (
+              <CampoAtributo
+                key={attr.id}
+                atributo={attr}
+                valor={atributos[attr.nombre] || ""}
+                valores={attr.valores}
+                variante="select"
+                onChange={(val) =>
+                  setAtributos((prev) => ({ ...prev, [attr.nombre]: val }))
+                }
+              />
+            ))}
+          </div>
         </div>
       )}
 
-      <div className="grid grid-cols-4 gap-3">
-        <div>
-          <label className="block text-xs font-medium text-gray-500 mb-1">
-            Cantidad *
-          </label>
-          <input
-            type="number"
-            min={1}
-            value={cantidad}
-            onChange={(e) => setCantidad(Math.max(1, Number(e.target.value)))}
-            className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-          />
-        </div>
-        <div>
-          <label className="block text-xs font-medium text-gray-500 mb-1">
-            Precio Unitario *
-          </label>
-          <input
-            type="number"
-            min={0}
-            step={0.01}
-            value={precioUnitario || ""}
-            onChange={(e) =>
-              setPrecioUnitario(Math.max(0, Number(e.target.value)))
-            }
-            className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-          />
-        </div>
-        <div>
-          <label className="block text-xs font-medium text-gray-500 mb-1">
-            Importe
-          </label>
-          <div className="w-full border border-gray-200 bg-gray-100 rounded-lg px-3 py-2 text-sm font-bold text-gray-700">
-            ${importeLinea.toFixed(2)}
+      <div className="space-y-2">
+        <span className={ETIQUETA_PASO}>
+          {modoLibre ? "Precio y ruta" : "3. Precio y ruta"}
+        </span>
+        <div
+          className={`grid gap-3 ${modoLibre ? "grid-cols-3" : "grid-cols-4"}`}
+        >
+          <div>
+            <label className="block text-xs font-medium text-gray-500 mb-1">
+              Cantidad *
+            </label>
+            <input
+              type="number"
+              min={1}
+              value={cantidad}
+              onChange={(e) => setCantidad(Math.max(1, Number(e.target.value)))}
+              className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+            />
           </div>
-        </div>
-        <div>
-          <label className="block text-xs font-medium text-gray-500 mb-1">
-            Ruta Prod.
-          </label>
-          <select
-            value={ruta}
-            onChange={(e) => setRuta(e.target.value as RutaProduccion)}
-            className="w-full border border-gray-300 rounded-lg px-2 py-2 text-xs focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white"
-          >
-            {RUTAS_PRODUCCION.map((r) => (
-              <option key={r.value} value={r.value}>
-                {r.label}
-              </option>
-            ))}
-          </select>
+          <div>
+            <label className="block text-xs font-medium text-gray-500 mb-1">
+              Precio Unitario *
+            </label>
+            <input
+              type="number"
+              min={0}
+              step={0.01}
+              value={precioUnitario || ""}
+              onChange={(e) =>
+                setPrecioUnitario(Math.max(0, Number(e.target.value)))
+              }
+              className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+            />
+          </div>
+          {!modoLibre && (
+            <div>
+              <label className="block text-xs font-medium text-gray-500 mb-1">
+                Importe
+              </label>
+              <div className="w-full border border-gray-200 bg-gray-100 rounded-lg px-3 py-2 text-sm font-bold text-gray-700">
+                ${importeLinea.toFixed(2)}
+              </div>
+            </div>
+          )}
+          <div>
+            <label className="block text-xs font-medium text-gray-500 mb-1">
+              Ruta Prod.
+            </label>
+            <select
+              value={ruta}
+              onChange={(e) => setRuta(e.target.value as RutaProduccion)}
+              className="w-full border border-gray-300 rounded-lg px-2 py-2 text-xs focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white"
+            >
+              {RUTAS_PRODUCCION.map((r) => (
+                <option key={r.value} value={r.value}>
+                  {r.label}
+                </option>
+              ))}
+            </select>
+          </div>
         </div>
       </div>
 

@@ -12,7 +12,6 @@ interface ClienteData {
   email: string;
   fechaEntrega: string;
   horaEntrega: string;
-  requiereCorreccion: boolean;
 }
 
 export function usePedidoActual(sucursalId: string) {
@@ -22,7 +21,6 @@ export function usePedidoActual(sucursalId: string) {
     email: "",
     fechaEntrega: "",
     horaEntrega: "",
-    requiereCorreccion: false,
   });
   const [lineas, setLineas] = useState<LineaPedidoDraft[]>([]);
   const [porcentajeAnticipo, setPorcentajeAnticipo] = useState(ANTICIPO_POR_DEFECTO);
@@ -102,7 +100,6 @@ export function usePedidoActual(sucursalId: string) {
       email: "",
       fechaEntrega: "",
       horaEntrega: "",
-      requiereCorreccion: false,
     });
     setLineas([]);
     setPorcentajeAnticipo(ANTICIPO_POR_DEFECTO);

@@ -6,6 +6,7 @@ import {
   getRutaLabel,
   formatAttrs,
   elapsedFromTime,
+  redondearA30Min,
 } from "./pedido";
 
 describe("getSlaLevel", () => {
@@ -79,6 +80,28 @@ describe("formatAttrs", () => {
     expect(formatAttrs({ tamaño: "10x15", acabado: "mate" })).toBe(
       "tamaño: 10x15 · acabado: mate",
     );
+  });
+});
+
+describe("redondearA30Min", () => {
+  it("devuelve vacío si no hay hora", () => {
+    expect(redondearA30Min("")).toBe("");
+  });
+
+  it("mantiene valores ya en :00 o :30", () => {
+    expect(redondearA30Min("09:00")).toBe("09:00");
+    expect(redondearA30Min("14:30")).toBe("14:30");
+  });
+
+  it("redondea al intervalo de 30 min más cercano", () => {
+    expect(redondearA30Min("09:07")).toBe("09:00");
+    expect(redondearA30Min("09:22")).toBe("09:30");
+    expect(redondearA30Min("09:45")).toBe("10:00");
+  });
+
+  it("hace acarreo de hora y wrap a medianoche", () => {
+    expect(redondearA30Min("23:45")).toBe("00:00");
+    expect(redondearA30Min("10:59")).toBe("11:00");
   });
 });
 

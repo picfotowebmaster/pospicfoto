@@ -1,11 +1,13 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/Button";
 import { TablaLineas } from "@/app/mostrador/_components/TablaLineas";
 import { LineaPedido } from "@/app/mostrador/_components/LineaPedido";
 import { RUTAS_PRODUCCION, METODOS_PAGO } from "@/lib/utils/constantes";
 import { generarIdLocal } from "@/lib/utils/calculos";
+import { redondearA30Min } from "@/lib/utils/pedido";
+import { fetchCatalogo, type Catalogo } from "@/lib/services/catalogo";
 import type {
   Pedido,
   LineaPedidoDraft,
@@ -71,6 +73,13 @@ export function EditPedidoForm({
   const [mostrandoFormLinea, setMostrandoFormLinea] = useState(false);
   const [editandoLinea, setEditandoLinea] = useState<LineaPedidoDraft | null>(null);
   const [guardando, setGuardando] = useState(false);
+  const [catalogo, setCatalogo] = useState<Catalogo | null>(null);
+
+  useEffect(() => {
+    fetchCatalogo()
+      .then(setCatalogo)
+      .catch(() => {});
+  }, []);
 
   function handleAgregarLinea() {
     setEditandoLinea(null);
@@ -181,8 +190,9 @@ export function EditPedidoForm({
             </label>
             <input
               type="time"
+              step={1800}
               value={horaEntrega}
-              onChange={(e) => setHoraEntrega(e.target.value)}
+              onChange={(e) => setHoraEntrega(redondearA30Min(e.target.value))}
               className="w-full border border-gray-300 rounded-lg px-2.5 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
             />
           </div>
@@ -302,6 +312,7 @@ export function EditPedidoForm({
         {mostrandoFormLinea && (
           <div className="mt-3">
             <LineaPedido
+              key={editandoLinea?.id ?? "nueva"}
               id={editandoLinea?.id || ""}
               atributosPool={atributosPool}
               onSave={handleSaveLinea}
@@ -311,6 +322,7 @@ export function EditPedidoForm({
               }}
               editData={editandoLinea || undefined}
               rutaDefault={(pedido.ruta as RutaProduccion) || "R1"}
+              catalogo={catalogo ?? undefined}
             />
           </div>
         )}
