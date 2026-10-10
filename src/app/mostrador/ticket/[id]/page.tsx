@@ -21,6 +21,7 @@ export default function TicketPage() {
   const [cargando, setCargando] = useState(true);
   const [autoPrintDone, setAutoPrintDone] = useState(false);
   const [facturando, setFacturando] = useState(false);
+  const [enviandoTicket, setEnviandoTicket] = useState(false);
   const [facturaInfo, setFacturaInfo] = useState<{
     uuid: string;
     pdfUrl: string | null;
@@ -100,6 +101,33 @@ export default function TicketPage() {
     }
   }, [pedidos, printer]);
 
+  async function handleEnviarTicket() {
+    const pedido = pedidos[0];
+    if (!pedido) return;
+    if (!pedido.cliente_email) {
+      showError("El pedido no tiene correo del cliente.");
+      return;
+    }
+    setEnviandoTicket(true);
+    try {
+      const res = await fetch("/api/ticket/enviar", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ id: pedido.numero_pedido || pedido.id }),
+      });
+      const data = await res.json();
+      if (!res.ok || !data.success) {
+        showError(data.error || "Error al enviar el ticket");
+      } else {
+        showSuccess(`Ticket enviado a ${pedido.cliente_email}`);
+      }
+    } catch {
+      showError("Error de conexión al enviar el ticket");
+    } finally {
+      setEnviandoTicket(false);
+    }
+  }
+
   async function handleFacturar() {
     setFacturando(true);
     try {
@@ -163,6 +191,14 @@ export default function TicketPage() {
           onRetry={printer.retry}
           onBrowserPrint={() => window.print()}
         />
+        <Button
+          size="sm"
+          variant="primary"
+          onClick={handleEnviarTicket}
+          disabled={enviandoTicket}
+        >
+          {enviandoTicket ? "Enviando..." : "Enviar Ticket"}
+        </Button>
         <Button
           size="sm"
           variant="ghost"

@@ -35,6 +35,7 @@ export function TablaPedidos({ pedidos, atributosPool, onEstadoCambiado }: Tabla
   const [editando, setEditando] = useState<string | null>(null);
   const [cancelando, setCancelando] = useState<string | null>(null);
   const [facturando, setFacturando] = useState<string | null>(null);
+  const [enviandoTicket, setEnviandoTicket] = useState<string | null>(null);
   const [confirmCancel, setConfirmCancel] = useState<string | null>(null);
   const [override, setOverride] = useState<{
     pedidoId: string;
@@ -204,6 +205,33 @@ export function TablaPedidos({ pedidos, atributosPool, onEstadoCambiado }: Tabla
     }
   }
 
+  async function handleEnviarTicket(pedidoId: string) {
+    const pedido = pedidos.find((p) => p.id === pedidoId);
+    if (!pedido) return;
+    if (!pedido.cliente_email) {
+      showError("El pedido no tiene correo del cliente. Agrégalo en Editar.");
+      return;
+    }
+    setEnviandoTicket(pedidoId);
+    try {
+      const res = await fetch("/api/ticket/enviar", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ id: pedido.numero_pedido || pedido.id }),
+      });
+      const data = await res.json();
+      if (!res.ok || !data.success) {
+        showError(data.error || "Error al enviar el ticket");
+      } else {
+        showSuccess(`Ticket enviado a ${pedido.cliente_email}`);
+      }
+    } catch {
+      showError("Error de conexión al enviar el ticket");
+    } finally {
+      setEnviandoTicket(null);
+    }
+  }
+
   async function executeCancelar() {
     const pedidoId = confirmCancel;
     setConfirmCancel(null);
@@ -331,6 +359,8 @@ export function TablaPedidos({ pedidos, atributosPool, onEstadoCambiado }: Tabla
               onCambiarEstado={(estado) => solicitarCambioEstado(p.id, estado, p.estado)}
               onCancelar={() => handleCancelar(p.id)}
               onFacturar={() => handleFacturar(p.id)}
+              enviandoTicket={enviandoTicket === p.id}
+              onEnviarTicket={() => handleEnviarTicket(p.id)}
               seleccionado={seleccionados.has(p.id)}
               onToggleSeleccion={() => toggleSeleccion(p.id)}
             />
@@ -454,11 +484,13 @@ function PedidoFila({
   cambiando,
   cancelando,
   facturando,
+  enviandoTicket,
   onAbrirDetalle,
   onEditar,
   onCambiarEstado,
   onCancelar,
   onFacturar,
+  onEnviarTicket,
   seleccionado,
   onToggleSeleccion,
 }: {
@@ -466,11 +498,13 @@ function PedidoFila({
   cambiando: boolean;
   cancelando: boolean;
   facturando: boolean;
+  enviandoTicket: boolean;
   onAbrirDetalle: () => void;
   onEditar: () => void;
   onCambiarEstado: (estado: string) => void;
   onCancelar: () => void;
   onFacturar: () => void;
+  onEnviarTicket: () => void;
   seleccionado: boolean;
   onToggleSeleccion: () => void;
 }) {
@@ -532,6 +566,15 @@ function PedidoFila({
           >
             Ticket
           </a>
+          <button
+            type="button"
+            onClick={onEnviarTicket}
+            disabled={enviandoTicket}
+            className="text-xs rounded px-1.5 py-0.5 transition-colors cursor-pointer disabled:opacity-50 text-blue-600 hover:text-blue-800 hover:bg-blue-50"
+            title="Enviar ticket por correo"
+          >
+            {enviandoTicket ? "..." : "Enviar Ticket"}
+          </button>
           {pedido.estado !== "cancelado" && (
             <button
               type="button"

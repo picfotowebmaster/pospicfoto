@@ -1,9 +1,19 @@
+import { Resend } from "resend";
 import { NOMBRE_EMPRESA } from "@/lib/utils/constantes";
+import { renderTicketHtml } from "@/lib/utils/ticketEmailHtml";
+import type { Pedido } from "@/lib/supabase/types";
 
 export interface AdjuntoCorreo {
   filename: string;
   content: string;
   contentType?: string;
+}
+
+interface EnviarCorreoParams {
+  to: string;
+  subject: string;
+  html: string;
+  adjuntos?: AdjuntoCorreo[];
 }
 
 interface EnviarFacturaParams {
@@ -16,6 +26,43 @@ interface EnviarFacturaParams {
   adjuntos?: AdjuntoCorreo[];
 }
 
+interface EnviarTicketParams {
+  to: string;
+  pedido: Pedido;
+}
+
+async function enviarCorreo({ to, subject, html, adjuntos = [] }: EnviarCorreoParams): Promise<void> {
+  const apiKey = process.env.RESEND_API_KEY;
+  const from = process.env.RESEND_FROM_EMAIL;
+
+  if (!apiKey || !from) {
+    throw new Error("Correo no configurado (RESEND_API_KEY / RESEND_FROM_EMAIL).");
+  }
+
+  const resend = new Resend(apiKey);
+
+  const { error } = await resend.emails.send({
+    from,
+    to: [to],
+    subject,
+    html,
+    attachments:
+      adjuntos.length > 0
+        ? adjuntos.map((a) => ({
+            filename: a.filename,
+            content: a.content,
+            contentType: a.contentType || "application/octet-stream",
+          }))
+        : undefined,
+  });
+
+  if (error) {
+    throw new Error(
+      `Error al enviar correo (${error.statusCode ?? "?"}): ${error.message || error.name}`,
+    );
+  }
+}
+
 export async function enviarFacturaPorCorreo({
   to,
   clienteNombre,
@@ -25,13 +72,6 @@ export async function enviarFacturaPorCorreo({
   xmlUrl,
   adjuntos = [],
 }: EnviarFacturaParams): Promise<void> {
-  const apiKey = process.env.RESEND_API_KEY;
-  const from = process.env.RESEND_FROM_EMAIL;
-
-  if (!apiKey || !from) {
-    throw new Error("Correo no configurado (RESEND_API_KEY / RESEND_FROM_EMAIL).");
-  }
-
   const enlaces = [
     pdfUrl ? `<a href="${pdfUrl}">Descargar PDF</a>` : "",
     xmlUrl ? `<a href="${xmlUrl}">Ver XML</a>` : "",
@@ -52,32 +92,20 @@ export async function enviarFacturaPorCorreo({
     </div>
   `;
 
-  const body: Record<string, unknown> = {
-    from,
-    to: [to],
+  await enviarCorreo({
+    to,
     subject: `Tu factura ${numeroPedido} - ${NOMBRE_EMPRESA}`,
     html,
-  };
-
-  if (adjuntos.length > 0) {
-    body.attachments = adjuntos.map((a) => ({
-      filename: a.filename,
-      content: a.content,
-      content_type: a.contentType || "application/octet-stream",
-    }));
-  }
-
-  const res = await fetch("https://api.resend.com/emails", {
-    method: "POST",
-    headers: {
-      Authorization: `Bearer ${apiKey}`,
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify(body),
+    adjuntos,
   });
+}
 
-  if (!res.ok) {
-    const detalle = await res.text().catch(() => "");
-    throw new Error(`Error al enviar correo (${res.status})${detalle ? `: ${detalle.slice(0, 300)}` : ""}`);
-  }
+export async function enviarTicketPorCorreo({ to, pedido }: EnviarTicketParams): Promise<void> {
+  const numeroTicket = pedido.numero_pedido || pedido.id.slice(0, 8).toUpperCase();
+
+  await enviarCorreo({
+    to,
+    subject: `Tu ticket ${numeroTicket} - ${NOMBRE_EMPRESA}`,
+    html: renderTicketHtml(pedido),
+  });
 }

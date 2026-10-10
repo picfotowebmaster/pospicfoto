@@ -33,6 +33,7 @@ interface FacturasTableProps {
 export function FacturasTable({ pedidos, onFacturado }: FacturasTableProps) {
   const { showError, showSuccess } = useToast();
   const [facturando, setFacturando] = useState<string | null>(null);
+  const [enviandoTicket, setEnviandoTicket] = useState<string | null>(null);
   const [cancelando, setCancelando] = useState<string | null>(null);
   const [cancelModal, setCancelModal] = useState<Pedido | null>(null);
   const [detalleModal, setDetalleModal] = useState<Pedido | null>(null);
@@ -67,6 +68,31 @@ export function FacturasTable({ pedidos, onFacturado }: FacturasTableProps) {
       showError("Error de conexión al emitir la factura");
     } finally {
       setFacturando(null);
+    }
+  }
+
+  async function handleEnviarTicket(pedido: Pedido) {
+    if (!pedido.cliente_email) {
+      showError("El pedido no tiene correo del cliente.");
+      return;
+    }
+    setEnviandoTicket(pedido.id);
+    try {
+      const res = await fetch("/api/ticket/enviar", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ id: pedido.numero_pedido || pedido.id }),
+      });
+      const data = await res.json();
+      if (!res.ok || !data.success) {
+        showError(data.error || "Error al enviar el ticket");
+      } else {
+        showSuccess(`Ticket enviado a ${pedido.cliente_email}`);
+      }
+    } catch {
+      showError("Error de conexión al enviar el ticket");
+    } finally {
+      setEnviandoTicket(null);
     }
   }
 
@@ -199,6 +225,15 @@ export function FacturasTable({ pedidos, onFacturado }: FacturasTableProps) {
                     >
                       Ticket
                     </a>
+                    <button
+                      type="button"
+                      onClick={() => handleEnviarTicket(p)}
+                      disabled={enviandoTicket === p.id}
+                      className="text-xs rounded px-1.5 py-0.5 transition-colors cursor-pointer disabled:opacity-50 text-blue-600 hover:text-blue-800 hover:bg-blue-50"
+                      title="Enviar ticket por correo"
+                    >
+                      {enviandoTicket === p.id ? "..." : "Enviar Ticket"}
+                    </button>
                     {p.factura_uuid ? (
                       <>
                         {p.factura_pdf_url && (
