@@ -97,9 +97,10 @@ export async function POST(request: NextRequest) {
   try {
     await enviarTicketPorCorreo({ to: email, pedido });
   } catch (err) {
+    const detalle = err instanceof Error ? err.message : "Error desconocido";
     console.error("Error al enviar ticket por correo:", err);
     return NextResponse.json(
-      { error: "No se pudo enviar el ticket" },
+      { error: `No se pudo enviar el ticket: ${detalle}` },
       { status: 502 },
     );
   }
