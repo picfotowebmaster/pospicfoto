@@ -4,6 +4,7 @@ import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { useAuth } from "@/lib/hooks/useAuth";
 import { Button } from "@/components/ui/Button";
+import { Logo } from "@/components/ui/Logo";
 import { NOMBRE_EMPRESA } from "@/lib/utils/constantes";
 
 export default function LoginPage() {
@@ -28,6 +29,9 @@ export default function LoginPage() {
     return (
       <div className="min-h-screen flex items-center justify-center bg-gray-50">
         <div className="bg-white p-8 rounded-2xl shadow-lg w-full max-w-sm text-center">
+          <div className="flex justify-center mb-3">
+            <Logo size={72} />
+          </div>
           <h1 className="text-2xl font-bold text-gray-900 mb-4">{NOMBRE_EMPRESA}</h1>
           <div className="flex justify-center">
             <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
@@ -78,6 +82,9 @@ export default function LoginPage() {
       <div className="min-h-screen flex items-center justify-center bg-gray-50 dark:bg-gray-950">
         <div className="bg-white dark:bg-gray-900 p-8 rounded-2xl shadow-lg w-full max-w-sm">
         <div className="text-center mb-6">
+          <div className="flex justify-center mb-3">
+            <Logo size={72} />
+          </div>
           <h1 className="text-2xl font-bold text-gray-900">{NOMBRE_EMPRESA}</h1>
           <p className="text-sm text-gray-500 mt-1">Sistema de Punto de Venta</p>
         </div>

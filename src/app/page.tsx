@@ -3,6 +3,7 @@ import { redirect } from "next/navigation";
 import { DashboardCard } from "./_components/DashboardCard";
 import { SignOutButton } from "./_components/SignOutButton";
 import RoleSwitcher from "./_components/RoleSwitcher";
+import { Logo } from "@/components/ui/Logo";
 import { ThemeToggle } from "@/components/ui/ThemeToggle";
 import { AREAS_PRODUCCION_DATA, ESTADOS_PEDIDO, NOMBRE_EMPRESA } from "@/lib/utils/constantes";
 import Link from "next/link";
@@ -84,9 +85,12 @@ export default async function DashboardPage() {
   return (
     <div className="min-h-screen bg-gray-100 dark:bg-gray-950">
       <header className="bg-white dark:bg-gray-900 shadow-sm border-b border-gray-200 dark:border-gray-800 px-4 py-2 flex items-center justify-between">
-        <div>
-          <h1 className="text-lg font-bold text-gray-900 dark:text-gray-100">{NOMBRE_EMPRESA} &mdash; Dashboard</h1>
-          <p className="text-xs text-gray-500 dark:text-gray-400 capitalize">{formatearFecha(new Date())}</p>
+        <div className="flex items-center gap-2">
+          <Logo size={32} className="shrink-0" />
+          <div>
+            <h1 className="text-lg font-bold text-gray-900 dark:text-gray-100">{NOMBRE_EMPRESA} &mdash; Dashboard</h1>
+            <p className="text-xs text-gray-500 dark:text-gray-400 capitalize">{formatearFecha(new Date())}</p>
+          </div>
         </div>
         <div className="flex items-center gap-3">
           <span className="text-sm text-gray-600 dark:text-gray-300">{user.email}</span>

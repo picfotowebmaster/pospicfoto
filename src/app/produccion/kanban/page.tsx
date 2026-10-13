@@ -8,6 +8,7 @@ import { usePedidosKanban } from "@/lib/hooks/usePedidosKanban";
 import { usePersistentState } from "@/lib/hooks/usePersistentState";
 import { fetchProductionAreas, fetchUserRole } from "@/lib/services/workflow";
 import { AREAS_PRODUCCION_DATA, RUTAS_PRODUCCION, NOMBRE_EMPRESA, WIP_LIMITS } from "@/lib/utils/constantes";
+import { Logo } from "@/components/ui/Logo";
 import { getSlaLevel } from "@/lib/utils/pedido";
 import { KanbanBoard } from "../_components/KanbanBoard";
 import { KanbanListView } from "../_components/KanbanListView";
@@ -349,7 +350,9 @@ export default function KanbanPage() {
   return (
     <div className="min-h-screen bg-gray-100 dark:bg-gray-950">
       <header className="bg-white dark:bg-gray-900 shadow-sm border-b border-gray-200 dark:border-gray-800 px-4 py-2 flex items-center justify-between sticky top-0 z-40">
-        <div>
+        <div className="flex items-center gap-2">
+          <Logo size={32} className="shrink-0" />
+          <div>
           <h1 className="text-lg font-bold text-gray-900 dark:text-gray-100">
             {NOMBRE_EMPRESA} - {areaNombre || "PRODUCCIÓN"}
           </h1>
@@ -376,6 +379,7 @@ export default function KanbanPage() {
               {areaFiltro && <> · <kbd className="px-1 py-0.5 bg-gray-100 dark:bg-gray-800 rounded text-[10px] font-mono">U</kbd> mis pedidos</>}
             </span>
           </p>
+          </div>
         </div>
         <div className="flex items-center gap-2">
           <ThemeToggle />

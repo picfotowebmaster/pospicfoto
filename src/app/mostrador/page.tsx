@@ -16,6 +16,7 @@ import { ModalConfirmarPedido } from "./_components/ModalConfirmarPedido";
 import { Button } from "@/components/ui/Button";
 import { crearPedidoAgrupado } from "@/lib/services/pedidos";
 import { supabase } from "@/lib/supabase/client";
+import { Logo } from "@/components/ui/Logo";
 import { NOMBRE_EMPRESA } from "@/lib/utils/constantes";
 import { fetchAtributosConValores } from "@/lib/services/atributos";
 import { fetchCatalogo, type Catalogo } from "@/lib/services/catalogo";
@@ -233,9 +234,12 @@ function MostradorContent() {
   return (
     <div className="min-h-screen bg-gray-100 dark:bg-gray-950">
       <header className="bg-white dark:bg-gray-900 shadow-sm border-b border-gray-200 dark:border-gray-800 px-4 py-2 flex items-center justify-between">
-        <div>
-          <h1 className="text-lg font-bold text-gray-900 dark:text-gray-100">{NOMBRE_EMPRESA}</h1>
-          <p className="text-xs text-gray-500 dark:text-gray-400">Sistema de Punto de Venta</p>
+        <div className="flex items-center gap-2">
+          <Logo size={32} className="shrink-0" />
+          <div>
+            <h1 className="text-lg font-bold text-gray-900 dark:text-gray-100">{NOMBRE_EMPRESA}</h1>
+            <p className="text-xs text-gray-500 dark:text-gray-400">Sistema de Punto de Venta</p>
+          </div>
         </div>
         <form onSubmit={handleBuscarTicket} className="flex items-center gap-1">
           <input
