@@ -259,22 +259,25 @@ export function LineaPedido({
               </div>
             </div>
           )}
-          <div>
-            <label className="block text-xs font-medium text-gray-500 mb-1">
+          {(!catalogo || modoLibre || productoId) && (
+            <div>
+              <label htmlFor="linea-ruta-produccion" className="block text-xs font-medium text-gray-500 mb-1">
               Ruta Prod.
-            </label>
-            <select
-              value={ruta}
-              onChange={(e) => setRuta(e.target.value as RutaProduccion)}
-              className="w-full border border-gray-300 rounded-lg px-2 py-2 text-xs focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white"
-            >
-              {RUTAS_PRODUCCION.map((r) => (
-                <option key={r.value} value={r.value}>
-                  {r.label}
-                </option>
-              ))}
-            </select>
-          </div>
+              </label>
+              <select
+                id="linea-ruta-produccion"
+                value={ruta}
+                onChange={(e) => setRuta(e.target.value as RutaProduccion)}
+                className="w-full border border-gray-300 rounded-lg px-2 py-2 text-xs focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white"
+              >
+                {RUTAS_PRODUCCION.map((r) => (
+                  <option key={r.value} value={r.value}>
+                    {r.label}
+                  </option>
+                ))}
+              </select>
+            </div>
+          )}
         </div>
       </div>
 

@@ -204,6 +204,46 @@ describe("LineaPedido (catálogo)", () => {
     expect(guardar).toBeEnabled();
   });
 
+  it("asigna la ruta del producto y solo muestra ruta tras elegirlo", async () => {
+    const user = userEvent.setup();
+    render(
+      <LineaPedido
+        id=""
+        atributosPool={[]}
+        onSave={vi.fn()}
+        onCancel={vi.fn()}
+        rutaDefault="R1"
+        catalogo={catalogo}
+      />,
+    );
+
+    expect(screen.queryByLabelText("Ruta Prod.")).not.toBeInTheDocument();
+
+    const combos = screen.getAllByRole("combobox");
+    await user.selectOptions(combos[0], "c1");
+    await user.selectOptions(combos[1], "p1");
+
+    expect(screen.getByLabelText("Ruta Prod.")).toHaveValue("R3");
+  });
+
+  it("permite elegir ruta cuando se marca producto libre", async () => {
+    const user = userEvent.setup();
+    render(
+      <LineaPedido
+        id=""
+        atributosPool={[]}
+        onSave={vi.fn()}
+        onCancel={vi.fn()}
+        rutaDefault="R1"
+        catalogo={catalogo}
+      />,
+    );
+
+    await user.click(screen.getByRole("checkbox"));
+
+    expect(screen.getByLabelText("Ruta Prod.")).toHaveValue("R1");
+  });
+
   it("guarda la línea con los atributos elegidos", async () => {
     const onSave = vi.fn();
     const user = userEvent.setup();

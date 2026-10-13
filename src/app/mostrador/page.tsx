@@ -16,7 +16,7 @@ import { ModalConfirmarPedido } from "./_components/ModalConfirmarPedido";
 import { Button } from "@/components/ui/Button";
 import { crearPedidoAgrupado } from "@/lib/services/pedidos";
 import { supabase } from "@/lib/supabase/client";
-import { RUTAS_PRODUCCION, NOMBRE_EMPRESA } from "@/lib/utils/constantes";
+import { NOMBRE_EMPRESA } from "@/lib/utils/constantes";
 import { fetchAtributosConValores } from "@/lib/services/atributos";
 import { fetchCatalogo, type Catalogo } from "@/lib/services/catalogo";
 import { useOffline } from "@/lib/offline/useOffline";
@@ -334,24 +334,6 @@ function MostradorContent() {
               </select>
             </div>
           </div>
-        </div>
-
-        <div className="bg-white rounded-xl shadow p-4">
-          <h3 className="font-semibold text-gray-700 text-sm uppercase tracking-wide mb-3">
-            Ruta de Producción por Defecto
-          </h3>
-          <select
-            value={pedido.rutaDefault}
-            onChange={(e) => pedido.setRutaDefault(e.target.value as typeof pedido.rutaDefault)}
-            className="w-full border border-gray-300 rounded-lg px-2.5 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white"
-          >
-            {RUTAS_PRODUCCION.map((r) => (
-              <option key={r.value} value={r.value}>
-                {r.label} — {r.desc}
-              </option>
-            ))}
-          </select>
-          <p className="text-xs text-gray-400 mt-1">Cada producto puede cambiarse a una ruta distinta al agregarlo.</p>
         </div>
 
         <div className="bg-white rounded-xl shadow p-4">
