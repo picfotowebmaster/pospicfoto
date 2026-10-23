@@ -50,6 +50,7 @@ async function requireAdmin(): Promise<string> {
 export interface ProductoAtributoAdmin {
   atributo_id: string;
   requerido: boolean;
+  afecta_precio: boolean;
   valor_ids: string[];
 }
 
@@ -106,6 +107,7 @@ export async function listarCatalogoAdmin(): Promise<CatalogoAdmin> {
         .map((m) => ({
           atributo_id: m.atributo_id,
           requerido: m.requerido ?? false,
+          afecta_precio: m.afecta_precio ?? false,
           valor_ids: valoresPorPa.get(m.id) ?? [],
         })),
     })),
@@ -191,37 +193,65 @@ export async function guardarProductoAtributos(
     .delete()
     .eq("producto_id", productoId);
   if (delErr) throw new Error(delErr.message);
-  if (items.length === 0) return;
 
-  const { data: inserted, error } = await client
-    .from("producto_atributos")
-    .insert(
-      items.map((item, index) => ({
-        producto_id: productoId,
-        atributo_id: item.atributo_id,
-        orden: index,
-        requerido: item.requerido,
-      })),
-    )
-    .select("id, atributo_id");
-  if (error) throw new Error(error.message);
-
-  const idPorAtributo = new Map(
-    (inserted ?? []).map((r: { id: string; atributo_id: string }) => [r.atributo_id, r.id]),
+  const valoresPermitidos = new Set(
+    items
+      .filter((item) => item.afecta_precio)
+      .flatMap((item) => item.valor_ids ?? []),
   );
 
-  const filasValores: { producto_atributo_id: string; valor_id: string; orden: number }[] = [];
-  for (const item of items) {
-    const paId = idPorAtributo.get(item.atributo_id);
-    if (!paId) continue;
-    (item.valor_ids ?? []).forEach((valor_id, i) => {
-      filasValores.push({ producto_atributo_id: paId, valor_id, orden: i });
-    });
-  }
-  if (filasValores.length === 0) return;
+  if (items.length > 0) {
+    const { data: inserted, error } = await client
+      .from("producto_atributos")
+      .insert(
+        items.map((item, index) => ({
+          producto_id: productoId,
+          atributo_id: item.atributo_id,
+          orden: index,
+          requerido: item.requerido,
+          afecta_precio: item.afecta_precio,
+        })),
+      )
+      .select("id, atributo_id");
+    if (error) throw new Error(error.message);
 
-  const { error: pavErr } = await client
-    .from("producto_atributo_valores")
-    .insert(filasValores);
-  if (pavErr) throw new Error(pavErr.message);
+    const idPorAtributo = new Map(
+      (inserted ?? []).map((r: { id: string; atributo_id: string }) => [r.atributo_id, r.id]),
+    );
+
+    const filasValores: { producto_atributo_id: string; valor_id: string; orden: number }[] = [];
+    for (const item of items) {
+      const paId = idPorAtributo.get(item.atributo_id);
+      if (!paId) continue;
+      (item.valor_ids ?? []).forEach((valor_id, i) => {
+        filasValores.push({ producto_atributo_id: paId, valor_id, orden: i });
+      });
+    }
+    if (filasValores.length > 0) {
+      const { error: pavErr } = await client
+        .from("producto_atributo_valores")
+        .insert(filasValores);
+      if (pavErr) throw new Error(pavErr.message);
+    }
+  }
+
+  // Limpia precios que usen valores que ya no pertenecen al producto.
+  const { data: precios } = await client
+    .from("producto_precios")
+    .select("id, valores_ids")
+    .eq("producto_id", productoId);
+
+  const preciosInvalidos = ((precios ?? []) as { id: string; valores_ids: string[] }[])
+    .filter((precio) =>
+      precio.valores_ids.some((valorId) => !valoresPermitidos.has(valorId)),
+    )
+    .map((precio) => precio.id);
+
+  if (preciosInvalidos.length > 0) {
+    const { error: delPreciosErr } = await client
+      .from("producto_precios")
+      .delete()
+      .in("id", preciosInvalidos);
+    if (delPreciosErr) throw new Error(delPreciosErr.message);
+  }
 }

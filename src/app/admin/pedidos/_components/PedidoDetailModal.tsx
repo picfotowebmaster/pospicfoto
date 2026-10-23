@@ -266,6 +266,12 @@ function DetallePedido({
                     ${l.importe_linea.toFixed(2)}
                   </span>
                 </div>
+                {l.precio_lista != null &&
+                  l.precio_lista !== l.precio_unitario && (
+                    <p className="text-[10px] text-amber-600 dark:text-amber-400 mt-0.5">
+                      Precio de lista: ${l.precio_lista.toFixed(2)}
+                    </p>
+                  )}
               </div>
             ))}
           </div>

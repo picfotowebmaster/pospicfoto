@@ -6,7 +6,9 @@ import type {
   Producto,
   ProductoAtributo,
   ProductoConAtributos,
+  ProductoPrecio,
 } from "../supabase/types";
+import { esTablaPreciosFaltante } from "../utils/precios";
 
 export interface Catalogo {
   categorias: Categoria[];
@@ -21,29 +23,50 @@ interface ProductoAtributoValorRow {
 }
 
 export async function fetchCatalogo(): Promise<Catalogo> {
-  const [catsRes, prodsRes, mapRes, attrsRes, pavRes] = await Promise.all([
-    supabase.from("categorias").select("*").eq("activo", true).order("orden").order("nombre"),
-    supabase.from("productos").select("*").eq("activo", true).order("orden").order("nombre"),
-    supabase.from("producto_atributos").select("*").order("orden"),
-    supabase
-      .from("atributos")
-      .select("*, atributo_valores(*)")
-      .eq("activo", true)
-      .order("nombre"),
-    supabase
-      .from("producto_atributo_valores")
-      .select("producto_atributo_id, valor_id, orden, atributo_valores(id, atributo_id, valor)")
-      .order("orden"),
-  ]);
+  const [catsRes, prodsRes, mapRes, attrsRes, pavRes, preciosRes] =
+    await Promise.all([
+      supabase
+        .from("categorias")
+        .select("*")
+        .eq("activo", true)
+        .order("orden")
+        .order("nombre"),
+      supabase
+        .from("productos")
+        .select("*")
+        .eq("activo", true)
+        .order("orden")
+        .order("nombre"),
+      supabase.from("producto_atributos").select("*").order("orden"),
+      supabase
+        .from("atributos")
+        .select("*, atributo_valores(*)")
+        .eq("activo", true)
+        .order("nombre"),
+      supabase
+        .from("producto_atributo_valores")
+        .select(
+          "producto_atributo_id, valor_id, orden, atributo_valores(id, atributo_id, valor)",
+        )
+        .order("orden"),
+      supabase
+        .from("producto_precios")
+        .select("*")
+        .eq("activo", true),
+    ]);
 
   if (catsRes.error) throw catsRes.error;
   if (prodsRes.error) throw prodsRes.error;
   if (mapRes.error) throw mapRes.error;
   if (attrsRes.error) throw attrsRes.error;
+  if (preciosRes.error && !esTablaPreciosFaltante(preciosRes.error)) {
+    throw preciosRes.error;
+  }
 
   const categorias = (catsRes.data ?? []) as Categoria[];
   const productos = (prodsRes.data ?? []) as Producto[];
   const mapping = (mapRes.data ?? []) as ProductoAtributo[];
+  const precios = (preciosRes.data ?? []) as ProductoPrecio[];
 
   const attrsById = new Map<string, Atributo & { valores: AtributoValor[] }>();
   for (const a of (attrsRes.data ?? []) as (Atributo & { atributo_valores: AtributoValor[] })[]) {
@@ -80,10 +103,15 @@ export async function fetchCatalogo(): Promise<Catalogo> {
         const porProducto = valoresPorProductoAtributo.get(m.id);
         return {
           ...base,
+          afecta_precio: Boolean(m.afecta_precio),
           valores: porProducto && porProducto.length > 0 ? porProducto : base.valores,
         };
       })
-      .filter((a): a is Atributo & { valores: AtributoValor[] } => Boolean(a)),
+      .filter(
+        (a): a is Atributo & { valores: AtributoValor[]; afecta_precio: boolean } =>
+          Boolean(a),
+      ),
+    precios: precios.filter((precio) => precio.producto_id === p.id),
   }));
 
   return { categorias, productos: productosConAtributos };

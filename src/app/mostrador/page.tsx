@@ -138,6 +138,7 @@ function MostradorContent() {
       producto_nombre: linea.producto_nombre,
       cantidad: linea.cantidad,
       precio_unitario: linea.precio_unitario,
+      precio_lista: linea.precio_lista ?? null,
       atributos: linea.atributos,
       ruta: linea.ruta,
       categoria_id: linea.categoria_id ?? null,

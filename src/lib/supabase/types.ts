@@ -83,6 +83,7 @@ export interface ProductoAtributo {
   atributo_id: string;
   orden: number;
   requerido: boolean;
+  afecta_precio: boolean;
 }
 
 export interface ProductoAtributoValor {
@@ -92,9 +93,28 @@ export interface ProductoAtributoValor {
   orden: number;
 }
 
+export interface ProductoPrecio {
+  id: string;
+  producto_id: string;
+  valores_ids: string[];
+  precio: number;
+  activo: boolean;
+}
+
+export interface ProductoPrecioHistorial {
+  id: string;
+  producto_id: string;
+  valores_ids: string[];
+  precio_anterior: number | null;
+  precio_nuevo: number | null;
+  usuario_id: string | null;
+  created_at: string;
+}
+
 export interface ProductoConAtributos extends Producto {
-  atributos: (Atributo & { valores: AtributoValor[] })[];
+  atributos: (Atributo & { valores: AtributoValor[]; afecta_precio: boolean })[];
   categoria_nombre: string;
+  precios: ProductoPrecio[];
 }
 
 export interface Sucursal {
@@ -181,6 +201,7 @@ export interface DetallePedido {
   producto_nombre: string;
   cantidad: number;
   precio_unitario: number;
+  precio_lista?: number | null;
   importe_linea: number;
   atributos: Record<string, string>;
   categoria_id?: string | null;
@@ -192,6 +213,7 @@ export interface LineaPedidoDraft {
   producto_nombre: string;
   cantidad: number;
   precio_unitario: number;
+  precio_lista?: number | null;
   atributos: Record<string, string>;
   ruta: RutaProduccion;
   categoria_id?: string | null;
