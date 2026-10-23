@@ -45,6 +45,7 @@ function detalleALinea(d: Pedido["detalle_pedidos"]): LineaPedidoDraft[] {
     producto_nombre: item.producto_nombre,
     cantidad: item.cantidad,
     precio_unitario: item.precio_unitario,
+    precio_lista: item.precio_lista ?? null,
     atributos: item.atributos,
     ruta: "R1" as RutaProduccion,
     categoria_id: item.categoria_id ?? null,

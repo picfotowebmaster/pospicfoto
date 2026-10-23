@@ -11,6 +11,7 @@ import type {
 import type { LineaPedidoDraft, RutaProduccion } from "@/lib/supabase/types";
 import { generarIdLocal } from "@/lib/utils/calculos";
 import { RUTAS_PRODUCCION } from "@/lib/utils/constantes";
+import { resolverPrecio } from "@/lib/utils/precios";
 
 export function inferRuta(productoNombre: string): RutaProduccion {
   const lower = productoNombre.toLowerCase();
@@ -45,8 +46,27 @@ export function LineaPedido({
     editData?.producto_nombre || "",
   );
   const [cantidad, setCantidad] = useState(editData?.cantidad || 1);
+  const productoInicial =
+    catalogo?.productos.find((p) => p.id === (editData?.producto_id || "")) ??
+    null;
+  const precioListaInicial =
+    editData?.precio_lista ??
+    (productoInicial
+      ? resolverPrecio(productoInicial, editData?.atributos || {}).precio
+      : null);
+
   const [precioUnitario, setPrecioUnitario] = useState(
     editData?.precio_unitario || 0,
+  );
+  const [precioLista, setPrecioLista] = useState<number | null>(
+    precioListaInicial,
+  );
+  const [precioManual, setPrecioManual] = useState(
+    Boolean(
+      editData &&
+        precioListaInicial !== null &&
+        editData.precio_unitario !== precioListaInicial,
+    ),
   );
   const [atributos, setAtributos] = useState<Record<string, string>>(
     editData?.atributos || {},
@@ -70,6 +90,9 @@ export function LineaPedido({
     setProductoId("");
     setAtributos({});
     setDescripcion("");
+    setPrecioLista(null);
+    setPrecioManual(false);
+    setPrecioUnitario(0);
   }
 
   function seleccionarProducto(idProd: string) {
@@ -79,6 +102,27 @@ export function LineaPedido({
       setDescripcion(p.nombre);
       setRuta(p.ruta);
       setAtributos({});
+      const resultado = resolverPrecio(p, {});
+      setPrecioLista(resultado.precio);
+      setPrecioManual(false);
+      setPrecioUnitario(resultado.precio ?? 0);
+    }
+  }
+
+  function actualizarAtributo(nombre: string, valor: string) {
+    const siguientes = { ...atributos, [nombre]: valor };
+    setAtributos(siguientes);
+
+    if (!producto) return;
+    const esPrecio = producto.atributos.some(
+      (attr) => attr.nombre === nombre && attr.afecta_precio,
+    );
+    const resultado = resolverPrecio(producto, siguientes);
+    setPrecioLista(resultado.precio);
+
+    if (esPrecio) {
+      setPrecioManual(false);
+      setPrecioUnitario(resultado.precio ?? 0);
     }
   }
 
@@ -88,11 +132,17 @@ export function LineaPedido({
       (attr) => (atributos[attr.nombre] || "").trim() !== "",
     );
 
+  const tienePrecioDeLista = Boolean(
+    producto &&
+      (producto.atributos.some((attr) => attr.afecta_precio) ||
+        producto.precios.length > 0),
+  );
+
   const puedeGuardar =
     descripcion.trim().length > 0 &&
     (modoLibre || Boolean(productoId)) &&
     atributosCompletos &&
-    (!modoLibre || precioUnitario > 0);
+    precioUnitario > 0;
 
   function handleSave() {
     onSave({
@@ -100,6 +150,7 @@ export function LineaPedido({
       producto_nombre: descripcion,
       cantidad,
       precio_unitario: precioUnitario,
+      precio_lista: precioLista,
       atributos,
       ruta,
       categoria_id: modoLibre ? null : categoriaId || null,
@@ -119,11 +170,13 @@ export function LineaPedido({
               checked={modoLibre}
               onChange={(e) => {
                 setModoLibre(e.target.checked);
+                setPrecioLista(null);
+                setPrecioManual(false);
+                setPrecioUnitario(0);
+                setAtributos({});
                 if (e.target.checked) {
                   setCategoriaId("");
                   setProductoId("");
-                } else {
-                  setAtributos({});
                 }
               }}
             />
@@ -206,9 +259,7 @@ export function LineaPedido({
                 valor={atributos[attr.nombre] || ""}
                 valores={attr.valores}
                 variante="select"
-                onChange={(val) =>
-                  setAtributos((prev) => ({ ...prev, [attr.nombre]: val }))
-                }
+                onChange={(val) => actualizarAtributo(attr.nombre, val)}
               />
             ))}
           </div>
@@ -243,9 +294,10 @@ export function LineaPedido({
               min={0}
               step={0.01}
               value={precioUnitario || ""}
-              onChange={(e) =>
-                setPrecioUnitario(Math.max(0, Number(e.target.value)))
-              }
+              onChange={(e) => {
+                setPrecioManual(true);
+                setPrecioUnitario(Math.max(0, Number(e.target.value)));
+              }}
               className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
             />
           </div>
@@ -279,6 +331,53 @@ export function LineaPedido({
             </div>
           )}
         </div>
+
+        {!modoLibre && producto && tienePrecioDeLista && (
+          <div className="text-xs">
+            {!atributosCompletos ? (
+              <span className="text-gray-500 dark:text-gray-400">
+                Selecciona todas las opciones para calcular el precio.
+              </span>
+            ) : precioLista === null ? (
+              <span className="text-amber-600 dark:text-amber-400">
+                Sin precio configurado para esta variante. Captura el precio
+                manualmente.
+              </span>
+            ) : (
+              <div className="flex flex-wrap items-center gap-2">
+                <span className="text-gray-500 dark:text-gray-400">
+                  Precio de lista:{" "}
+                  <span className="font-semibold text-gray-700 dark:text-gray-200">
+                    ${precioLista.toFixed(2)}
+                  </span>
+                </span>
+                {precioManual && precioUnitario !== precioLista && (
+                  <>
+                    <span className="text-amber-600 dark:text-amber-400 font-medium">
+                      Precio modificado
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setPrecioUnitario(precioLista);
+                        setPrecioManual(false);
+                      }}
+                      className="text-blue-600 dark:text-blue-400 hover:underline"
+                    >
+                      Usar precio de lista
+                    </button>
+                  </>
+                )}
+              </div>
+            )}
+          </div>
+        )}
+
+        {!modoLibre && producto && !tienePrecioDeLista && (
+          <span className="text-xs text-gray-500 dark:text-gray-400">
+            Este producto no tiene precio de lista configurado.
+          </span>
+        )}
       </div>
 
       <div className="flex gap-2 justify-end">

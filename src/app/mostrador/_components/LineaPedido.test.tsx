@@ -21,13 +21,24 @@ const catalogo: Catalogo = {
           id: "a1",
           nombre: "Book Tamaño",
           activo: true,
+          afecta_precio: true,
           valores: [{ id: "v1", atributo_id: "a1", valor: '8x10"' }],
         },
         {
           id: "a2",
           nombre: "Pasta Color",
           activo: true,
+          afecta_precio: false,
           valores: [{ id: "v2", atributo_id: "a2", valor: "Negro" }],
+        },
+      ],
+      precios: [
+        {
+          id: "pr1",
+          producto_id: "p1",
+          valores_ids: ["v1"],
+          precio: 100,
+          activo: true,
         },
       ],
     },
@@ -271,8 +282,41 @@ describe("LineaPedido (catálogo)", () => {
         categoria_id: "c1",
         producto_id: "p1",
         ruta: "R3",
+        precio_unitario: 100,
+        precio_lista: 100,
         atributos: { "Book Tamaño": '8x10"', "Pasta Color": "Negro" },
       }),
     );
+  });
+
+  it("autocompleta el precio de lista y permite modificarlo", async () => {
+    const user = userEvent.setup();
+    render(
+      <LineaPedido
+        id=""
+        atributosPool={[]}
+        onSave={vi.fn()}
+        onCancel={vi.fn()}
+        rutaDefault="R3"
+        catalogo={catalogo}
+      />,
+    );
+
+    await user.selectOptions(screen.getAllByRole("combobox")[0], "c1");
+    await user.selectOptions(screen.getAllByRole("combobox")[1], "p1");
+    const combos = screen.getAllByRole("combobox");
+    await user.selectOptions(combos[2], '8x10"');
+    await user.selectOptions(combos[3], "Negro");
+
+    const precio = screen.getAllByRole("spinbutton")[1];
+    expect(precio).toHaveValue(100);
+    expect(screen.getByText(/Precio de lista:/i)).toHaveTextContent("$100.00");
+
+    await user.clear(precio);
+    await user.type(precio, "80");
+    expect(screen.getByText(/Precio modificado/i)).toBeInTheDocument();
+
+    await user.click(screen.getByRole("button", { name: /Usar precio de lista/i }));
+    expect(precio).toHaveValue(100);
   });
 });

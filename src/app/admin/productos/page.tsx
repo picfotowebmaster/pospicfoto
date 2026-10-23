@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useState, useEffect, useCallback } from "react";
+import Link from "next/link";
 import { Button } from "@/components/ui/Button";
 import { ConfirmModal } from "@/components/ui/ConfirmModal";
 import { useToast } from "@/components/ui/Toast";
@@ -127,6 +128,7 @@ export default function ProductosPage() {
             {
               atributo_id: atributoId,
               requerido: false,
+              afecta_precio: false,
               valor_ids: valoresDeAtributo(atributoId).map((v) => v.id),
             },
           ]
@@ -183,6 +185,14 @@ export default function ProductosPage() {
   function setMapRequerido(atributoId: string, requerido: boolean) {
     setMapSeleccion((prev) =>
       prev.map((a) => (a.atributo_id === atributoId ? { ...a, requerido } : a)),
+    );
+  }
+
+  function setMapAfectaPrecio(atributoId: string, afecta_precio: boolean) {
+    setMapSeleccion((prev) =>
+      prev.map((a) =>
+        a.atributo_id === atributoId ? { ...a, afecta_precio } : a,
+      ),
     );
   }
 
@@ -333,6 +343,12 @@ export default function ProductosPage() {
               <Button variant="ghost" size="sm" onClick={() => abrirMap(p)}>
                 Atributos
               </Button>
+              <Link
+                href={`/admin/precios?productoId=${p.id}`}
+                className="font-medium transition-colors cursor-pointer bg-transparent hover:bg-gray-100 dark:hover:bg-gray-700 text-gray-700 dark:text-gray-300 border border-gray-300 dark:border-gray-600 px-2.5 py-1.5 text-xs rounded-md"
+              >
+                Precios
+              </Link>
               <Button variant="ghost" size="sm" onClick={() => handleToggleProducto(p.id, p.activo)}>
                 {p.activo ? "✓" : "✕"}
               </Button>
@@ -367,7 +383,8 @@ export default function ProductosPage() {
             <p className="text-xs text-gray-500 mb-3">
               Ordena los atributos y, dentro de cada uno, marca y ordena los
               valores como aparecen en la web. Marca «Req.» si el cajero debe
-              elegir un valor para continuar.
+              elegir un valor para continuar y «Precio» si ese atributo
+              determina el precio del producto.
             </p>
             <div className="space-y-1">
               {(catalogo?.atributos ?? []).map((a) => {
@@ -418,6 +435,16 @@ export default function ProductosPage() {
                               onChange={(e) => setMapRequerido(a.id, e.target.checked)}
                             />
                             Req.
+                          </label>
+                          <label className="flex items-center gap-1 text-xs text-gray-500 dark:text-gray-400 cursor-pointer">
+                            <input
+                              type="checkbox"
+                              checked={mapSeleccion[idx].afecta_precio}
+                              onChange={(e) =>
+                                setMapAfectaPrecio(a.id, e.target.checked)
+                              }
+                            />
+                            Precio
                           </label>
                         </>
                       )}
