@@ -7,7 +7,7 @@ const CATALOG_KEYS = {
   ATRIBUTOS: "atributos",
   MARCAS: "marcas",
   SUCURSALES: "sucursales",
-  CATALOGO: "catalogoProductos",
+  CATALOGO: "catalogoProductos:v2",
 } as const;
 
 const STALE_THRESHOLD_MS = 5 * 60 * 1000;

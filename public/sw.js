@@ -1,4 +1,5 @@
-const CACHE_NAME = "picphoto-v3";
+const CACHE_NAME = "picphoto-v4";
+const ASSET_PATTERN = /\.(woff2?|ttf|eot|svg|png|jpg|jpeg|gif|webp|ico)$/;
 
 self.addEventListener("install", (event) => {
   event.waitUntil(caches.open(CACHE_NAME).then(() => self.skipWaiting()));
@@ -18,11 +19,7 @@ self.addEventListener("fetch", (event) => {
   const { request } = event;
   const url = new URL(request.url);
   if (request.method !== "GET") return;
-  if (
-    url.pathname.startsWith("/_next/static") ||
-    url.pathname.startsWith("/_next/image") ||
-    url.pathname.match(/\.(js|css|woff2?|ttf|eot|svg|png|jpg|jpeg|gif|webp|ico)$/)
-  ) {
+  if (url.pathname.startsWith("/_next/image") || ASSET_PATTERN.test(url.pathname)) {
     event.respondWith(
       caches.match(request).then((cached) => {
         return (
@@ -38,6 +35,27 @@ self.addEventListener("fetch", (event) => {
           }).catch(() => cached || new Response("Offline", { status: 503 }))
         );
       })
+    );
+    return;
+  }
+
+  if (url.pathname.startsWith("/_next/static")) {
+    event.respondWith(
+      fetch(request)
+        .then((response) => {
+          if (response.ok) {
+            const clone = response.clone();
+            caches.open(CACHE_NAME).then((cache) => {
+              cache.put(request, clone);
+            });
+          }
+          return response;
+        })
+        .catch(() =>
+          caches
+            .match(request)
+            .then((cached) => cached || new Response("Offline", { status: 503 })),
+        )
     );
     return;
   }

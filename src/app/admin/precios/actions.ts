@@ -7,6 +7,10 @@ import {
   esTablaPreciosFaltante,
   normalizarValoresIds,
 } from "@/lib/utils/precios";
+import {
+  aplicarImportacionProducto,
+  previsualizarImportacionProducto,
+} from "@/lib/services/importarPreciosWeb";
 
 const MENSAJE_MIGRACION =
   "La tabla de precios no existe. Aplica la migración 037_precios.sql en Supabase y recarga el esquema (NOTIFY pgrst, 'reload schema').";
@@ -201,4 +205,30 @@ export async function guardarPreciosProducto(
     throw new Error(error.message);
   }
   return data as { insertados: number; eliminados: number };
+}
+
+export async function previsualizarImportacion(
+  productoId: string,
+  atributosPrecio?: string[],
+) {
+  await requireAdmin();
+  try {
+    return await previsualizarImportacionProducto(productoId, atributosPrecio);
+  } catch (error) {
+    if (esTablaPreciosFaltante(error)) throw new Error(MENSAJE_MIGRACION);
+    throw error;
+  }
+}
+
+export async function aplicarImportacion(
+  productoId: string,
+  opciones: { reemplazar?: boolean; atributosPrecio?: string[] } = {},
+) {
+  const usuarioId = await requireAdmin();
+  try {
+    return await aplicarImportacionProducto(productoId, usuarioId, opciones);
+  } catch (error) {
+    if (esTablaPreciosFaltante(error)) throw new Error(MENSAJE_MIGRACION);
+    throw error;
+  }
 }

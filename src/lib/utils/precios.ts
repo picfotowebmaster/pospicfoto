@@ -28,11 +28,43 @@ export function firmaValores(ids: string[]): string {
   return normalizarValoresIds(ids).join("|");
 }
 
+export function inferirNombresAtributosPrecio(
+  producto: Pick<ProductoConAtributos, "atributos" | "precios">,
+): string[] {
+  const marcados = (producto.atributos ?? [])
+    .filter((a) => a.afecta_precio)
+    .map((a) => a.nombre);
+
+  if (marcados.length > 0 || !producto.precios || producto.precios.length === 0) {
+    return marcados;
+  }
+
+  const nombrePorValor = new Map<string, string>();
+  for (const atributo of producto.atributos ?? []) {
+    for (const valor of atributo.valores ?? []) {
+      nombrePorValor.set(valor.id, atributo.nombre);
+    }
+  }
+
+  const inferidos = new Set<string>();
+  for (const precio of producto.precios) {
+    for (const valorId of precio.valores_ids ?? []) {
+      const nombre = nombrePorValor.get(valorId);
+      if (nombre) inferidos.add(nombre);
+    }
+  }
+
+  return [...inferidos];
+}
+
 export function resolverPrecio(
   producto: Pick<ProductoConAtributos, "atributos" | "precios">,
   atributos: Record<string, string>,
 ): PrecioResuelto {
-  const atributosPrecio = producto.atributos.filter((a) => a.afecta_precio);
+  const nombresPrecio = new Set(inferirNombresAtributosPrecio(producto));
+  const atributosPrecio = (producto.atributos ?? []).filter((a) =>
+    nombresPrecio.has(a.nombre),
+  );
   const valoresSeleccionados: string[] = [];
 
   for (const atributo of atributosPrecio) {
@@ -47,7 +79,7 @@ export function resolverPrecio(
 
   const firma = firmaValores(valoresSeleccionados);
   const regla =
-    producto.precios.find(
+    (producto.precios ?? []).find(
       (p) => p.activo && firmaValores(p.valores_ids) === firma,
     ) ?? null;
 

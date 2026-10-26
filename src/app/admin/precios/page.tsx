@@ -10,24 +10,31 @@ import React, {
 } from "react";
 import { useSearchParams } from "next/navigation";
 import { Button } from "@/components/ui/Button";
+import { ConfirmModal } from "@/components/ui/ConfirmModal";
 import { useToast } from "@/components/ui/Toast";
 import type { AtributoValor } from "@/lib/supabase/types";
+import type { ImportacionResumen } from "@/lib/services/importarPreciosWeb";
 import {
   firmaValores,
   generarCombinaciones,
   normalizarValoresIds,
 } from "@/lib/utils/precios";
+import { construirCsvImportaciones } from "@/lib/utils/importarPrecios";
+import { descargarCsv, slugArchivo } from "@/lib/utils/descargarCsv";
 import {
   listarCatalogoAdmin,
   type CatalogoAdmin,
   type ProductoAdmin,
 } from "../productos/actions";
 import {
+  aplicarImportacion,
   guardarPreciosProducto,
   obtenerPreciosProducto,
+  previsualizarImportacion,
   type HistorialPrecioAdmin,
   type PrecioAdmin,
 } from "./actions";
+import { ModalImportarPrecios } from "./_components/ModalImportarPrecios";
 
 interface AtributoProducto {
   id: string;
@@ -138,12 +145,37 @@ function PreciosContent() {
   const [porcentaje, setPorcentaje] = useState("");
   const [productoInicialAplicado, setProductoInicialAplicado] =
     useState(false);
+  const [filtro, setFiltro] = useState("");
+  const [soloFaltantes, setSoloFaltantes] = useState(false);
+  const [importOpen, setImportOpen] = useState(false);
+  const [importResumen, setImportResumen] =
+    useState<ImportacionResumen | null>(null);
+  const [importCargando, setImportCargando] = useState(false);
+  const [importAplicando, setImportAplicando] = useState(false);
+  const [importAplicado, setImportAplicado] = useState(false);
+  const [importError, setImportError] = useState<string | null>(null);
+  const [importReemplazar, setImportReemplazar] = useState(false);
+  const [confirmarCategoria, setConfirmarCategoria] = useState(false);
+  const [importandoCategoria, setImportandoCategoria] = useState(false);
+  const [progresoCategoria, setProgresoCategoria] = useState({
+    actual: 0,
+    total: 0,
+  });
 
   const productos = useMemo(
     () =>
       catalogo?.productos.filter((p) => p.categoria_id === categoriaSel) ?? [],
     [catalogo, categoriaSel],
   );
+
+  const filasFiltradas = useMemo(() => {
+    const q = filtro.trim().toLowerCase();
+    return filas.filter((fila) => {
+      if (soloFaltantes && fila.precio.trim() !== "") return false;
+      if (q && !fila.etiqueta.toLowerCase().includes(q)) return false;
+      return true;
+    });
+  }, [filas, filtro, soloFaltantes]);
 
   const cargaIdRef = useRef(0);
 
@@ -159,9 +191,30 @@ function PreciosContent() {
         if (cargaId !== cargaIdRef.current) return;
         setMigracionPendiente(false);
         const atributosProducto = construirAtributosProducto(cat, producto);
-        const idsPrecio = atributosProducto
+        let idsPrecio = atributosProducto
           .filter((a) => a.afecta_precio)
           .map((a) => a.id);
+
+        if (idsPrecio.length === 0 && data.precios.length > 0) {
+          const idPorValor = new Map<string, string>();
+          for (const atributo of atributosProducto) {
+            for (const valor of atributo.valores) {
+              idPorValor.set(valor.id, atributo.id);
+            }
+          }
+          const inferidos = new Set<string>();
+          for (const precio of data.precios) {
+            for (const valorId of precio.valores_ids ?? []) {
+              const atributoId = idPorValor.get(valorId);
+              if (atributoId) inferidos.add(atributoId);
+            }
+          }
+          idsPrecio = [...inferidos];
+          for (const atributo of atributosProducto) {
+            atributo.afecta_precio = inferidos.has(atributo.id);
+          }
+        }
+
         setAtributos(atributosProducto);
         setAtributosPrecio(idsPrecio);
         setPrecios(data.precios);
@@ -252,9 +305,10 @@ function PreciosContent() {
       showError("Ingresa un porcentaje válido");
       return;
     }
+    const claves = new Set(filasFiltradas.map((fila) => fila.key));
     setFilas((prev) =>
       prev.map((fila) => {
-        if (fila.precio.trim() === "") return fila;
+        if (!claves.has(fila.key) || fila.precio.trim() === "") return fila;
         const nuevo = Number(fila.precio) * (1 + valor / 100);
         return { ...fila, precio: (Math.round(nuevo * 100) / 100).toFixed(2) };
       }),
@@ -275,6 +329,117 @@ function PreciosContent() {
     (fila) => fila.precio.trim() !== "",
   ).length;
   const faltantes = filas.length - preciosCapturados;
+
+  async function abrirImportacion() {
+    if (!productoSel) return;
+    setImportOpen(true);
+    setImportCargando(true);
+    setImportAplicando(false);
+    setImportAplicado(false);
+    setImportError(null);
+    setImportResumen(null);
+    setImportReemplazar(false);
+    try {
+      const resumen = await previsualizarImportacion(productoSel, atributosPrecio);
+      setImportResumen(resumen);
+    } catch (err) {
+      setImportError(
+        err instanceof Error ? err.message : "Error al previsualizar la importación",
+      );
+    } finally {
+      setImportCargando(false);
+    }
+  }
+
+  async function confirmarImportacion() {
+    if (!productoSel || importAplicando) return;
+    setImportAplicando(true);
+    setImportError(null);
+    try {
+      const { resumen, guardado } = await aplicarImportacion(productoSel, {
+        reemplazar: importReemplazar,
+        atributosPrecio,
+      });
+      setImportResumen(resumen);
+      setImportAplicado(true);
+      if (catalogo) await cargarProducto(productoSel, catalogo);
+      showSuccess(
+        `Importación lista: ${resumen.precios_importados} precios leídos, ${guardado.insertados} guardados y ${guardado.eliminados} eliminados.`,
+      );
+    } catch (err) {
+      const mensaje =
+        err instanceof Error ? err.message : "Error al importar precios";
+      setImportError(mensaje);
+      if (mensaje.includes("037_precios.sql")) setMigracionPendiente(true);
+    } finally {
+      setImportAplicando(false);
+    }
+  }
+
+  async function importarCategoria() {
+    if (!catalogo || importandoCategoria) return;
+    const lista = catalogo.productos.filter(
+      (p) => p.categoria_id === categoriaSel,
+    );
+    if (lista.length === 0) return;
+
+    setConfirmarCategoria(false);
+    setImportandoCategoria(true);
+    setProgresoCategoria({ actual: 0, total: lista.length });
+
+    let importados = 0;
+    let nuevos = 0;
+    let actualizados = 0;
+    let errores = 0;
+    const logs: ImportacionResumen[] = [];
+
+    for (let i = 0; i < lista.length; i++) {
+      try {
+        const { resumen } = await aplicarImportacion(lista[i].id, {
+          reemplazar: false,
+        });
+        logs.push(resumen);
+        importados += resumen.precios_importados;
+        nuevos += resumen.nuevos;
+        actualizados += resumen.actualizados;
+      } catch {
+        errores++;
+      }
+      setProgresoCategoria({ actual: i + 1, total: lista.length });
+    }
+
+    setImportandoCategoria(false);
+    if (productoSel) await cargarProducto(productoSel, catalogo);
+
+    if (logs.length > 0) {
+      const categoriaNombre =
+        catalogo.categorias.find((c) => c.id === categoriaSel)?.nombre ??
+        "categoria";
+      const csv = construirCsvImportaciones(
+        logs.map((log) => ({
+          producto: log.producto.nombre,
+          detalle: log.detalle,
+          conflictos: log.conflictos,
+          faltantes: log.faltantes,
+          incompletos: log.incompletos,
+          sin_mapear: log.sin_mapear,
+        })),
+      );
+      descargarCsv(
+        `precios-${slugArchivo(categoriaNombre) || "categoria"}.csv`,
+        csv,
+      );
+    }
+
+    if (errores > 0) {
+      showError(
+        `Importación de la categoría terminada con ${errores} producto(s) con error.`,
+      );
+    }
+    showSuccess(
+      `Categoría importada: ${importados} precios leídos, ${nuevos} nuevos y ${actualizados} actualizados. Se descargó el log en CSV.`,
+    );
+  }
 
   async function guardar() {
     if (!productoSel || guardando) return;
@@ -403,6 +568,28 @@ function PreciosContent() {
             </select>
           </div>
         </div>
+
+        <div className="flex flex-wrap items-center justify-between gap-2 border-t border-gray-100 pt-3 dark:border-gray-800">
+          <p className="text-xs text-gray-500 dark:text-gray-400">
+            {productos.length} producto(s) en esta categoría
+          </p>
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={() => setConfirmarCategoria(true)}
+            disabled={importandoCategoria || productos.length === 0}
+          >
+            <i className="fas fa-cloud-download-alt mr-1.5" />
+            Importar toda la categoría
+          </Button>
+        </div>
+
+        {importandoCategoria && (
+          <div className="rounded-lg border border-blue-200 bg-blue-50 p-2 text-xs text-blue-800 dark:border-blue-800 dark:bg-blue-900/20 dark:text-blue-200">
+            <i className="fas fa-spinner fa-spin mr-1.5" />
+            Importando {progresoCategoria.actual} de {progresoCategoria.total}...
+          </div>
+        )}
       </div>
 
       {!producto && (
@@ -424,18 +611,29 @@ function PreciosContent() {
                   {atributosPrecio.length} de precio
                 </p>
               </div>
-              <div className="text-right text-xs text-gray-500 dark:text-gray-400">
-                <p>
-                  <span className="font-semibold text-gray-800 dark:text-gray-100">
-                    {preciosCapturados}
-                  </span>{" "}
-                  de {filas.length} precios
-                </p>
-                {faltantes > 0 && (
-                  <p className="text-amber-600 dark:text-amber-400">
-                    {faltantes} sin precio
+              <div className="flex flex-col items-end gap-2">
+                <div className="text-right text-xs text-gray-500 dark:text-gray-400">
+                  <p>
+                    <span className="font-semibold text-gray-800 dark:text-gray-100">
+                      {preciosCapturados}
+                    </span>{" "}
+                    de {filas.length} precios
                   </p>
-                )}
+                  {faltantes > 0 && (
+                    <p className="text-amber-600 dark:text-amber-400">
+                      {faltantes} sin precio
+                    </p>
+                  )}
+                </div>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={abrirImportacion}
+                  disabled={importCargando || importAplicando}
+                >
+                  <i className="fas fa-cloud-download-alt mr-1.5" />
+                  Importar desde tienda
+                </Button>
               </div>
             </div>
 
@@ -514,14 +712,38 @@ function PreciosContent() {
           </div>
 
           <div className="bg-white dark:bg-gray-900 rounded-xl shadow p-4 space-y-3">
-            <h3 className="text-sm font-semibold text-gray-800 dark:text-gray-100">
-              Variantes
-            </h3>
+            <div className="flex flex-wrap items-center gap-2">
+              <h3 className="text-sm font-semibold text-gray-800 dark:text-gray-100">
+                Variantes
+              </h3>
+              <input
+                type="search"
+                value={filtro}
+                onChange={(e) => setFiltro(e.target.value)}
+                placeholder="Buscar tamaño, páginas, hoja, diseño..."
+                className="flex-1 min-w-52 border border-gray-300 dark:border-gray-600 rounded-lg px-2.5 py-1.5 text-xs bg-white dark:bg-gray-950 focus:outline-none focus:ring-2 focus:ring-blue-500"
+              />
+              <label className="flex items-center gap-1.5 text-xs text-gray-600 dark:text-gray-400 cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={soloFaltantes}
+                  onChange={(e) => setSoloFaltantes(e.target.checked)}
+                />
+                Solo faltantes
+              </label>
+              <span className="text-xs text-gray-400">
+                {filasFiltradas.length} de {filas.length}
+              </span>
+            </div>
             {cargando ? (
               <p className="text-sm text-gray-400">Cargando precios...</p>
             ) : filas.length === 0 ? (
               <p className="text-sm text-gray-400">
                 No hay variantes para los atributos seleccionados.
+              </p>
+            ) : filasFiltradas.length === 0 ? (
+              <p className="text-sm text-gray-400">
+                No hay variantes que coincidan con el filtro.
               </p>
             ) : (
               <div className="max-h-[28rem] overflow-y-auto border border-gray-100 dark:border-gray-800 rounded-lg">
@@ -537,7 +759,7 @@ function PreciosContent() {
                     </tr>
                   </thead>
                   <tbody>
-                    {filas.map((fila) => (
+                    {filasFiltradas.map((fila) => (
                       <tr
                         key={fila.key}
                         className="border-t border-gray-100 dark:border-gray-800"
@@ -615,6 +837,35 @@ function PreciosContent() {
           </details>
         </>
       )}
+
+      <ModalImportarPrecios
+        open={importOpen}
+        resumen={importResumen}
+        cargando={importCargando}
+        aplicando={importAplicando}
+        error={importError}
+        reemplazar={importReemplazar}
+        onReemplazarChange={setImportReemplazar}
+        aplicado={importAplicado}
+        onCancel={() => {
+          if (importAplicando) return;
+          setImportOpen(false);
+          setImportResumen(null);
+          setImportError(null);
+          setImportAplicado(false);
+        }}
+        onAplicar={confirmarImportacion}
+      />
+
+      <ConfirmModal
+        open={confirmarCategoria}
+        title="Importar toda la categoría"
+        message={`Se importarán los precios de ${productos.length} producto(s) de la categoría seleccionada. Los conflictos y combinaciones sin precio se omitirán y quedarán para revisión manual.`}
+        confirmLabel="Importar categoría"
+        variant="warning"
+        onConfirm={importarCategoria}
+        onCancel={() => setConfirmarCategoria(false)}
+      />
     </div>
   );
 }

@@ -63,7 +63,9 @@ function MostradorContent() {
   useEffect(() => {
     loadCatalog(isOnline).then((cached) => {
       if (cached.atributos) setAtributosPool(cached.atributos as AtributoConValores[]);
-      if (cached.catalogo) setCatalogo(cached.catalogo as Catalogo);
+      if (cached.catalogo) {
+        setCatalogo((prev) => prev ?? (cached.catalogo as Catalogo));
+      }
       if (cached.marcas) {
         setMarcas(cached.marcas as { id: string; nombre: string; codigo: string }[]);
       }

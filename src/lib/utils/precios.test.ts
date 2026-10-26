@@ -166,3 +166,87 @@ describe("utilidades de combinaciones", () => {
     expect(generarCombinaciones([])).toEqual([[]]);
   });
 });
+
+describe("resolverPrecio con atributos múltiples de Photo Books", () => {
+  const productoPhotoBook: Pick<ProductoConAtributos, "atributos" | "precios"> = {
+    atributos: [
+      {
+        id: "pb-size",
+        nombre: "Book Tamaño",
+        activo: true,
+        afecta_precio: true,
+        valores: [{ id: "pb-8x10", atributo_id: "pb-size", valor: '8x10"' }],
+      },
+      {
+        id: "pb-pages",
+        nombre: "Hojas y Páginas",
+        activo: true,
+        afecta_precio: true,
+        valores: [
+          {
+            id: "pb-10",
+            atributo_id: "pb-pages",
+            valor: "10 Hojas 20 Páginas",
+          },
+        ],
+      },
+      {
+        id: "pb-extra",
+        nombre: "Hoja Extra",
+        activo: true,
+        afecta_precio: true,
+        valores: [{ id: "pb-none", atributo_id: "pb-extra", valor: "Ninguna" }],
+      },
+      {
+        id: "pb-design",
+        nombre: "Requiero Diseño",
+        activo: true,
+        afecta_precio: true,
+        valores: [{ id: "pb-no", atributo_id: "pb-design", valor: "No" }],
+      },
+      {
+        id: "pb-color",
+        nombre: "Color Vinipiel",
+        activo: true,
+        afecta_precio: false,
+        valores: [
+          { id: "pb-negro", atributo_id: "pb-color", valor: "Negro" },
+          { id: "pb-rojo", atributo_id: "pb-color", valor: "Rojo" },
+        ],
+      },
+    ],
+    precios: [
+      {
+        id: "pb-price",
+        producto_id: "pb",
+        valores_ids: ["pb-8x10", "pb-10", "pb-none", "pb-no"],
+        precio: 1000,
+        activo: true,
+      },
+    ],
+  };
+
+  it("resuelve con los 4 atributos de precio y no con el color", () => {
+    const base = {
+      "Book Tamaño": '8x10"',
+      "Hojas y Páginas": "10 Hojas 20 Páginas",
+      "Hoja Extra": "Ninguna",
+      "Requiero Diseño": "No",
+    };
+
+    expect(
+      resolverPrecio(productoPhotoBook, { ...base, "Color Vinipiel": "Negro" })
+        .precio,
+    ).toBe(1000);
+    expect(
+      resolverPrecio(productoPhotoBook, { ...base, "Color Vinipiel": "Rojo" })
+        .precio,
+    ).toBe(1000);
+    expect(
+      resolverPrecio(productoPhotoBook, {
+        "Book Tamaño": '8x10"',
+        "Color Vinipiel": "Negro",
+      }).completo,
+    ).toBe(false);
+  });
+});
