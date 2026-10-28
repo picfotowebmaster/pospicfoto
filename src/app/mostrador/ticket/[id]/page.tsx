@@ -81,6 +81,7 @@ export default function TicketPage() {
         nombre: d.producto_nombre,
         cantidad: d.cantidad,
         importe: d.importe_linea,
+        descuento: d.descuento_monto ?? undefined,
         atributos: d.atributos as Record<string, string> | undefined,
       }));
 

@@ -3,16 +3,19 @@ import type {
   Atributo,
   AtributoValor,
   Categoria,
+  Descuento,
   Producto,
   ProductoAtributo,
   ProductoConAtributos,
   ProductoPrecio,
 } from "../supabase/types";
 import { esTablaPreciosFaltante } from "../utils/precios";
+import { esTablaDescuentosFaltante } from "../utils/descuentos";
 
 export interface Catalogo {
   categorias: Categoria[];
   productos: ProductoConAtributos[];
+  descuentos: Descuento[];
 }
 
 interface ProductoAtributoValorRow {
@@ -23,8 +26,15 @@ interface ProductoAtributoValorRow {
 }
 
 export async function fetchCatalogo(): Promise<Catalogo> {
-  const [catsRes, prodsRes, mapRes, attrsRes, pavRes, preciosRes] =
-    await Promise.all([
+  const [
+    catsRes,
+    prodsRes,
+    mapRes,
+    attrsRes,
+    pavRes,
+    preciosRes,
+    descuentosRes,
+  ] = await Promise.all([
       supabase
         .from("categorias")
         .select("*")
@@ -53,6 +63,11 @@ export async function fetchCatalogo(): Promise<Catalogo> {
         .from("producto_precios")
         .select("*")
         .eq("activo", true),
+      supabase
+        .from("descuentos")
+        .select("*")
+        .eq("activo", true)
+        .order("created_at", { ascending: false }),
     ]);
 
   if (catsRes.error) throw catsRes.error;
@@ -62,11 +77,18 @@ export async function fetchCatalogo(): Promise<Catalogo> {
   if (preciosRes.error && !esTablaPreciosFaltante(preciosRes.error)) {
     throw preciosRes.error;
   }
+  if (
+    descuentosRes.error &&
+    !esTablaDescuentosFaltante(descuentosRes.error)
+  ) {
+    throw descuentosRes.error;
+  }
 
   const categorias = (catsRes.data ?? []) as Categoria[];
   const productos = (prodsRes.data ?? []) as Producto[];
   const mapping = (mapRes.data ?? []) as ProductoAtributo[];
   const precios = (preciosRes.data ?? []) as ProductoPrecio[];
+  const descuentos = (descuentosRes.data ?? []) as Descuento[];
 
   const attrsById = new Map<string, Atributo & { valores: AtributoValor[] }>();
   for (const a of (attrsRes.data ?? []) as (Atributo & { atributo_valores: AtributoValor[] })[]) {
@@ -114,5 +136,5 @@ export async function fetchCatalogo(): Promise<Catalogo> {
     precios: precios.filter((precio) => precio.producto_id === p.id),
   }));
 
-  return { categorias, productos: productosConAtributos };
+  return { categorias, productos: productosConAtributos, descuentos };
 }

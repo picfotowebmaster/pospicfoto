@@ -38,6 +38,7 @@ export default function AdminLayout({
     { href: "/admin", label: "Catálogo" },
     { href: "/admin/productos", label: "Productos" },
     { href: "/admin/precios", label: "Precios" },
+    { href: "/admin/descuentos", label: "Descuentos" },
     { href: "/admin/pedidos", label: "Pedidos" },
     { href: "/admin/reportes", label: "Reportes" },
     ...(rol === "superadmin"

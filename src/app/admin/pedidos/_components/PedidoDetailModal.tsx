@@ -272,6 +272,12 @@ function DetallePedido({
                       Precio de lista: ${l.precio_lista.toFixed(2)}
                     </p>
                   )}
+                {l.descuento_monto != null && l.descuento_monto > 0 && (
+                  <p className="text-[10px] text-green-600 dark:text-green-400 mt-0.5">
+                    Descuento{l.descuento_nombre ? ` ${l.descuento_nombre}` : ""}:{" "}
+                    -${l.descuento_monto.toFixed(2)}
+                  </p>
+                )}
               </div>
             ))}
           </div>

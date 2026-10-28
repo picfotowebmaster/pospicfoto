@@ -69,6 +69,15 @@ export async function crearPedido(draft: PedidoDraft, cajeroId: string): Promise
     cantidad: l.cantidad,
     precio_unitario: l.precio_unitario,
     precio_lista: l.precio_lista ?? null,
+    ...(l.descuento_monto != null && l.descuento_monto > 0
+      ? {
+          descuento_id: l.descuento_id || null,
+          descuento_nombre: l.descuento_nombre ?? null,
+          descuento_tipo: l.descuento_tipo ?? null,
+          descuento_valor: l.descuento_valor ?? null,
+          descuento_monto: l.descuento_monto ?? null,
+        }
+      : {}),
     importe_linea: l.cantidad * l.precio_unitario,
     atributos: l.atributos,
     categoria_id: l.categoria_id ?? null,
@@ -150,6 +159,15 @@ async function insertarSubPedido(
     cantidad: l.cantidad,
     precio_unitario: l.precio_unitario,
     precio_lista: l.precio_lista ?? null,
+    ...(l.descuento_monto != null && l.descuento_monto > 0
+      ? {
+          descuento_id: l.descuento_id || null,
+          descuento_nombre: l.descuento_nombre ?? null,
+          descuento_tipo: l.descuento_tipo ?? null,
+          descuento_valor: l.descuento_valor ?? null,
+          descuento_monto: l.descuento_monto ?? null,
+        }
+      : {}),
     importe_linea: l.cantidad * l.precio_unitario,
     atributos: l.atributos,
     categoria_id: l.categoria_id ?? null,
@@ -439,6 +457,15 @@ export async function actualizarPedido(
     cantidad: l.cantidad,
     precio_unitario: l.precio_unitario,
     precio_lista: l.precio_lista ?? null,
+    ...(l.descuento_monto != null && l.descuento_monto > 0
+      ? {
+          descuento_id: l.descuento_id || null,
+          descuento_nombre: l.descuento_nombre ?? null,
+          descuento_tipo: l.descuento_tipo ?? null,
+          descuento_valor: l.descuento_valor ?? null,
+          descuento_monto: l.descuento_monto ?? null,
+        }
+      : {}),
     importe_linea: l.cantidad * l.precio_unitario,
     atributos: l.atributos,
     categoria_id: l.categoria_id ?? null,

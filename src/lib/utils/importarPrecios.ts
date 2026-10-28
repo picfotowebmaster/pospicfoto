@@ -94,6 +94,13 @@ const WEB_KEYS: Record<string, string> = {
   "largo de rollo": "attribute_pa_largo-de-rollo",
   "tamano easy sheet": "attribute_pa_tamano-easy-sheet",
   "caja tamano": "attribute_pa_tamano-de-caja",
+  papel: "attribute_pa_papel",
+  "tipo de impresion": "attribute_pa_tipo-de-impresion",
+  "papel tamano": "attribute_pa_papel-tamano",
+  "cantidad de hojas": "attribute_pa_cantidad-de-hojas",
+  "tipo de papel ink jet": "attribute_pa_tipo-de-papel-ink-jet",
+  "tamano de marco": "attribute_pa_tamano-de-marco",
+  textura: "attribute_pa_textura",
   "hojas y paginas": "attribute_pa_hojas-y-paginas",
   "hoja extra": "attribute_pa_hoja-extra",
   "requiero diseno": "attribute_pa_requiero-diseno",
@@ -111,8 +118,16 @@ function decodificarEntidades(valor: string): string {
     .replace(/&nbsp;/g, " ");
 }
 
+function decodificarPorcentaje(valor: string): string {
+  try {
+    return decodeURIComponent(valor);
+  } catch {
+    return valor;
+  }
+}
+
 export function normalizarTexto(valor: string): string {
-  return decodificarEntidades(valor)
+  return decodificarEntidades(decodificarPorcentaje(valor))
     .normalize("NFD")
     .replace(/[\u0300-\u036f]/g, "")
     .toLowerCase()
@@ -148,6 +163,7 @@ function normalizarNoTamano(valor: string): string {
 
 const ALIASES_VALOR: Record<string, string> = {
   "2536m": "25x36m",
+  "satin-lustre": "Satin/Lustre",
 };
 
 function mapearValor(
@@ -177,8 +193,23 @@ function mapearValor(
   return candidatos.length === 1 ? candidatos[0] : null;
 }
 
-function webKeyPara(atributo: AtributoCatalogoPrecio): string | null {
-  return WEB_KEYS[normalizarTexto(atributo.nombre)] ?? null;
+const WEB_KEYS_POR_PRODUCTO: Record<string, Record<string, string>> = {
+  "rollo de laminado cristal": {
+    "ancho de rollo": "attribute_pa_rollo-de-laminado-cristal",
+  },
+};
+
+function webKeyPara(
+  atributo: AtributoCatalogoPrecio,
+  productoNombre: string,
+): string | null {
+  const nombreProducto = normalizarTexto(productoNombre);
+  const nombreAtributo = normalizarTexto(atributo.nombre);
+  return (
+    WEB_KEYS_POR_PRODUCTO[nombreProducto]?.[nombreAtributo] ??
+    WEB_KEYS[nombreAtributo] ??
+    null
+  );
 }
 
 interface EntradaMapeada {
@@ -199,7 +230,7 @@ export function generarImportacionProducto(
 
   const clavesWeb = new Map<string, string>();
   for (const atributo of atributosPrecio) {
-    const clave = webKeyPara(atributo);
+    const clave = webKeyPara(atributo, producto.nombre);
     if (!clave) {
       throw new Error(
         `No sé cómo importar el atributo "${atributo.nombre}" de "${producto.nombre}"`,
@@ -265,6 +296,14 @@ export function generarImportacionProducto(
     }
 
     if (incompleta) continue;
+
+    if (!(variacion.precio > 0)) {
+      sinMapear.push({
+        variacion_id: variacion.id,
+        motivo: "Precio 0 en la tienda",
+      });
+      continue;
+    }
 
     entradas.push({
       variacion_id: variacion.id,

@@ -24,6 +24,26 @@ export type RutaProduccion = "R1" | "R2" | "R3" | "R4";
 
 export type PrioridadPedido = "normal" | "urgente";
 
+export type TipoDescuento = "porcentaje" | "monto_fijo";
+
+export type AlcanceDescuento = "producto" | "categoria";
+
+export interface Descuento {
+  id: string;
+  nombre: string;
+  tipo: TipoDescuento;
+  valor: number;
+  alcance: AlcanceDescuento;
+  producto_id: string | null;
+  categoria_id: string | null;
+  fecha_inicio: string;
+  fecha_fin: string;
+  activo: boolean;
+  created_by?: string | null;
+  created_at?: string;
+  updated_at?: string;
+}
+
 export type TipoComentario = "comentario" | "incidencia";
 
 export type Rol =
@@ -202,6 +222,11 @@ export interface DetallePedido {
   cantidad: number;
   precio_unitario: number;
   precio_lista?: number | null;
+  descuento_id?: string | null;
+  descuento_nombre?: string | null;
+  descuento_tipo?: TipoDescuento | null;
+  descuento_valor?: number | null;
+  descuento_monto?: number | null;
   importe_linea: number;
   atributos: Record<string, string>;
   categoria_id?: string | null;
@@ -214,6 +239,11 @@ export interface LineaPedidoDraft {
   cantidad: number;
   precio_unitario: number;
   precio_lista?: number | null;
+  descuento_id?: string | null;
+  descuento_nombre?: string | null;
+  descuento_tipo?: TipoDescuento | null;
+  descuento_valor?: number | null;
+  descuento_monto?: number | null;
   atributos: Record<string, string>;
   ruta: RutaProduccion;
   categoria_id?: string | null;

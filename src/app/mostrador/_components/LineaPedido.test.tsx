@@ -43,6 +43,7 @@ const catalogo: Catalogo = {
       ],
     },
   ],
+  descuentos: [],
 };
 
 describe("LineaPedido (producto libre)", () => {
@@ -318,5 +319,102 @@ describe("LineaPedido (catálogo)", () => {
 
     await user.click(screen.getByRole("button", { name: /Usar precio de lista/i }));
     expect(precio).toHaveValue(100);
+  });
+});
+
+describe("LineaPedido (descuentos)", () => {
+  const catalogoConDescuento: Catalogo = {
+    ...catalogo,
+    descuentos: [
+      {
+        id: "d1",
+        nombre: "Promo",
+        tipo: "porcentaje",
+        valor: 10,
+        alcance: "producto",
+        producto_id: "p1",
+        categoria_id: null,
+        fecha_inicio: "2026-01-01",
+        fecha_fin: "2099-12-31",
+        activo: true,
+      },
+    ],
+  };
+
+  it("aplica el descuento y guarda el snapshot", async () => {
+    const onSave = vi.fn();
+    const user = userEvent.setup();
+    render(
+      <LineaPedido
+        id=""
+        atributosPool={[]}
+        onSave={onSave}
+        onCancel={vi.fn()}
+        rutaDefault="R3"
+        catalogo={catalogoConDescuento}
+      />,
+    );
+
+    await user.selectOptions(screen.getAllByRole("combobox")[0], "c1");
+    await user.selectOptions(screen.getAllByRole("combobox")[1], "p1");
+    const combos = screen.getAllByRole("combobox");
+    await user.selectOptions(combos[2], '8x10"');
+    await user.selectOptions(combos[3], "Negro");
+
+    expect(screen.getAllByRole("spinbutton")[1]).toHaveValue(90);
+    expect(screen.getByText(/Descuento Promo/i)).toBeInTheDocument();
+    expect(screen.getByText(/Precio con descuento/i)).toBeInTheDocument();
+
+    await user.click(screen.getByRole("button", { name: /Agregar Línea/i }));
+
+    expect(onSave).toHaveBeenCalledWith(
+      expect.objectContaining({
+        precio_unitario: 90,
+        precio_lista: 100,
+        descuento_id: "d1",
+        descuento_nombre: "Promo",
+        descuento_tipo: "porcentaje",
+        descuento_valor: 10,
+        descuento_monto: 10,
+      }),
+    );
+  });
+
+  it("el precio manual quita el descuento al guardar", async () => {
+    const onSave = vi.fn();
+    const user = userEvent.setup();
+    render(
+      <LineaPedido
+        id=""
+        atributosPool={[]}
+        onSave={onSave}
+        onCancel={vi.fn()}
+        rutaDefault="R3"
+        catalogo={catalogoConDescuento}
+      />,
+    );
+
+    await user.selectOptions(screen.getAllByRole("combobox")[0], "c1");
+    await user.selectOptions(screen.getAllByRole("combobox")[1], "p1");
+    const combos = screen.getAllByRole("combobox");
+    await user.selectOptions(combos[2], '8x10"');
+    await user.selectOptions(combos[3], "Negro");
+
+    const precio = screen.getAllByRole("spinbutton")[1];
+    await user.clear(precio);
+    await user.type(precio, "80");
+    expect(screen.getByText(/Precio modificado/i)).toBeInTheDocument();
+    expect(screen.getByText(/Descuento disponible/i)).toBeInTheDocument();
+
+    await user.click(screen.getByRole("button", { name: /Agregar Línea/i }));
+
+    expect(onSave).toHaveBeenCalledWith(
+      expect.objectContaining({
+        precio_unitario: 80,
+        precio_lista: 100,
+        descuento_id: null,
+        descuento_monto: null,
+      }),
+    );
   });
 });

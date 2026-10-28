@@ -671,3 +671,344 @@ describe("Estuches y Cajas", () => {
     expect(resultado.faltantes.map((f) => f.etiqueta)).toContain('8x10"');
   });
 });
+
+describe("Impresiones", () => {
+  it("mapea papel y tipo de impresión con sus slugs", () => {
+    const productoImpresion: ProductoCatalogoPrecio = {
+      id: "imp1",
+      nombre: "Impresión Fotográfica Digital",
+      atributos: [
+        {
+          atributo_id: "imp-size",
+          nombre: "Impresión Tamaño",
+          afecta_precio: true,
+          valores: [
+            { id: "i-8x10", valor: '8x10"' },
+            { id: "i-20x30", valor: '20x30"' },
+          ],
+        },
+        {
+          atributo_id: "imp-papel",
+          nombre: "Papel",
+          afecta_precio: true,
+          valores: [
+            { id: "i-lustre", valor: "Lustre" },
+            { id: "i-metalico", valor: "Metálico" },
+          ],
+        },
+        {
+          atributo_id: "imp-margen",
+          nombre: "Margen Blanco",
+          afecta_precio: false,
+          valores: [{ id: "i-no", valor: "No" }],
+        },
+      ],
+    };
+
+    const resultado = generarImportacionProducto(
+      productoImpresion,
+      [
+        {
+          id: 1,
+          precio: 12,
+          atributos: {
+            "attribute_pa_tamano-de-impresion": "8x10",
+            "attribute_pa_papel": "lustre",
+          },
+        },
+        {
+          id: 2,
+          precio: 60,
+          atributos: {
+            "attribute_pa_tamano-de-impresion": "8x10",
+            "attribute_pa_papel": "metalico",
+          },
+        },
+      ],
+      [],
+    );
+
+    expect(resultado.detalle.map((f) => f.valores_ids)).toEqual([
+      ["i-8x10", "i-lustre"],
+      ["i-8x10", "i-metalico"],
+    ]);
+  });
+
+  it("mapea el tipo de impresión y deja faltantes los combos no publicados", () => {
+    const productoTextura: ProductoCatalogoPrecio = {
+      id: "imp2",
+      nombre: "Papel con textura",
+      atributos: [
+        {
+          atributo_id: "t-size",
+          nombre: "Impresión Tamaño",
+          afecta_precio: true,
+          valores: [{ id: "t-20x30", valor: '20x30"' }],
+        },
+        {
+          atributo_id: "t-tipo",
+          nombre: "Tipo de Impresión",
+          afecta_precio: true,
+          valores: [
+            { id: "t-textura", valor: "Impresión con Textura" },
+            {
+              id: "t-adhesivo",
+              valor: "Impresión con Textura y Adhesivo",
+            },
+          ],
+        },
+      ],
+    };
+
+    const resultado = generarImportacionProducto(
+      productoTextura,
+      [
+        {
+          id: 1,
+          precio: 222,
+          atributos: {
+            "attribute_pa_tamano-de-impresion": "20x30",
+            "attribute_pa_tipo-de-impresion": "impresion-con-textura",
+          },
+        },
+        {
+          id: 2,
+          precio: 259,
+          atributos: {
+            "attribute_pa_tamano-de-impresion": "20x30",
+            "attribute_pa_tipo-de-impresion":
+              "impresion-con-textura-y-adhesivo",
+          },
+        },
+      ],
+      [],
+    );
+
+    expect(resultado.detalle.map((f) => f.valores_ids)).toEqual([
+      ["t-20x30", "t-textura"],
+      ["t-20x30", "t-adhesivo"],
+    ]);
+  });
+});
+
+describe("Ink Jet", () => {
+  it("mapea tipo de papel, tamaño y cantidad de hojas", () => {
+    const productoPapel: ProductoCatalogoPrecio = {
+      id: "ink1",
+      nombre: "Pack hojas Papel InkJet",
+      atributos: [
+        {
+          atributo_id: "ink-type",
+          nombre: "Tipo de papel Ink Jet",
+          afecta_precio: true,
+          valores: [
+            { id: "it-glossy", valor: "Glossy" },
+            { id: "it-satin", valor: "Satin/Lustre" },
+          ],
+        },
+        {
+          atributo_id: "ink-size",
+          nombre: "Papel Tamaño",
+          afecta_precio: true,
+          valores: [
+            { id: "is-4x6", valor: '4x6" (10x15cm)' },
+            { id: "is-85x11", valor: '8.5x11" (21.5x28cm)' },
+          ],
+        },
+        {
+          atributo_id: "ink-qty",
+          nombre: "Cantidad de Hojas",
+          afecta_precio: true,
+          valores: [
+            { id: "iq-20", valor: "20 Hojas" },
+            { id: "iq-100", valor: "100 Hojas" },
+          ],
+        },
+      ],
+    };
+
+    const resultado = generarImportacionProducto(
+      productoPapel,
+      [
+        {
+          id: 1,
+          precio: 140,
+          atributos: {
+            "attribute_pa_tipo-de-papel-ink-jet": "satin-lustre",
+            "attribute_pa_papel-tamano": "8-5x11-21-5x28cm",
+            "attribute_pa_cantidad-de-hojas": "20-hojas",
+          },
+        },
+        {
+          id: 2,
+          precio: 155,
+          atributos: {
+            "attribute_pa_tipo-de-papel-ink-jet": "glossy",
+            "attribute_pa_papel-tamano": "4x6-10x15cm",
+            "attribute_pa_cantidad-de-hojas": "100-hojas",
+          },
+        },
+      ],
+      [],
+    );
+
+    expect(resultado.detalle.map((f) => f.valores_ids)).toEqual([
+      ["it-satin", "is-85x11", "iq-20"],
+      ["it-glossy", "is-4x6", "iq-100"],
+    ]);
+    expect(resultado.faltantes.length).toBeGreaterThan(0);
+  });
+});
+
+describe("Rollos de Laminado", () => {
+  it("usa la clave web específica de Laminado Cristal y decodifica el valor", () => {
+    const producto: ProductoCatalogoPrecio = {
+      id: "lam-cristal",
+      nombre: "Rollo de Laminado Cristal",
+      atributos: [
+        {
+          atributo_id: "lc-ancho",
+          nombre: "Ancho de Rollo",
+          afecta_precio: true,
+          valores: [
+            { id: "lc-25", valor: '25"x30m (63.5cmx30m)' },
+            { id: "lc-50", valor: '50"x30m (127cmx30m)' },
+          ],
+        },
+      ],
+    };
+
+    const resultado = generarImportacionProducto(
+      producto,
+      [
+        {
+          id: 1,
+          precio: 1300,
+          atributos: {
+            "attribute_pa_rollo-de-laminado-cristal":
+              "25%e2%80%b3x30m-63-5cmx30m",
+          },
+        },
+      ],
+      [],
+    );
+
+    expect(resultado.detalle[0].valores_ids).toEqual(["lc-25"]);
+    expect(resultado.sin_mapear).toHaveLength(0);
+  });
+
+  it("mapea textura y omite variaciones con precio 0", () => {
+    const producto: ProductoCatalogoPrecio = {
+      id: "lam-foto",
+      nombre: "Rollo de Laminado Fotográfico",
+      atributos: [
+        {
+          atributo_id: "lf-ancho",
+          nombre: "Ancho de Rollo",
+          afecta_precio: true,
+          valores: [
+            { id: "lf-25", valor: '25"x41m (63.5cmx41m)' },
+            { id: "lf-50", valor: '50"x41m (127cmx41m)' },
+          ],
+        },
+        {
+          atributo_id: "lf-textura",
+          nombre: "Textura",
+          afecta_precio: true,
+          valores: [
+            { id: "lf-seda", valor: "Seda" },
+            { id: "lf-granizo", valor: "Granizo" },
+          ],
+        },
+      ],
+    };
+
+    const resultado = generarImportacionProducto(
+      producto,
+      [
+        {
+          id: 1,
+          precio: 1300,
+          atributos: {
+            "attribute_pa_ancho-de-rollo": "25x41m",
+            "attribute_pa_textura": "seda",
+          },
+        },
+        {
+          id: 2,
+          precio: 0,
+          atributos: {
+            "attribute_pa_ancho-de-rollo": "50x41m",
+            "attribute_pa_textura": "granizo",
+          },
+        },
+      ],
+      [],
+    );
+
+    expect(resultado.detalle).toHaveLength(1);
+    expect(resultado.detalle[0].valores_ids).toEqual(["lf-25", "lf-seda"]);
+    expect(resultado.sin_mapear).toEqual([
+      { variacion_id: 2, motivo: "Precio 0 en la tienda" },
+    ]);
+    expect(resultado.faltantes.map((f) => f.etiqueta)).toContain(
+      '50"x41m (127cmx41m) · Granizo',
+    );
+  });
+});
+
+describe("Marcos", () => {
+  it("mapea Tamaño de Marco e ignora el color", () => {
+    const producto: ProductoCatalogoPrecio = {
+      id: "marco1",
+      nombre: "Moldura 004",
+      atributos: [
+        {
+          atributo_id: "m-size",
+          nombre: "Tamaño de Marco",
+          afecta_precio: true,
+          valores: [
+            { id: "m-8x10", valor: '8x10"' },
+            { id: "m-85x11", valor: '8.5x11"' },
+          ],
+        },
+        {
+          atributo_id: "m-color",
+          nombre: "Color marco",
+          afecta_precio: false,
+          valores: [
+            { id: "m-negro", valor: "Negro" },
+            { id: "m-oro", valor: "Oro" },
+          ],
+        },
+      ],
+    };
+
+    const resultado = generarImportacionProducto(
+      producto,
+      [
+        {
+          id: 1,
+          precio: 135,
+          atributos: {
+            "attribute_pa_tamano-de-marco": "8-5x11",
+            "attribute_pa_color-de-marco-2": "oro",
+          },
+        },
+        {
+          id: 2,
+          precio: 135,
+          atributos: {
+            "attribute_pa_tamano-de-marco": "8-5x11",
+            "attribute_pa_color-de-marco-2": "negro",
+          },
+        },
+      ],
+      [],
+    );
+
+    expect(resultado.detalle).toHaveLength(1);
+    expect(resultado.detalle[0].valores_ids).toEqual(["m-85x11"]);
+    expect(resultado.detalle[0].precio).toBe(135);
+  });
+});

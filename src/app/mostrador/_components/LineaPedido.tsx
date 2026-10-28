@@ -7,11 +7,16 @@ import { CampoAtributo } from "./CampoAtributo";
 import type {
   Atributo,
   AtributoValor,
+  ProductoConAtributos,
 } from "@/lib/supabase/types";
 import type { LineaPedidoDraft, RutaProduccion } from "@/lib/supabase/types";
 import { generarIdLocal } from "@/lib/utils/calculos";
 import { RUTAS_PRODUCCION } from "@/lib/utils/constantes";
 import { resolverPrecio } from "@/lib/utils/precios";
+import {
+  resolverDescuento,
+  type DescuentoAplicado,
+} from "@/lib/utils/descuentos";
 
 export function inferRuta(productoNombre: string): RutaProduccion {
   const lower = productoNombre.toLowerCase();
@@ -55,15 +60,30 @@ export function LineaPedido({
       ? resolverPrecio(productoInicial, editData?.atributos || {}).precio
       : null);
 
+  const descuentoInicial: DescuentoAplicado | null =
+    editData?.descuento_monto != null && editData.descuento_monto > 0
+      ? {
+          descuento_id: editData.descuento_id ?? "",
+          descuento_nombre: editData.descuento_nombre ?? "Descuento",
+          descuento_tipo: editData.descuento_tipo ?? "porcentaje",
+          descuento_valor: editData.descuento_valor ?? 0,
+          descuento_monto: editData.descuento_monto,
+          precio_final: editData.precio_unitario,
+        }
+      : null;
+
   const [precioUnitario, setPrecioUnitario] = useState(
     editData?.precio_unitario || 0,
   );
   const [precioLista, setPrecioLista] = useState<number | null>(
     precioListaInicial,
   );
+  const [descuentoAplicado, setDescuentoAplicado] =
+    useState<DescuentoAplicado | null>(descuentoInicial);
   const [precioManual, setPrecioManual] = useState(
     Boolean(
       editData &&
+        !descuentoInicial &&
         precioListaInicial !== null &&
         editData.precio_unitario !== precioListaInicial,
     ),
@@ -85,12 +105,32 @@ export function LineaPedido({
   const producto = catalogo?.productos.find((p) => p.id === productoId) ?? null;
   const atributosVisibles = producto?.atributos ?? [];
 
+  function calcularPrecioConDescuento(
+    p: ProductoConAtributos | null,
+    atributosSeleccionados: Record<string, string>,
+  ): { base: number | null; descuento: DescuentoAplicado | null } {
+    if (!p) return { base: null, descuento: null };
+    const resultado = resolverPrecio(p, atributosSeleccionados);
+    if (resultado.precio === null) {
+      return { base: null, descuento: null };
+    }
+    return {
+      base: resultado.precio,
+      descuento: resolverDescuento(
+        p,
+        resultado.precio,
+        catalogo?.descuentos ?? [],
+      ),
+    };
+  }
+
   function seleccionarCategoria(idCat: string) {
     setCategoriaId(idCat);
     setProductoId("");
     setAtributos({});
     setDescripcion("");
     setPrecioLista(null);
+    setDescuentoAplicado(null);
     setPrecioManual(false);
     setPrecioUnitario(0);
   }
@@ -102,10 +142,20 @@ export function LineaPedido({
       setDescripcion(p.nombre);
       setRuta(p.ruta);
       setAtributos({});
-      const resultado = resolverPrecio(p, {});
-      setPrecioLista(resultado.precio);
+      const resultado = calcularPrecioConDescuento(p, {});
+      setPrecioLista(resultado.base);
+      setDescuentoAplicado(resultado.descuento);
       setPrecioManual(false);
-      setPrecioUnitario(resultado.precio ?? 0);
+      setPrecioUnitario(
+        resultado.descuento?.precio_final ?? resultado.base ?? 0,
+      );
+    } else {
+      setDescripcion("");
+      setAtributos({});
+      setPrecioLista(null);
+      setDescuentoAplicado(null);
+      setPrecioManual(false);
+      setPrecioUnitario(0);
     }
   }
 
@@ -117,13 +167,15 @@ export function LineaPedido({
     const esPrecio = producto.atributos.some(
       (attr) => attr.nombre === nombre && attr.afecta_precio,
     );
-    const resultado = resolverPrecio(producto, siguientes);
-    setPrecioLista(resultado.precio);
+    if (!esPrecio) return;
 
-    if (esPrecio) {
-      setPrecioManual(false);
-      setPrecioUnitario(resultado.precio ?? 0);
-    }
+    const resultado = calcularPrecioConDescuento(producto, siguientes);
+    setPrecioLista(resultado.base);
+    setDescuentoAplicado(resultado.descuento);
+    setPrecioManual(false);
+    setPrecioUnitario(
+      resultado.descuento?.precio_final ?? resultado.base ?? 0,
+    );
   }
 
   const atributosCompletos =
@@ -145,12 +197,18 @@ export function LineaPedido({
     precioUnitario > 0;
 
   function handleSave() {
+    const descuentoParaGuardar = precioManual ? null : descuentoAplicado;
     onSave({
       id: id || generarIdLocal(),
       producto_nombre: descripcion,
       cantidad,
       precio_unitario: precioUnitario,
       precio_lista: precioLista,
+      descuento_id: descuentoParaGuardar?.descuento_id ?? null,
+      descuento_nombre: descuentoParaGuardar?.descuento_nombre ?? null,
+      descuento_tipo: descuentoParaGuardar?.descuento_tipo ?? null,
+      descuento_valor: descuentoParaGuardar?.descuento_valor ?? null,
+      descuento_monto: descuentoParaGuardar?.descuento_monto ?? null,
       atributos,
       ruta,
       categoria_id: modoLibre ? null : categoriaId || null,
@@ -171,6 +229,7 @@ export function LineaPedido({
               onChange={(e) => {
                 setModoLibre(e.target.checked);
                 setPrecioLista(null);
+                setDescuentoAplicado(null);
                 setPrecioManual(false);
                 setPrecioUnitario(0);
                 setAtributos({});
@@ -295,8 +354,11 @@ export function LineaPedido({
               step={0.01}
               value={precioUnitario || ""}
               onChange={(e) => {
-                setPrecioManual(true);
-                setPrecioUnitario(Math.max(0, Number(e.target.value)));
+                const nuevo = Math.max(0, Number(e.target.value));
+                setPrecioUnitario(nuevo);
+                setPrecioManual(
+                  nuevo !== (descuentoAplicado?.precio_final ?? precioLista),
+                );
               }}
               className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
             />
@@ -344,29 +406,69 @@ export function LineaPedido({
                 manualmente.
               </span>
             ) : (
-              <div className="flex flex-wrap items-center gap-2">
-                <span className="text-gray-500 dark:text-gray-400">
-                  Precio de lista:{" "}
-                  <span className="font-semibold text-gray-700 dark:text-gray-200">
-                    ${precioLista.toFixed(2)}
-                  </span>
-                </span>
-                {precioManual && precioUnitario !== precioLista && (
-                  <>
-                    <span className="text-amber-600 dark:text-amber-400 font-medium">
-                      Precio modificado
+              <div className="space-y-1">
+                <div className="flex flex-wrap items-center gap-2">
+                  <span className="text-gray-500 dark:text-gray-400">
+                    Precio de lista:{" "}
+                    <span className="font-semibold text-gray-700 dark:text-gray-200">
+                      ${precioLista.toFixed(2)}
                     </span>
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setPrecioUnitario(precioLista);
-                        setPrecioManual(false);
-                      }}
-                      className="text-blue-600 dark:text-blue-400 hover:underline"
-                    >
-                      Usar precio de lista
-                    </button>
-                  </>
+                  </span>
+
+                  {descuentoAplicado && !precioManual && (
+                    <>
+                      <span className="text-green-600 dark:text-green-400">
+                        Descuento {descuentoAplicado.descuento_nombre}:{" "}
+                        <span className="font-semibold">
+                          -${descuentoAplicado.descuento_monto.toFixed(2)}
+                        </span>{" "}
+                        (
+                        {descuentoAplicado.descuento_tipo === "porcentaje"
+                          ? `${descuentoAplicado.descuento_valor}%`
+                          : `$${descuentoAplicado.descuento_valor.toFixed(2)}`}
+                        )
+                      </span>
+                      <span className="font-semibold text-gray-800 dark:text-gray-100">
+                        Precio con descuento: $
+                        {descuentoAplicado.precio_final.toFixed(2)}
+                      </span>
+                    </>
+                  )}
+
+                  {precioManual &&
+                    precioUnitario !==
+                      (descuentoAplicado?.precio_final ?? precioLista) && (
+                      <>
+                        <span className="text-amber-600 dark:text-amber-400 font-medium">
+                          Precio modificado
+                        </span>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setPrecioUnitario(
+                              descuentoAplicado?.precio_final ?? precioLista,
+                            );
+                            setPrecioManual(false);
+                          }}
+                          className="text-blue-600 dark:text-blue-400 hover:underline"
+                        >
+                          {descuentoAplicado
+                            ? "Usar precio con descuento"
+                            : "Usar precio de lista"}
+                        </button>
+                      </>
+                    )}
+                </div>
+
+                {descuentoAplicado && precioManual && (
+                  <p className="text-[11px] text-gray-500 dark:text-gray-400">
+                    Descuento disponible: -$
+                    {descuentoAplicado.descuento_monto.toFixed(2)} (
+                    {descuentoAplicado.descuento_tipo === "porcentaje"
+                      ? `${descuentoAplicado.descuento_valor}%`
+                      : `$${descuentoAplicado.descuento_valor.toFixed(2)}`}
+                    )
+                  </p>
                 )}
               </div>
             )}

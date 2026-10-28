@@ -18,12 +18,19 @@ const CATEGORIAS_WEB: Record<string, string> = {
   acrilicos: "acrilicos",
   adhesivos: "adhesivos",
   "estuches y cajas": "estuches-y-cajas",
+  "impresion en canvas": "impresion-en-canvas",
+  impresiones: "impresiones",
+  "ink jet / papeles y materiales": "ink-jet",
+  "rollos de laminado fotografico": "laminados-fotograficos",
+  marcos: "marcos",
 };
 
 const ALIASES_PRODUCTO: Record<string, string> = {
   "porta retrato de acrilico con chapetones":
     "portarretrato de acrilico con chapetones",
   "estuche vinipiel para dvd/usb": "estuche para usb y dvd",
+  "papel ink mate": "papel ink jet fine art mate",
+  "papel inkjet mate": "papel ink jet fine art mate",
 };
 
 export function slugWebCategoria(nombreCategoria: string): string | null {
@@ -289,9 +296,16 @@ async function generarImportacion(
       }
     : productoBase;
 
-  const webProduct = productosWeb.find((p) =>
+  const candidatos = productosWeb.filter((p) =>
     nombresEquivalentes(p.nombre, producto.nombre as string),
   );
+  const prefiereVariable = productoCatalogo.atributos.some(
+    (a) => a.afecta_precio,
+  );
+  const webProduct =
+    candidatos.find(
+      (p) => p.tipo === (prefiereVariable ? "variable" : "simple"),
+    ) ?? candidatos[0];
   if (!webProduct) {
     throw new Error(
       `No se encontró "${producto.nombre}" en la tienda (categoría ${categoriaSlug})`,

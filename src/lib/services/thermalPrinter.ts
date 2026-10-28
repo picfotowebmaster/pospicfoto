@@ -122,7 +122,13 @@ export function buildTicketCommands(builder: EscPosBuilder, data: {
   subtotal: number;
   anticipo: number;
   total: number;
-  lineas: { nombre: string; cantidad: number; importe: number; atributos?: Record<string, string> }[];
+  lineas: {
+    nombre: string;
+    cantidad: number;
+    importe: number;
+    descuento?: number;
+    atributos?: Record<string, string>;
+  }[];
 }): void {
   builder
     .align("center")
@@ -162,6 +168,9 @@ export function buildTicketCommands(builder: EscPosBuilder, data: {
       }
     }
     builder.text(`                    ${String(linea.cantidad).padEnd(6)} ${`$${linea.importe.toFixed(2)}`.padStart(10)}`);
+    if (linea.descuento && linea.descuento > 0) {
+      builder.text(`  Desc. unitario: -$${linea.descuento.toFixed(2)}`);
+    }
   }
 
   builder
