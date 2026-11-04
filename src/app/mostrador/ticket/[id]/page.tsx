@@ -10,6 +10,7 @@ import { useThermalPrinter } from "@/lib/hooks/useThermalPrinter";
 import { ThermalPrintButton } from "@/app/_components/ThermalPrintButton";
 import { Button } from "@/components/ui/Button";
 import { useToast } from "@/components/ui/Toast";
+import { pedidoPagado } from "@/lib/utils/fiscal";
 import type { Pedido } from "@/lib/supabase/types";
 
 export default function TicketPage() {
@@ -162,6 +163,12 @@ export default function TicketPage() {
   const xmlUrlActual =
     pedidos[0]?.factura_xml_url || facturaInfo?.xmlUrl || null;
 
+  const pedidoPrincipal = pedidos[0];
+  const pagado = pedidoPrincipal ? pedidoPagado(pedidoPrincipal) : false;
+  const requiereFactura = Boolean(pedidoPrincipal?.requiere_factura);
+  const tieneRfc = Boolean(pedidoPrincipal?.cliente_rfc);
+  const enGlobal = Boolean(pedidoPrincipal?.factura_global_id);
+
   if (cargando) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-gray-50">
@@ -249,6 +256,22 @@ export default function TicketPage() {
               )}
             </div>
           </div>
+        ) : enGlobal ? (
+          <p className="text-center text-xs text-indigo-700 dark:text-indigo-300 bg-indigo-50 dark:bg-indigo-900/20 rounded-lg p-3">
+            Este pedido ya está incluido en la factura global mensual.
+          </p>
+        ) : !requiereFactura ? (
+          <p className="text-center text-xs text-gray-500 dark:text-gray-400 bg-gray-100 dark:bg-gray-800 rounded-lg p-3">
+            Sin factura individual. El pedido se incluirá en la factura global mensual.
+          </p>
+        ) : !pagado ? (
+          <p className="text-center text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded-lg p-3">
+            Factura pendiente: se podrá emitir cuando el pedido esté pagado en su totalidad.
+          </p>
+        ) : !tieneRfc ? (
+          <p className="text-center text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded-lg p-3">
+            Falta el RFC del comprador para emitir la factura individual.
+          </p>
         ) : (
           <Button
             size="md"

@@ -83,6 +83,45 @@ describe("construirDocumentoTxt", () => {
     expect(txt).toContain("DOR|||codigoPostal|06000");
   });
 
+  it("usa el periodo indicado para la información global", () => {
+    const txt = construirDocumentoTxt(
+      [{ producto_nombre: "Venta global", cantidad: 1, precio_unitario: 116 }],
+      {
+        ...config,
+        global: true,
+        periodoGlobal: { mes: 10, anio: 2025 },
+      },
+      new Date(2026, 7, 17, 10, 30, 5),
+    );
+
+    expect(txt).toContain("IGL|||Periodicidad|04||Meses|10||Año|2025");
+    expect(txt).toContain("fecha|2026-08-17T10:30:05");
+  });
+
+  it("genera factura individual con los datos del receptor", () => {
+    const txt = construirDocumentoTxt(
+      [{ producto_nombre: "Foto 4x6", cantidad: 1, precio_unitario: 116 }],
+      {
+        ...config,
+        receptor: {
+          rfc: "ABC010101AB1",
+          nombre: "ACME SA DE CV",
+          usoCfdi: "G03",
+          regimenFiscal: "601",
+          cpFiscal: "06450",
+        },
+        global: false,
+      },
+      new Date(2026, 7, 17),
+    );
+
+    expect(txt).toContain(
+      "REC|||rfc|ABC010101AB1||nombre|ACME SA DE CV||UsoCFDI|G03||RegimenFiscalReceptor|601",
+    );
+    expect(txt).toContain("DOR|||codigoPostal|06450");
+    expect(txt).not.toContain("IGL|||");
+  });
+
   it("incluye un CON y CONIT por cada línea y la línea TRA", () => {
     const txt = construirDocumentoTxt(
       [

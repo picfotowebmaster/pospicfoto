@@ -172,6 +172,12 @@ function MostradorContent() {
       cliente_nombre: pedido.cliente.nombre,
       cliente_telefono: pedido.cliente.telefono,
       cliente_email: pedido.cliente.email,
+      requiere_factura: pedido.cliente.requiereFactura,
+      cliente_rfc: pedido.cliente.rfc,
+      cliente_razon_social: pedido.cliente.razonSocial,
+      cliente_regimen_fiscal: pedido.cliente.regimenFiscal,
+      cliente_uso_cfdi: pedido.cliente.usoCfdi,
+      cliente_cp_fiscal: pedido.cliente.cpFiscal,
       fecha_entrega: pedido.cliente.fechaEntrega,
       hora_entrega: pedido.cliente.horaEntrega,
       requiere_correccion: requiereCorreccion,
@@ -298,6 +304,12 @@ function MostradorContent() {
           email={pedido.cliente.email}
           fechaEntrega={pedido.cliente.fechaEntrega}
           horaEntrega={pedido.cliente.horaEntrega}
+          requiereFactura={pedido.cliente.requiereFactura}
+          rfc={pedido.cliente.rfc}
+          razonSocial={pedido.cliente.razonSocial}
+          regimenFiscal={pedido.cliente.regimenFiscal}
+          usoCfdi={pedido.cliente.usoCfdi}
+          cpFiscal={pedido.cliente.cpFiscal}
           onNombreChange={(v) =>
             pedido.setCliente({ ...pedido.cliente, nombre: v })
           }
@@ -312,6 +324,24 @@ function MostradorContent() {
           }
           onHoraEntregaChange={(v) =>
             pedido.setCliente({ ...pedido.cliente, horaEntrega: v })
+          }
+          onRequiereFacturaChange={(v) =>
+            pedido.setCliente({ ...pedido.cliente, requiereFactura: v })
+          }
+          onRfcChange={(v) =>
+            pedido.setCliente({ ...pedido.cliente, rfc: v })
+          }
+          onRazonSocialChange={(v) =>
+            pedido.setCliente({ ...pedido.cliente, razonSocial: v })
+          }
+          onRegimenFiscalChange={(v) =>
+            pedido.setCliente({ ...pedido.cliente, regimenFiscal: v })
+          }
+          onUsoCfdiChange={(v) =>
+            pedido.setCliente({ ...pedido.cliente, usoCfdi: v })
+          }
+          onCpFiscalChange={(v) =>
+            pedido.setCliente({ ...pedido.cliente, cpFiscal: v })
           }
         />
 
@@ -433,6 +463,9 @@ function MostradorContent() {
         open={confirmando}
         clienteNombre={pedido.cliente.nombre}
         telefono={pedido.cliente.telefono}
+        requiereFactura={pedido.cliente.requiereFactura}
+        rfc={pedido.cliente.rfc}
+        razonSocial={pedido.cliente.razonSocial}
         fechaEntrega={pedido.cliente.fechaEntrega}
         horaEntrega={pedido.cliente.horaEntrega}
         lineas={pedido.lineas}

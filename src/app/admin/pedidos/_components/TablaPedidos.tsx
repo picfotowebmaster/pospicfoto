@@ -9,6 +9,7 @@ import { ESTADOS_PEDIDO, AREAS_PRODUCCION_DATA } from "@/lib/utils/constantes";
 import { actualizarEstadoPedido, cancelarPedido, actualizarPedido } from "@/lib/services/pedidos";
 import { crearComentario } from "@/lib/services/comentarios";
 import { supabase } from "@/lib/supabase/client";
+import { pedidoPagado } from "@/lib/utils/fiscal";
 import { PedidoDetailModal } from "./PedidoDetailModal";
 import type { Pedido, Atributo, AtributoValor, MetodoPago, RutaProduccion, LineaPedidoDraft } from "@/lib/supabase/types";
 
@@ -508,6 +509,10 @@ function PedidoFila({
   seleccionado: boolean;
   onToggleSeleccion: () => void;
 }) {
+  const pagado = pedidoPagado(pedido);
+  const tieneRfc = Boolean(pedido.cliente_rfc?.trim());
+  const enGlobal = Boolean(pedido.factura_global_id);
+
   return (
     <tr
       onClick={onAbrirDetalle}
@@ -611,7 +616,14 @@ function PedidoFila({
                   </a>
                 )}
               </>
-            ) : (
+            ) : enGlobal ? (
+              <span
+                className="text-xs text-indigo-600 dark:text-indigo-400"
+                title="Incluido en la factura global del periodo"
+              >
+                Global
+              </span>
+            ) : pagado && tieneRfc ? (
               <button
                 type="button"
                 onClick={onFacturar}
@@ -621,6 +633,17 @@ function PedidoFila({
               >
                 {facturando ? "..." : "Facturar"}
               </button>
+            ) : (
+              <span
+                className="text-xs text-gray-400 dark:text-gray-500 cursor-not-allowed"
+                title={
+                  pagado
+                    ? "Sin RFC: se incluirá en la factura global"
+                    : "Se factura al liquidar el saldo"
+                }
+              >
+                {pagado ? "Sin RFC" : "Sin pago"}
+              </span>
             ))}
           <select
             value={pedido.estado}

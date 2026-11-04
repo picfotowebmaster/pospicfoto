@@ -284,7 +284,11 @@ export default function KanbanPage() {
 
   async function pLiquidarSaldo(id: string, metodo: MetodoPago) {
     await liquidarSaldo(id, metodo);
-    patchDetalle(id, { saldo_cobrado: true, saldo_metodo_pago: metodo });
+    patchDetalle(id, {
+      saldo_cobrado: true,
+      saldo_metodo_pago: metodo,
+      fecha_pago_total: new Date().toISOString(),
+    });
   }
 
   function limpiarFiltros() {

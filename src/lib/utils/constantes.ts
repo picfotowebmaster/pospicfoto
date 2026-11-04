@@ -28,6 +28,8 @@ export const METODOS_PAGO = [
   { label: "Transferencia", value: "Transferencia" as const },
 ];
 
+export { REGIMENES_FISCALES, USOS_CFDI } from "./fiscalCatalogos";
+
 export const ESTADOS_PEDIDO = [
   { label: "Pendiente", value: "pendiente" as const, color: "bg-yellow-500" },
   { label: "En Taller", value: "en_taller" as const, color: "bg-blue-500" },

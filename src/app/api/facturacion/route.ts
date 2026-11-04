@@ -2,10 +2,16 @@ import { createServerClient } from "@supabase/ssr";
 import { cookies } from "next/headers";
 import { NextRequest, NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase/admin";
-import { construirDocumentoTxt, type LineaFactura } from "@/lib/services/facturacion";
+import {
+  construirDocumentoTxt,
+  type LineaFactura,
+  type ReceptorFactura,
+} from "@/lib/services/facturacion";
 import { timbrarTxt } from "@/lib/services/facturemosya";
 import { formatearErrorFacturemosya } from "@/lib/services/facturemosyaErrores";
 import { enviarFacturaPorCorreo, type AdjuntoCorreo } from "@/lib/services/email";
+import { subirFacturaAStorage } from "@/lib/services/facturaStorage";
+import { pedidoPagado } from "@/lib/utils/fiscal";
 
 const ROLES_PERMITIDOS = ["mostrador", "admin", "superadmin", "contador"];
 const UUID_RE =
@@ -17,57 +23,24 @@ function mapearFormaPago(metodoPago: string | null | undefined): string {
   return "01";
 }
 
+function mapearFormaPagoFinal(principal: Record<string, unknown>): string {
+  const metodoAnticipo = principal.metodo_pago as string | null | undefined;
+  const metodoSaldo = principal.saldo_metodo_pago as string | null | undefined;
+  if (
+    principal.saldo_cobrado &&
+    metodoSaldo &&
+    metodoAnticipo &&
+    metodoSaldo !== metodoAnticipo
+  ) {
+    return "99";
+  }
+  return mapearFormaPago(metodoSaldo || metodoAnticipo);
+}
+
 function extraerUUID(timbrefiscal?: string): string {
   if (!timbrefiscal) return "";
   const partes = timbrefiscal.split("|");
   return partes[1] ?? "";
-}
-
-async function subirAStorage(
-  admin: ReturnType<typeof createAdminClient>,
-  uuid: string,
-  xml: string,
-  pdfBase64: string | undefined,
-): Promise<{ xmlUrl: string | null; pdfUrl: string | null }> {
-  let xmlUrl: string | null = null;
-  let pdfUrl: string | null = null;
-
-  try {
-    await admin.storage.createBucket("facturas", { public: true });
-  } catch {
-    // el bucket ya existe o no hay permisos; se intenta subir de todas formas
-  }
-
-  try {
-    await admin.storage
-      .from("facturas")
-      .upload(`${uuid}.xml`, new TextEncoder().encode(xml), {
-        contentType: "application/xml",
-        upsert: true,
-      });
-    xmlUrl = admin.storage.from("facturas").getPublicUrl(`${uuid}.xml`).data
-      .publicUrl;
-  } catch {
-    xmlUrl = null;
-  }
-
-  if (pdfBase64) {
-    try {
-      const pdfBytes = Uint8Array.from(Buffer.from(pdfBase64, "base64"));
-      await admin.storage
-        .from("facturas")
-        .upload(`${uuid}.pdf`, pdfBytes, {
-          contentType: "application/pdf",
-          upsert: true,
-        });
-      pdfUrl = admin.storage.from("facturas").getPublicUrl(`${uuid}.pdf`).data
-        .publicUrl;
-    } catch {
-      pdfUrl = null;
-    }
-  }
-
-  return { xmlUrl, pdfUrl };
 }
 
 export async function POST(request: NextRequest) {
@@ -157,6 +130,16 @@ export async function POST(request: NextRequest) {
     });
   }
 
+  if (principal.factura_global_id) {
+    return NextResponse.json(
+      {
+        error:
+          "El pedido ya está incluido en una factura global y no puede facturarse individualmente.",
+      },
+      { status: 400 },
+    );
+  }
+
   const clave =
     (principal.factura_numero as string | null) ??
     (principal.numero_pedido as string | null);
@@ -190,6 +173,70 @@ export async function POST(request: NextRequest) {
     );
   }
 
+  const todosPagados = pedidosData.every((p) =>
+    pedidoPagado(
+      p as unknown as {
+        total: number;
+        anticipo: number;
+        saldo_cobrado?: boolean | null;
+      },
+    ),
+  );
+
+  if (!todosPagados) {
+    return NextResponse.json(
+      {
+        error:
+          "El pedido debe estar pagado en su totalidad para poder facturarse.",
+      },
+      { status: 400 },
+    );
+  }
+
+  const rfc = String(principal.cliente_rfc ?? "").trim().toUpperCase();
+  const razonSocial = String(principal.cliente_razon_social ?? "").trim();
+  const regimenFiscal = String(principal.cliente_regimen_fiscal ?? "").trim();
+  const usoCfdi = String(principal.cliente_uso_cfdi ?? "").trim();
+  const cpFiscal = String(principal.cliente_cp_fiscal ?? "").trim();
+
+  if (!rfc) {
+    return NextResponse.json(
+      {
+        error:
+          "Sin RFC no se puede emitir factura individual; el pedido se incluirá en la factura global mensual.",
+      },
+      { status: 400 },
+    );
+  }
+
+  if (!razonSocial || !regimenFiscal || !usoCfdi || !cpFiscal) {
+    return NextResponse.json(
+      {
+        error:
+          "Faltan datos fiscales del comprador para emitir la factura individual.",
+      },
+      { status: 400 },
+    );
+  }
+
+  if (rfc === "XAXX010101000") {
+    return NextResponse.json(
+      {
+        error:
+          "El RFC XAXX010101000 corresponde a público en general; el pedido se incluirá en la factura global mensual.",
+      },
+      { status: 400 },
+    );
+  }
+
+  const receptor: ReceptorFactura = {
+    rfc,
+    nombre: razonSocial,
+    usoCfdi,
+    regimenFiscal,
+    cpFiscal,
+  };
+
   const lineas: LineaFactura[] = pedidosData.flatMap((p) => {
     const detalles = (p.detalle_pedidos ?? []) as Record<string, unknown>[];
     return detalles.map((d) => ({
@@ -216,8 +263,10 @@ export async function POST(request: NextRequest) {
     cpExpedicion: process.env.FACTUREMOSYA_CP_EXPEDICION || "06450",
     folio: folioFactura,
     serie: serieFactura,
-    formaPago: mapearFormaPago(principal.metodo_pago as string | null),
+    formaPago: mapearFormaPagoFinal(principal),
     metodoPago: "PUE",
+    receptor,
+    global: false,
   });
 
   let respuesta;
@@ -266,7 +315,7 @@ export async function POST(request: NextRequest) {
   }
 
   const uuid = extraerUUID(respuesta.timbrefiscal);
-  const { xmlUrl, pdfUrl } = await subirAStorage(
+  const { xmlUrl, pdfUrl } = await subirFacturaAStorage(
     admin,
     uuid,
     respuesta.descripcion,

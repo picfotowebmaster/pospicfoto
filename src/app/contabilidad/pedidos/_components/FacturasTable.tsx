@@ -5,6 +5,7 @@ import { Badge } from "@/components/ui/Badge";
 import { Button } from "@/components/ui/Button";
 import { useToast } from "@/components/ui/Toast";
 import { PedidoTimeline } from "@/components/pedidos/PedidoTimeline";
+import { pedidoPagado } from "@/lib/utils/fiscal";
 import type { Pedido } from "@/lib/supabase/types";
 
 const COLOR_PAGO: Record<string, string> = {
@@ -159,6 +160,9 @@ export function FacturasTable({ pedidos, onFacturado }: FacturasTableProps) {
             const facturandoEste = facturando === p.id;
             const cancelada = p.factura_estado === "cancelada";
             const pendiente = p.factura_estado === "cancelacion_pendiente";
+            const pagado = pedidoPagado(p);
+            const tieneRfc = Boolean(p.cliente_rfc?.trim());
+            const enGlobal = Boolean(p.factura_global_id);
             return (
               <tr
                 key={p.id}
@@ -196,6 +200,10 @@ export function FacturasTable({ pedidos, onFacturado }: FacturasTableProps) {
                   ) : p.factura_uuid ? (
                     <span className="inline-block px-2 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-700">
                       Emitida
+                    </span>
+                  ) : p.factura_global_id ? (
+                    <span className="inline-block px-2 py-0.5 rounded-full text-xs font-medium bg-indigo-100 text-indigo-700">
+                      Global
                     </span>
                   ) : (
                     <span className="inline-block px-2 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-500">
@@ -269,7 +277,14 @@ export function FacturasTable({ pedidos, onFacturado }: FacturasTableProps) {
                           </button>
                         )}
                       </>
-                    ) : (
+                    ) : enGlobal ? (
+                      <span
+                        className="text-xs text-indigo-600 dark:text-indigo-400"
+                        title="Incluido en la factura global del periodo"
+                      >
+                        Global
+                      </span>
+                    ) : pagado && tieneRfc ? (
                       <button
                         type="button"
                         onClick={() => handleFacturar(p)}
@@ -279,6 +294,17 @@ export function FacturasTable({ pedidos, onFacturado }: FacturasTableProps) {
                       >
                         {facturandoEste ? "..." : "Facturar"}
                       </button>
+                    ) : (
+                      <span
+                        className="text-xs text-gray-400 dark:text-gray-500 cursor-not-allowed"
+                        title={
+                          pagado
+                            ? "Sin RFC: se incluirá en la factura global"
+                            : "Se factura al liquidar el saldo"
+                        }
+                      >
+                        {pagado ? "Sin RFC" : "Sin pago"}
+                      </span>
                     )}
                   </div>
                 </td>

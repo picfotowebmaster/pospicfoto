@@ -4,6 +4,7 @@ import { useState, useCallback, useEffect, useRef, useMemo } from "react";
 import type { LineaPedidoDraft, MetodoPago, RutaProduccion } from "@/lib/supabase/types";
 import { sumarLineas, calcularAnticipo, generarIdLocal } from "@/lib/utils/calculos";
 import { ANTICIPO_POR_DEFECTO } from "@/lib/utils/constantes";
+import { cpValido, rfcValido } from "@/lib/utils/fiscal";
 import { savePedidoDraft, getPedidoDraft, clearPedidoDraft } from "@/lib/offline/db";
 
 interface ClienteData {
@@ -12,16 +13,30 @@ interface ClienteData {
   email: string;
   fechaEntrega: string;
   horaEntrega: string;
+  requiereFactura: boolean;
+  rfc: string;
+  razonSocial: string;
+  regimenFiscal: string;
+  usoCfdi: string;
+  cpFiscal: string;
 }
 
+const CLIENTE_VACIO: ClienteData = {
+  nombre: "",
+  telefono: "",
+  email: "",
+  fechaEntrega: "",
+  horaEntrega: "",
+  requiereFactura: false,
+  rfc: "",
+  razonSocial: "",
+  regimenFiscal: "",
+  usoCfdi: "",
+  cpFiscal: "",
+};
+
 export function usePedidoActual(sucursalId: string) {
-  const [cliente, setCliente] = useState<ClienteData>({
-    nombre: "",
-    telefono: "",
-    email: "",
-    fechaEntrega: "",
-    horaEntrega: "",
-  });
+  const [cliente, setCliente] = useState<ClienteData>({ ...CLIENTE_VACIO });
   const [lineas, setLineas] = useState<LineaPedidoDraft[]>([]);
   const [porcentajeAnticipo, setPorcentajeAnticipo] = useState(ANTICIPO_POR_DEFECTO);
   const [metodoPago, setMetodoPago] = useState<MetodoPago>("Efectivo");
@@ -57,7 +72,12 @@ export function usePedidoActual(sucursalId: string) {
       const draft = await getPedidoDraft();
       if (draft) {
         const d = draft as Record<string, unknown>;
-        if (d.cliente) setCliente(d.cliente as ClienteData);
+        if (d.cliente) {
+          setCliente((prev) => ({
+            ...prev,
+            ...(d.cliente as Partial<ClienteData>),
+          }));
+        }
         if (d.lineas) setLineas(d.lineas as LineaPedidoDraft[]);
         if (typeof d.porcentajeAnticipo === "number") setPorcentajeAnticipo(d.porcentajeAnticipo as number);
         if (typeof d.metodoPago === "string") setMetodoPago(d.metodoPago as MetodoPago);
@@ -94,13 +114,7 @@ export function usePedidoActual(sucursalId: string) {
   );
 
   const limpiar = useCallback(() => {
-    setCliente({
-      nombre: "",
-      telefono: "",
-      email: "",
-      fechaEntrega: "",
-      horaEntrega: "",
-    });
+    setCliente({ ...CLIENTE_VACIO });
     setLineas([]);
     setPorcentajeAnticipo(ANTICIPO_POR_DEFECTO);
     setMetodoPago("Efectivo");
@@ -125,12 +139,22 @@ export function usePedidoActual(sucursalId: string) {
     [lineas],
   );
 
+  const facturaValida =
+    !cliente.requiereFactura ||
+    (cliente.email.trim() !== "" &&
+      rfcValido(cliente.rfc) &&
+      cliente.razonSocial.trim() !== "" &&
+      cliente.regimenFiscal !== "" &&
+      cliente.usoCfdi !== "" &&
+      cpValido(cliente.cpFiscal));
+
   const valido =
     cliente.nombre.trim() !== "" &&
     cliente.fechaEntrega !== "" &&
     cliente.horaEntrega !== "" &&
     sucursalId !== "" &&
     marcaId !== "" &&
+    facturaValida &&
     lineas.length > 0 &&
     lineas.every(
       (l) =>
@@ -146,6 +170,14 @@ export function usePedidoActual(sucursalId: string) {
   if (cliente.horaEntrega === "") pendientes.push("Hora de entrega");
   if (sucursalId === "") pendientes.push("Sucursal asignada");
   if (marcaId === "") pendientes.push("Marca");
+  if (cliente.requiereFactura) {
+    if (cliente.email.trim() === "") pendientes.push("Correo para factura");
+    if (!rfcValido(cliente.rfc)) pendientes.push("RFC válido");
+    if (cliente.razonSocial.trim() === "") pendientes.push("Razón social");
+    if (cliente.regimenFiscal === "") pendientes.push("Régimen fiscal");
+    if (cliente.usoCfdi === "") pendientes.push("Uso de CFDI");
+    if (!cpValido(cliente.cpFiscal)) pendientes.push("CP fiscal");
+  }
   if (lineas.length === 0) pendientes.push("Al menos un producto");
   else if (
     lineas.some(

@@ -31,6 +31,18 @@ interface EnviarTicketParams {
   pedido: Pedido;
 }
 
+interface EnviarFacturaGlobalParams {
+  to: string;
+  periodo: string;
+  folio: string;
+  uuid: string;
+  total: number;
+  pedidosCount: number;
+  pdfUrl: string | null;
+  xmlUrl: string | null;
+  adjuntos?: AdjuntoCorreo[];
+}
+
 async function enviarCorreo({ to, subject, html, adjuntos = [] }: EnviarCorreoParams): Promise<void> {
   const apiKey = process.env.RESEND_API_KEY;
   const from = process.env.RESEND_FROM_EMAIL;
@@ -95,6 +107,48 @@ export async function enviarFacturaPorCorreo({
   await enviarCorreo({
     to,
     subject: `Tu factura ${numeroPedido} - ${NOMBRE_EMPRESA}`,
+    html,
+    adjuntos,
+  });
+}
+
+export async function enviarFacturaGlobalPorCorreo({
+  to,
+  periodo,
+  folio,
+  uuid,
+  total,
+  pedidosCount,
+  pdfUrl,
+  xmlUrl,
+  adjuntos = [],
+}: EnviarFacturaGlobalParams): Promise<void> {
+  const enlaces = [
+    pdfUrl ? `<a href="${pdfUrl}">Descargar PDF</a>` : "",
+    xmlUrl ? `<a href="${xmlUrl}">Ver XML</a>` : "",
+  ]
+    .filter(Boolean)
+    .join(" &nbsp;·&nbsp; ");
+
+  const html = `
+    <div style="font-family: Arial, sans-serif; color: #1f2937;">
+      <h2 style="margin:0 0 8px;">Factura global emitida</h2>
+      <p>Se emitió la factura global correspondiente al periodo <strong>${periodo}</strong>.</p>
+      <table style="font-size:14px; margin:12px 0;">
+        <tr><td><strong>Periodo:</strong></td><td>${periodo}</td></tr>
+        <tr><td><strong>Folio:</strong></td><td>${folio}</td></tr>
+        <tr><td><strong>Tickets:</strong></td><td>${pedidosCount}</td></tr>
+        <tr><td><strong>Total:</strong></td><td>$${total.toFixed(2)}</td></tr>
+        <tr><td><strong>UUID:</strong></td><td>${uuid}</td></tr>
+      </table>
+      ${enlaces ? `<p>${enlaces}</p>` : ""}
+      <p style="color:#6b7280; font-size:12px;">Adjuntamos el PDF y XML de la factura global.</p>
+    </div>
+  `;
+
+  await enviarCorreo({
+    to,
+    subject: `Factura global ${periodo} - ${NOMBRE_EMPRESA}`,
     html,
     adjuntos,
   });

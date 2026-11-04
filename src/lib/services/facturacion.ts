@@ -4,6 +4,14 @@ export interface LineaFactura {
   precio_unitario: number;
 }
 
+export interface ReceptorFactura {
+  rfc: string;
+  nombre: string;
+  usoCfdi: string;
+  regimenFiscal: string;
+  cpFiscal: string;
+}
+
 export interface ConfigFactura {
   tasaIVA: number;
   regimenEmisor: string;
@@ -12,6 +20,9 @@ export interface ConfigFactura {
   serie?: string;
   formaPago: string;
   metodoPago: string;
+  receptor?: ReceptorFactura;
+  global?: boolean;
+  periodoGlobal?: { mes: number; anio: number };
 }
 
 export interface DesgloseLinea {
@@ -97,17 +108,31 @@ export function construirDocumentoTxt(
   com += attr("MetodoPago", config.metodoPago);
   registros.push(com);
 
-  registros.push(
-    `IGL|||Periodicidad|04||Meses|${pad(fecha.getMonth() + 1)}||Año|${fecha.getFullYear()}`,
-  );
+  const esGlobal = config.global ?? !config.receptor;
+
+  if (esGlobal) {
+    const mesGlobal = config.periodoGlobal?.mes ?? fecha.getMonth() + 1;
+    const anioGlobal = config.periodoGlobal?.anio ?? fecha.getFullYear();
+    registros.push(
+      `IGL|||Periodicidad|04||Meses|${pad(mesGlobal)}||Año|${anioGlobal}`,
+    );
+  }
 
   registros.push(`EMI|||Regimen|${sanitizar(config.regimenEmisor)}`);
 
-  registros.push(
-    "REC|||rfc|XAXX010101000||nombre|PUBLICO EN GENERAL||UsoCFDI|S01||RegimenFiscalReceptor|616",
-  );
+  if (config.receptor) {
+    registros.push(
+      `REC|||rfc|${sanitizar(config.receptor.rfc)}||nombre|${sanitizar(config.receptor.nombre)}||UsoCFDI|${sanitizar(config.receptor.usoCfdi)}||RegimenFiscalReceptor|${sanitizar(config.receptor.regimenFiscal)}`,
+    );
+  } else {
+    registros.push(
+      "REC|||rfc|XAXX010101000||nombre|PUBLICO EN GENERAL||UsoCFDI|S01||RegimenFiscalReceptor|616",
+    );
+  }
 
-  registros.push(`DOR|||codigoPostal|${sanitizar(config.cpExpedicion)}`);
+  registros.push(
+    `DOR|||codigoPostal|${sanitizar(config.receptor?.cpFiscal || config.cpExpedicion)}`,
+  );
 
   lineas.forEach((linea, i) => {
     const d = detalles[i];

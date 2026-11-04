@@ -325,10 +325,12 @@ export function usePedidosKanban(areaFiltro?: string, onNuevoPedido?: (pedido: P
     async (pedidoId: string, metodo: MetodoPago) => {
       try {
         await liquidarSaldoService(pedidoId, metodo);
+        const ahora = new Date().toISOString();
         actualizarLocal(pedidoId, {
           saldo_cobrado: true,
           saldo_metodo_pago: metodo,
-          saldo_cobrado_en: new Date().toISOString(),
+          saldo_cobrado_en: ahora,
+          fecha_pago_total: ahora,
         });
         showSuccess("Cobro de saldo registrado");
       } catch (err) {

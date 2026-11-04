@@ -5,6 +5,7 @@ import { Badge } from "@/components/ui/Badge";
 import { Button } from "@/components/ui/Button";
 import { ESTADOS_PEDIDO, AREAS_PRODUCCION_DATA } from "@/lib/utils/constantes";
 import { PedidoTimeline } from "@/components/pedidos/PedidoTimeline";
+import { pedidoPagado } from "@/lib/utils/fiscal";
 import { EditPedidoForm } from "./EditPedidoForm";
 import type { Pedido, Atributo, AtributoValor, MetodoPago, RutaProduccion, LineaPedidoDraft } from "@/lib/supabase/types";
 
@@ -137,6 +138,9 @@ function DetallePedido({
   onFacturar: () => void;
 }) {
   const lineas = pedido.detalle_pedidos ?? [];
+  const pagado = pedidoPagado(pedido);
+  const tieneRfc = Boolean(pedido.cliente_rfc?.trim());
+  const enGlobal = Boolean(pedido.factura_global_id);
 
   return (
     <div className="space-y-5">
@@ -220,11 +224,21 @@ function DetallePedido({
                 )}
               </div>
             </div>
-          ) : (
+          ) : enGlobal ? (
+            <p className="text-xs text-indigo-700 dark:text-indigo-300 bg-indigo-50 dark:bg-indigo-900/20 rounded-lg p-2 text-center">
+              Incluida en la factura global del periodo.
+            </p>
+          ) : pagado && tieneRfc ? (
             <Button size="sm" variant="success" onClick={onFacturar} disabled={facturando} className="w-full">
               <i className="fas fa-file-invoice mr-1" />
               {facturando ? "Emitiendo factura..." : "Facturar (CFDI)"}
             </Button>
+          ) : (
+            <p className="text-xs text-amber-700 dark:text-amber-300 bg-amber-50 dark:bg-amber-900/20 rounded-lg p-2 text-center">
+              {pagado
+                ? "Sin RFC: se incluirá en la factura global mensual."
+                : "Se factura al liquidar el saldo del pedido."}
+            </p>
           )}
         </div>
       )}

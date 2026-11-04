@@ -1,6 +1,7 @@
 import { supabase } from "../supabase/client";
-import type { PedidoDraft, Pedido, MetodoPago, RutaProduccion, LineaPedidoDraft, PrioridadPedido } from "../supabase/types";
+import type { PedidoDraft, Pedido, MetodoPago, RutaProduccion, LineaPedidoDraft, PrioridadPedido, DatosFiscalesPedido } from "../supabase/types";
 import { upsertHistorial } from "./historial";
+import { guardarClienteFiscal } from "./clientesFiscales";
 
 export interface FiltrosPedidos {
   pagina: number;
@@ -45,6 +46,16 @@ export async function crearPedido(draft: PedidoDraft, cajeroId: string): Promise
       cliente_nombre: draft.cliente_nombre,
       cliente_telefono: draft.cliente_telefono || null,
       cliente_email: draft.cliente_email || null,
+      requiere_factura: draft.requiere_factura ?? false,
+      cliente_rfc: draft.cliente_rfc || null,
+      cliente_razon_social: draft.cliente_razon_social || null,
+      cliente_regimen_fiscal: draft.cliente_regimen_fiscal || null,
+      cliente_uso_cfdi: draft.cliente_uso_cfdi || null,
+      cliente_cp_fiscal: draft.cliente_cp_fiscal || null,
+      fecha_pago_total:
+        draft.total > 0 && draft.anticipo >= draft.total
+          ? new Date().toISOString()
+          : null,
       fecha_entrega: draft.fecha_entrega,
       hora_entrega: draft.hora_entrega,
       requiere_correccion: draft.requiere_correccion,
@@ -94,6 +105,12 @@ export async function crearPedido(draft: PedidoDraft, cajeroId: string): Promise
     draft.lineas.map((l) => upsertHistorial(l.producto_nombre, l.atributos).catch(() => {})),
   );
 
+  await guardarClienteFiscal({
+    ...draft,
+    email: draft.cliente_email,
+    telefono: draft.cliente_telefono,
+  }).catch(() => {});
+
   return pedido.numero_pedido;
 }
 
@@ -101,7 +118,7 @@ async function insertarSubPedido(
   cajeroId: string,
   marcaCodigo: string,
   sucursalCodigo: string,
-  draft: {
+  draft: DatosFiscalesPedido & {
     cliente_nombre: string;
     cliente_telefono: string;
     cliente_email?: string;
@@ -134,6 +151,16 @@ async function insertarSubPedido(
       cliente_nombre: draft.cliente_nombre,
       cliente_telefono: draft.cliente_telefono || null,
       cliente_email: draft.cliente_email || null,
+      requiere_factura: draft.requiere_factura ?? false,
+      cliente_rfc: draft.cliente_rfc || null,
+      cliente_razon_social: draft.cliente_razon_social || null,
+      cliente_regimen_fiscal: draft.cliente_regimen_fiscal || null,
+      cliente_uso_cfdi: draft.cliente_uso_cfdi || null,
+      cliente_cp_fiscal: draft.cliente_cp_fiscal || null,
+      fecha_pago_total:
+        draft.total > 0 && draft.anticipo >= draft.total
+          ? new Date().toISOString()
+          : null,
       fecha_entrega: draft.fecha_entrega,
       hora_entrega: draft.hora_entrega,
       requiere_correccion: draft.requiere_correccion,
@@ -187,7 +214,7 @@ async function insertarSubPedido(
   return pedido.numero_pedido;
 }
 
-export interface DraftAgrupado {
+export interface DraftAgrupado extends DatosFiscalesPedido {
   cliente_nombre: string;
   cliente_telefono: string;
   cliente_email?: string;
@@ -233,6 +260,12 @@ export async function crearPedidoAgrupado(draft: DraftAgrupado, cajeroId: string
         cliente_nombre: draft.cliente_nombre,
         cliente_telefono: draft.cliente_telefono,
         cliente_email: draft.cliente_email,
+        requiere_factura: draft.requiere_factura,
+        cliente_rfc: draft.cliente_rfc,
+        cliente_razon_social: draft.cliente_razon_social,
+        cliente_regimen_fiscal: draft.cliente_regimen_fiscal,
+        cliente_uso_cfdi: draft.cliente_uso_cfdi,
+        cliente_cp_fiscal: draft.cliente_cp_fiscal,
         fecha_entrega: draft.fecha_entrega,
         hora_entrega: draft.hora_entrega,
         requiere_correccion: draft.requiere_correccion,
@@ -273,6 +306,12 @@ export async function crearPedidoAgrupado(draft: DraftAgrupado, cajeroId: string
         cliente_nombre: draft.cliente_nombre,
         cliente_telefono: draft.cliente_telefono,
         cliente_email: draft.cliente_email,
+        requiere_factura: draft.requiere_factura,
+        cliente_rfc: draft.cliente_rfc,
+        cliente_razon_social: draft.cliente_razon_social,
+        cliente_regimen_fiscal: draft.cliente_regimen_fiscal,
+        cliente_uso_cfdi: draft.cliente_uso_cfdi,
+        cliente_cp_fiscal: draft.cliente_cp_fiscal,
         fecha_entrega: draft.fecha_entrega,
         hora_entrega: draft.hora_entrega,
         requiere_correccion: draft.requiere_correccion,
@@ -289,6 +328,12 @@ export async function crearPedidoAgrupado(draft: DraftAgrupado, cajeroId: string
     );
     pedidoIds.push(pedidoId);
   }
+
+  await guardarClienteFiscal({
+    ...draft,
+    email: draft.cliente_email,
+    telefono: draft.cliente_telefono,
+  }).catch(() => {});
 
   return { facturaNumero, pedidoIds };
 }
@@ -563,6 +608,7 @@ export async function liquidarSaldo(id: string, metodo: MetodoPago): Promise<voi
       saldo_cobrado: true,
       saldo_metodo_pago: metodo,
       saldo_cobrado_en: new Date().toISOString(),
+      fecha_pago_total: new Date().toISOString(),
     })
     .eq("id", id);
 

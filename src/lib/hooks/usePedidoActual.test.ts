@@ -147,6 +147,39 @@ describe("usePedidoActual", () => {
     expect(result.current.valido).toBe(true);
   });
 
+  it("exige datos fiscales validos cuando requiere factura", () => {
+    const { result } = renderHook(() => usePedidoActual("suc-1"));
+
+    act(() => {
+      result.current.setCliente({
+        ...result.current.cliente,
+        nombre: "Juan",
+        fechaEntrega: "2026-01-01",
+        horaEntrega: "10:00",
+        requiereFactura: true,
+      });
+      result.current.setMarcaId("m1");
+      result.current.agregarLinea(helperLinea({ producto_nombre: "Foto" }));
+    });
+
+    expect(result.current.valido).toBe(false);
+    expect(result.current.pendientes).toContain("RFC válido");
+
+    act(() => {
+      result.current.setCliente({
+        ...result.current.cliente,
+        email: "juan@correo.com",
+        rfc: "XAXX010101000",
+        razonSocial: "Juan Pérez",
+        regimenFiscal: "612",
+        usoCfdi: "G03",
+        cpFiscal: "06450",
+      });
+    });
+
+    expect(result.current.valido).toBe(true);
+  });
+
   it("valido es false si una linea tiene nombre vacio", () => {
     const { result } = renderHook(() => usePedidoActual("suc-1"));
 

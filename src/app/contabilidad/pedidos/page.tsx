@@ -5,6 +5,7 @@ import { FiltrosPedidos } from "@/app/admin/pedidos/_components/FiltrosPedidos";
 import { Paginador } from "@/app/admin/pedidos/_components/Paginador";
 import { Button } from "@/components/ui/Button";
 import { FacturasTable } from "./_components/FacturasTable";
+import { FacturaGlobalPanel } from "./_components/FacturaGlobalPanel";
 
 export default function FacturasPage() {
   const {
@@ -34,6 +35,8 @@ export default function FacturasPage() {
             Refrescar
           </Button>
         </div>
+
+        <FacturaGlobalPanel onEmitida={recargar} />
 
         <FiltrosPedidos
           busqueda={filtros.busqueda ?? ""}

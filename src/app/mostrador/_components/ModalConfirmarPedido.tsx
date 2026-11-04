@@ -8,6 +8,9 @@ interface ModalConfirmarPedidoProps {
   open: boolean;
   clienteNombre: string;
   telefono: string;
+  requiereFactura: boolean;
+  rfc: string;
+  razonSocial: string;
   fechaEntrega: string;
   horaEntrega: string;
   lineas: LineaPedidoDraft[];
@@ -24,6 +27,9 @@ export function ModalConfirmarPedido({
   open,
   clienteNombre,
   telefono,
+  requiereFactura,
+  rfc,
+  razonSocial,
   fechaEntrega,
   horaEntrega,
   lineas,
@@ -80,6 +86,11 @@ export function ModalConfirmarPedido({
               <p className="font-semibold text-gray-900 dark:text-gray-100">{clienteNombre}</p>
               {telefono && (
                 <p className="text-xs text-gray-500 dark:text-gray-400">{telefono}</p>
+              )}
+              {requiereFactura && (
+                <p className="text-[10px] text-blue-600 dark:text-blue-400 mt-1">
+                  Factura: {rfc} · {razonSocial}
+                </p>
               )}
             </div>
             <div className="bg-gray-50 dark:bg-gray-800 rounded-lg p-3">

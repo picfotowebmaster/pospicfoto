@@ -177,6 +177,12 @@ export interface Pedido {
   metodo_pago: MetodoPago;
   numero_pedido?: string | null;
   cliente_email?: string | null;
+  requiere_factura?: boolean | null;
+  cliente_rfc?: string | null;
+  cliente_razon_social?: string | null;
+  cliente_regimen_fiscal?: string | null;
+  cliente_uso_cfdi?: string | null;
+  cliente_cp_fiscal?: string | null;
   factura_email_enviado?: string | null;
   factura_numero?: string | null;
   factura_uuid?: string | null;
@@ -190,6 +196,9 @@ export interface Pedido {
   factura_cancelacion_acuse?: string | null;
   factura_serie?: string | null;
   factura_folio?: string | null;
+  factura_global_id?: string | null;
+  factura_global_incluida_en?: string | null;
+  fecha_pago_total?: string | null;
   sucursal_id?: string | null;
   marca_id?: string | null;
   prioridad?: PrioridadPedido | null;
@@ -250,7 +259,54 @@ export interface LineaPedidoDraft {
   producto_id?: string | null;
 }
 
-export interface PedidoDraft {
+export interface FacturaGlobal {
+  id: string;
+  periodo: string;
+  fecha_desde: string;
+  fecha_hasta: string;
+  folio: string | null;
+  serie: string | null;
+  uuid: string | null;
+  xml_url: string | null;
+  pdf_url: string | null;
+  estado: string;
+  error: string | null;
+  subtotal: number | null;
+  iva: number | null;
+  total: number | null;
+  pedidos_count: number | null;
+  cancelacion_motivo?: string | null;
+  cancelacion_fecha?: string | null;
+  cancelacion_acuse?: string | null;
+  cancelacion_pendiente_desde?: string | null;
+  created_by?: string | null;
+  created_at?: string;
+  updated_at?: string;
+}
+
+export interface ClienteFiscal {
+  id: string;
+  rfc: string;
+  razon_social: string;
+  regimen_fiscal: string | null;
+  uso_cfdi: string | null;
+  cp_fiscal: string | null;
+  email: string | null;
+  telefono: string | null;
+  created_at?: string;
+  updated_at?: string;
+}
+
+export interface DatosFiscalesPedido {
+  requiere_factura?: boolean;
+  cliente_rfc?: string;
+  cliente_razon_social?: string;
+  cliente_regimen_fiscal?: string;
+  cliente_uso_cfdi?: string;
+  cliente_cp_fiscal?: string;
+}
+
+export interface PedidoDraft extends DatosFiscalesPedido {
   cliente_nombre: string;
   cliente_telefono: string;
   cliente_email?: string;
