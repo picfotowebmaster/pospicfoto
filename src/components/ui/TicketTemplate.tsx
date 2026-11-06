@@ -39,43 +39,40 @@ export function TicketTemplate({ pedido }: TicketTemplateProps) {
       </div>
 
       <div className="mb-1">
-        <div className="font-bold border-b border-gray-300 pb-0.5">
-          <span className="inline-block w-[65%]">Producto</span>
-          <span className="inline-block w-[10%] text-center">Cant</span>
-          <span className="inline-block w-[25%] text-right">Importe</span>
+        <div className="grid grid-cols-[minmax(0,1fr)_9mm_20mm] font-bold border-b border-gray-300 pb-0.5">
+          <span>Producto</span>
+          <span className="text-center">Cant</span>
+          <span className="text-right">Importe</span>
         </div>
         {pedido.detalle_pedidos?.map((d) => (
-          <div key={d.id} className="py-0.5 border-b border-dotted border-gray-200">
-            <div className="font-semibold">{d.producto_nombre}</div>
-            {d.atributos &&
-              Object.entries(d.atributos).map(([k, v]) => (
-                <div key={k} className="text-[8px] text-gray-600">
-                  {k}: {v}
-                </div>
-              ))}
-            <div>
-              <span className="inline-block w-[65%]"></span>
-              <span className="inline-block w-[10%] text-center">{d.cantidad}</span>
-              <span className="inline-block w-[25%] text-right">
-                ${d.importe_linea.toFixed(2)}
-              </span>
+          <div key={d.id} className="grid grid-cols-[minmax(0,1fr)_9mm_20mm] py-0.5 border-b border-dotted border-gray-200">
+            <div className="min-w-0">
+              <div className="font-semibold">{d.producto_nombre}</div>
+              {d.atributos &&
+                Object.entries(d.atributos).map(([k, v]) => (
+                  <div key={k} className="text-[8px] text-gray-600">
+                    {k}: {v}
+                  </div>
+                ))}
             </div>
+            <span className="text-center">{d.cantidad}</span>
+            <span className="text-right">${d.importe_linea.toFixed(2)}</span>
           </div>
         ))}
       </div>
 
       <div className="border-t border-black pt-0.5 mb-1">
-        <div>
-          <span className="font-bold">Subtotal:</span>{" "}
-          <span className="float-right">${pedido.subtotal.toFixed(2)}</span>
+        <div className="flex justify-between gap-2">
+          <span className="font-bold">Subtotal:</span>
+          <span>${pedido.subtotal.toFixed(2)}</span>
         </div>
-        <div>
-          <span className="font-bold">Anticipo:</span>{" "}
-          <span className="float-right">${pedido.anticipo.toFixed(2)}</span>
+        <div className="flex justify-between gap-2">
+          <span className="font-bold">Anticipo:</span>
+          <span>${pedido.anticipo.toFixed(2)}</span>
         </div>
-        <div>
-          <span className="font-bold">Total:</span>{" "}
-          <span className="float-right">${pedido.total.toFixed(2)}</span>
+        <div className="flex justify-between gap-2">
+          <span className="font-bold">Total:</span>
+          <span>${pedido.total.toFixed(2)}</span>
         </div>
         <div>
           <span className="font-bold">Pago:</span> {pedido.metodo_pago}

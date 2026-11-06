@@ -1,7 +1,7 @@
 @media print {
   @page {
     size: 80mm auto;
-    margin: 3mm;
+    margin: 4mm;
   }
 
   body {
@@ -16,5 +16,14 @@
 
   .ticket-container {
     width: 72mm !important;
+    max-width: 72mm !important;
+    box-sizing: border-box;
+    margin-right: auto;
+    margin-left: auto;
+    overflow-wrap: anywhere;
+  }
+
+  .ticket-container > div > div {
+    break-inside: avoid;
   }
 }
