@@ -186,7 +186,7 @@ export default function TicketPage() {
   }
 
   return (
-    <div className="min-h-screen bg-gray-50 p-4 flex flex-col items-center">
+    <div className="ticket-page min-h-screen bg-gray-50 p-4 flex flex-col items-center">
       <div className="mb-4 flex gap-2 no-print">
         <ThermalPrintButton
           status={printer.status}
@@ -283,26 +283,28 @@ export default function TicketPage() {
           </Button>
         )}
       </div>
-      {pedidos.length === 1 ? (
-        <TicketTemplate pedido={pedidos[0]} />
-      ) : (
-        <div>
-          <div className="ticket-container max-w-[72mm] mx-auto font-mono text-[10px] leading-tight text-black bg-white mb-4">
-            <div className="text-center p-2 border border-dashed border-gray-400 rounded">
-              <div className="font-bold text-xs">FACTURA: {id}</div>
-              <div className="text-[8px] text-gray-500 mt-1">
-                Esta factura contiene {pedidos.length} pedidos con rutas de producción distintas.
+      <div className="ticket-print-area">
+        {pedidos.length === 1 ? (
+          <TicketTemplate pedido={pedidos[0]} />
+        ) : (
+          <div>
+            <div className="ticket-container max-w-[72mm] mx-auto font-mono text-[10px] leading-tight text-black bg-white mb-4">
+              <div className="text-center p-2 border border-dashed border-gray-400 rounded">
+                <div className="font-bold text-xs">FACTURA: {id}</div>
+                <div className="text-[8px] text-gray-500 mt-1">
+                  Esta factura contiene {pedidos.length} pedidos con rutas de producción distintas.
+                </div>
               </div>
             </div>
+            {pedidos.map((p, i) => (
+              <div key={p.id}>
+                {i > 0 && <div className="border-t-4 border-dashed border-gray-300 my-4 max-w-[72mm] mx-auto" />}
+                <TicketTemplate pedido={p} />
+              </div>
+            ))}
           </div>
-          {pedidos.map((p, i) => (
-            <div key={p.id}>
-              {i > 0 && <div className="border-t-4 border-dashed border-gray-300 my-4 max-w-[72mm] mx-auto" />}
-              <TicketTemplate pedido={p} />
-            </div>
-          ))}
-        </div>
-      )}
+        )}
+      </div>
     </div>
   );
 }
