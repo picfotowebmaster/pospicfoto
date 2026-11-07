@@ -5,7 +5,8 @@ import { Badge } from "@/components/ui/Badge";
 import { Button } from "@/components/ui/Button";
 import { useToast } from "@/components/ui/Toast";
 import { supabase } from "@/lib/supabase/client";
-import type { FacturaGlobal } from "@/lib/supabase/types";
+import { fetchEntidadesEmisoras } from "@/lib/services/entidadesEmisoras";
+import type { EntidadEmisora, FacturaGlobal } from "@/lib/supabase/types";
 
 const POR_PAGINA = 5;
 
@@ -44,6 +45,8 @@ function labelEstado(estado: string): string {
 export function FacturaGlobalPanel({ onEmitida }: FacturaGlobalPanelProps) {
   const { showError, showSuccess } = useToast();
   const [periodo, setPeriodo] = useState(periodoActual);
+  const [entidades, setEntidades] = useState<EntidadEmisora[]>([]);
+  const [entidadId, setEntidadId] = useState("");
   const [emitiendo, setEmitiendo] = useState(false);
   const [globales, setGlobales] = useState<FacturaGlobal[]>([]);
   const [totalGlobales, setTotalGlobales] = useState(0);
@@ -103,9 +106,23 @@ export function FacturaGlobalPanel({ onEmitida }: FacturaGlobalPanelProps) {
     };
   }, [consultar, pagina, filtroPeriodo]);
 
+  useEffect(() => {
+    fetchEntidadesEmisoras()
+      .then((data) => {
+        setEntidades(data);
+        setEntidadId((actual) => actual || data[0]?.id || "");
+      })
+      .catch(() => {});
+  }, []);
+
   const totalPaginas = Math.max(1, Math.ceil(totalGlobales / POR_PAGINA));
 
   async function emitir() {
+    if (!entidadId) {
+      showError("Selecciona la razón social / sucursal.");
+      return;
+    }
+
     setEmitiendo(true);
     setResultado(null);
 
@@ -113,7 +130,7 @@ export function FacturaGlobalPanel({ onEmitida }: FacturaGlobalPanelProps) {
       const res = await fetch("/api/facturacion/global", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ periodo }),
+        body: JSON.stringify({ periodo, entidad_emisora_id: entidadId }),
       });
       const data = await res.json();
 
@@ -205,7 +222,28 @@ export function FacturaGlobalPanel({ onEmitida }: FacturaGlobalPanelProps) {
             individual.
           </p>
         </div>
-        <div className="flex items-end gap-2">
+        <div className="flex items-end gap-2 flex-wrap">
+          <div>
+            <label
+              htmlFor="entidad-global"
+              className="block text-[10px] font-medium text-gray-500 dark:text-gray-400 mb-1"
+            >
+              Razón social / Sucursal
+            </label>
+            <select
+              id="entidad-global"
+              value={entidadId}
+              onChange={(e) => setEntidadId(e.target.value)}
+              className="border border-gray-300 dark:border-gray-600 rounded-lg px-2.5 py-1.5 text-sm bg-white dark:bg-gray-800 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-blue-500"
+            >
+              <option value="">Seleccionar...</option>
+              {entidades.map((entidad) => (
+                <option key={entidad.id} value={entidad.id}>
+                  {entidad.nombre_comercial}
+                </option>
+              ))}
+            </select>
+          </div>
           <div>
             <label
               htmlFor="periodo-global"
@@ -225,7 +263,7 @@ export function FacturaGlobalPanel({ onEmitida }: FacturaGlobalPanelProps) {
             size="sm"
             variant="success"
             onClick={emitir}
-            disabled={emitiendo || !periodo}
+            disabled={emitiendo || !periodo || !entidadId}
           >
             {emitiendo ? (
               <span className="inline-flex items-center gap-1">
@@ -340,6 +378,7 @@ export function FacturaGlobalPanel({ onEmitida }: FacturaGlobalPanelProps) {
               <thead>
                 <tr className="border-b border-gray-100 dark:border-gray-800 text-gray-500">
                   <th className="py-1.5 pr-3 font-medium">Periodo</th>
+                  <th className="py-1.5 pr-3 font-medium">Emisor</th>
                   <th className="py-1.5 pr-3 font-medium">Folio</th>
                   <th className="py-1.5 pr-3 font-medium">Pedidos</th>
                   <th className="py-1.5 pr-3 font-medium">Total</th>
@@ -355,6 +394,10 @@ export function FacturaGlobalPanel({ onEmitida }: FacturaGlobalPanelProps) {
                   >
                     <td className="py-1.5 pr-3 text-gray-700 dark:text-gray-300">
                       {g.periodo}
+                    </td>
+                    <td className="py-1.5 pr-3 text-gray-600 dark:text-gray-400">
+                      {entidades.find((e) => e.id === g.entidad_emisora_id)
+                        ?.nombre_comercial || "PIC PHOTO"}
                     </td>
                     <td className="py-1.5 pr-3 font-mono text-gray-600 dark:text-gray-400">
                       {(g.serie || "") + (g.folio || "")}

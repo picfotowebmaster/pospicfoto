@@ -1,10 +1,11 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Badge } from "@/components/ui/Badge";
 import { Button } from "@/components/ui/Button";
 import { useToast } from "@/components/ui/Toast";
 import { PedidoTimeline } from "@/components/pedidos/PedidoTimeline";
+import { fetchEntidadesEmisoras } from "@/lib/services/entidadesEmisoras";
 import { pedidoPagado } from "@/lib/utils/fiscal";
 import type { Pedido } from "@/lib/supabase/types";
 
@@ -40,6 +41,17 @@ export function FacturasTable({ pedidos, onFacturado }: FacturasTableProps) {
   const [detalleModal, setDetalleModal] = useState<Pedido | null>(null);
   const [motivo, setMotivo] = useState("02");
   const [uuidRelacionado, setUuidRelacionado] = useState("");
+  const [entidades, setEntidades] = useState<Map<string, string>>(new Map());
+
+  useEffect(() => {
+    fetchEntidadesEmisoras()
+      .then((lista) =>
+        setEntidades(
+          new Map(lista.map((entidad) => [entidad.id, entidad.nombre_comercial])),
+        ),
+      )
+      .catch(() => {});
+  }, []);
 
   async function handleFacturar(pedido: Pedido) {
     setFacturando(pedido.id);
@@ -142,6 +154,7 @@ export function FacturasTable({ pedidos, onFacturado }: FacturasTableProps) {
         <thead>
           <tr className="border-b border-gray-200">
             <th className="py-2 px-3 font-medium text-gray-500 w-[140px]">Pedido</th>
+            <th className="py-2 px-3 font-medium text-gray-500">Emisor</th>
             <th className="py-2 px-3 font-medium text-gray-500">Cliente</th>
             <th className="py-2 px-3 font-medium text-gray-500">Fecha</th>
             <th className="py-2 px-3 font-medium text-gray-500">Total</th>
@@ -170,6 +183,11 @@ export function FacturasTable({ pedidos, onFacturado }: FacturasTableProps) {
               >
                 <td className="py-2 px-3 text-gray-900 dark:text-gray-100 font-mono text-xs font-medium">
                   {p.numero_pedido || "\u2014"}
+                </td>
+                <td className="py-2 px-3 text-gray-600 dark:text-gray-400 text-xs">
+                  {p.entidad_emisora_id
+                    ? entidades.get(p.entidad_emisora_id) || "PIC PHOTO"
+                    : "PIC PHOTO"}
                 </td>
                 <td className="py-2 px-3 text-gray-900 dark:text-gray-100 font-medium">
                   {p.cliente_nombre}
@@ -313,7 +331,7 @@ export function FacturasTable({ pedidos, onFacturado }: FacturasTableProps) {
           })}
           {pedidos.length === 0 && (
             <tr>
-              <td colSpan={8} className="py-8 text-center text-gray-400 dark:text-gray-500">
+              <td colSpan={9} className="py-8 text-center text-gray-400 dark:text-gray-500">
                 No se encontraron pedidos.
               </td>
             </tr>

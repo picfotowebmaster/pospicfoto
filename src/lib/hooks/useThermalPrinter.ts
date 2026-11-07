@@ -7,8 +7,11 @@ import {
   connectPrinter,
   printTicket,
   buildTicketCommands,
+  imageToEscPosRaster,
   type EscPosBuilder,
+  type EscPosRaster,
 } from "@/lib/services/thermalPrinter";
+import type { EntidadEmisora } from "@/lib/supabase/types";
 
 type PrinterStatus = "idle" | "discovering" | "connecting" | "connected" | "printing" | "error";
 
@@ -25,6 +28,7 @@ interface TicketData {
   anticipo: number;
   total: number;
   lineas: { nombre: string; cantidad: number; importe: number; atributos?: Record<string, string> }[];
+  emisor?: EntidadEmisora | null;
 }
 
 export function useThermalPrinter() {
@@ -90,8 +94,17 @@ export function useThermalPrinter() {
       setStatus("printing");
       setError(null);
 
+      let logoRaster: EscPosRaster | null = null;
+      if (ticketData.emisor?.logo_url) {
+        try {
+          logoRaster = await imageToEscPosRaster(ticketData.emisor.logo_url);
+        } catch {
+          logoRaster = null;
+        }
+      }
+
       await printTicket(char, (builder: EscPosBuilder) => {
-        buildTicketCommands(builder, ticketData);
+        buildTicketCommands(builder, { ...ticketData, logoRaster });
       });
 
       setStatus("connected");

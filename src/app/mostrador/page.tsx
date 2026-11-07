@@ -24,9 +24,15 @@ import { useOffline } from "@/lib/offline/useOffline";
 import { useOfflineSync } from "@/lib/offline/useOfflineSync";
 import { queueOrder, getQueueCount } from "@/lib/offline/orderQueue";
 import { loadCatalog } from "@/lib/offline/catalogSync";
+import { fetchEntidadEmisora } from "@/lib/services/entidadesEmisoras";
 import OfflineIndicator from "../_components/OfflineIndicator";
 import RoleSwitcher from "@/app/_components/RoleSwitcher";
-import type { Atributo, AtributoValor, LineaPedidoDraft } from "@/lib/supabase/types";
+import type {
+  Atributo,
+  AtributoValor,
+  EntidadEmisora,
+  LineaPedidoDraft,
+} from "@/lib/supabase/types";
 type AtributoConValores = Atributo & { valores: AtributoValor[] };
 
 function MostradorContent() {
@@ -35,7 +41,12 @@ function MostradorContent() {
   const { session, profile, signOut } = useAuth();
   const { showError, showSuccess } = useToast();
   const sucursalId = profile?.sucursal_id ?? "";
-  const pedido = usePedidoActual(sucursalId);
+  const [entidad, setEntidad] = useState<EntidadEmisora | null>(null);
+  const pedido = usePedidoActual(
+    sucursalId,
+    profile?.entidad_emisora_id ?? "",
+    entidad?.marca_id ?? "",
+  );
   const { isOnline } = useOffline();
   useOfflineSync({ cajeroId: session?.user.id, isOnline });
   const [atributosPool, setAtributosPool] = useState<AtributoConValores[]>([]);
@@ -74,8 +85,15 @@ function MostradorContent() {
         const found = sucs.find((s) => s.id === sucursalId);
         if (found) setSucursalNombre(found.nombre);
       }
+      if (cached.entidades && profile?.entidad_emisora_id) {
+        const entidades = cached.entidades as EntidadEmisora[];
+        const found = entidades.find(
+          (e) => e.id === profile.entidad_emisora_id,
+        );
+        if (found) setEntidad(found);
+      }
     }).catch(() => {});
-  }, [isOnline, sucursalId]);
+  }, [isOnline, sucursalId, profile?.entidad_emisora_id]);
 
   useEffect(() => {
     if (isOnline && sucursalId) {
@@ -90,6 +108,20 @@ function MostradorContent() {
         .catch(() => {});
     }
   }, [isOnline, sucursalId]);
+
+  useEffect(() => {
+    let ignore = false;
+    fetchEntidadEmisora(profile?.entidad_emisora_id)
+      .then((data) => {
+        if (!ignore) setEntidad(data);
+      })
+      .catch(() => {
+        if (!ignore) setEntidad(null);
+      });
+    return () => {
+      ignore = true;
+    };
+  }, [profile?.entidad_emisora_id]);
 
   useEffect(() => {
     if (isOnline) {
@@ -161,6 +193,12 @@ function MostradorContent() {
       router.push("/auth/login");
       return;
     }
+    if (!entidad) {
+      showError(
+        "Tu usuario no tiene una razón social / sucursal asignada. Contacta al super administrador.",
+      );
+      return;
+    }
     setPagarCargando(true);
 
     const requiereCorreccion = pedido.lineas.some(
@@ -188,6 +226,7 @@ function MostradorContent() {
       metodo_pago: pedido.metodoPago,
       sucursal_id: sucursalId,
       marca_id: pedido.marcaId,
+      entidad_emisora_id: entidad.id,
     };
 
     if (!isOnline) {
@@ -349,33 +388,38 @@ function MostradorContent() {
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div>
               <label className="block text-xs font-medium text-gray-500 mb-1">
-                Sucursal
+                Razón social / Sucursal
               </label>
               <input
                 type="text"
-                value={sucursalNombre || "No asignada"}
+                value={
+                  entidad?.nombre_comercial || sucursalNombre || "No asignada"
+                }
                 readOnly
                 className="w-full border border-gray-200 bg-gray-50 text-gray-700 rounded-lg px-2.5 py-1.5 text-sm"
               />
             </div>
             <div>
               <label className="block text-xs font-medium text-gray-500 mb-1">
-                Marca <span className="text-red-400">*</span>
+                Marca
               </label>
-              <select
-                value={pedido.marcaId}
-                onChange={(e) => pedido.setMarcaId(e.target.value)}
-                className="w-full border border-gray-300 rounded-lg px-2.5 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white"
-              >
-                <option value="">Seleccionar marca...</option>
-                {marcas.map((m) => (
-                  <option key={m.id} value={m.id}>
-                    {m.nombre}
-                  </option>
-                ))}
-              </select>
+              <input
+                type="text"
+                value={
+                  marcas.find((m) => m.id === entidad?.marca_id)?.nombre ||
+                  "No asignada"
+                }
+                readOnly
+                className="w-full border border-gray-200 bg-gray-50 text-gray-700 rounded-lg px-2.5 py-1.5 text-sm"
+              />
             </div>
           </div>
+          {!entidad && (
+            <div className="mt-3 bg-amber-50 border border-amber-200 text-amber-700 text-xs rounded-lg px-3 py-2">
+              Tu usuario no tiene una razón social / sucursal asignada. No
+              podrás emitir tickets hasta que el super administrador la asigne.
+            </div>
+          )}
         </div>
 
         <div className="bg-white rounded-xl shadow p-4">

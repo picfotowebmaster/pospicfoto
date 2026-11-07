@@ -7,6 +7,8 @@ import {
   MOTIVOS_CANCELACION,
 } from "@/lib/services/facturemosyaCancelacion";
 import { formatearErrorCancelacion } from "@/lib/services/facturemosyaErrores";
+import { resolverConfigFacturacion } from "@/lib/services/facturacionConfig";
+import type { EntidadEmisora } from "@/lib/supabase/types";
 
 const ROLES_PERMITIDOS = ["admin", "superadmin", "contador"];
 const UUID_RE =
@@ -114,6 +116,17 @@ export async function POST(request: NextRequest) {
     );
   }
 
+  let entidad: EntidadEmisora | null = null;
+  if (global.entidad_emisora_id) {
+    const { data } = await admin
+      .from("entidades_emisoras")
+      .select("*")
+      .eq("id", global.entidad_emisora_id)
+      .maybeSingle();
+    entidad = (data as EntidadEmisora | null) ?? null;
+  }
+  const configFacturacion = resolverConfigFacturacion(entidad);
+
   if (global.estado === "cancelada") {
     return NextResponse.json({
       success: true,
@@ -133,11 +146,9 @@ export async function POST(request: NextRequest) {
   try {
     respuesta = await cancelarCFDI(
       {
-        url:
-          process.env.FACTUREMOSYA_CANCELACION_URL ||
-          "https://www.facturemosya.com/webservice/wsCancelarCFDI22.php",
-        usuario: process.env.FACTUREMOSYA_USUARIO || "democfdi",
-        password: process.env.FACTUREMOSYA_PASSWORD || "demo2011",
+        url: configFacturacion.urlCancelacion,
+        usuario: configFacturacion.usuario,
+        password: configFacturacion.password,
       },
       global.uuid,
       motivo,

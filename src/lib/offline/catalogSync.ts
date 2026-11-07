@@ -7,6 +7,7 @@ const CATALOG_KEYS = {
   ATRIBUTOS: "atributos",
   MARCAS: "marcas",
   SUCURSALES: "sucursales",
+  ENTIDADES: "entidadesEmisoras",
   CATALOGO: "catalogoProductos:v3",
 } as const;
 
@@ -44,17 +45,30 @@ export async function syncCatalogFromServer(): Promise<void> {
   } catch {
     // silencioso
   }
+
+  try {
+    const { data: entidades } = await supabase
+      .from("entidades_emisoras")
+      .select("*")
+      .eq("activo", true)
+      .order("orden", { ascending: true });
+    if (entidades) await saveCatalogo(CATALOG_KEYS.ENTIDADES, entidades);
+  } catch {
+    // silencioso
+  }
 }
 
 export async function getCatalogFromCache() {
-  const [atributos, marcas, sucursales, catalogo] = await Promise.all([
-    getCatalogo(CATALOG_KEYS.ATRIBUTOS),
-    getCatalogo(CATALOG_KEYS.MARCAS),
-    getCatalogo(CATALOG_KEYS.SUCURSALES),
-    getCatalogo(CATALOG_KEYS.CATALOGO),
-  ]);
+  const [atributos, marcas, sucursales, entidades, catalogo] =
+    await Promise.all([
+      getCatalogo(CATALOG_KEYS.ATRIBUTOS),
+      getCatalogo(CATALOG_KEYS.MARCAS),
+      getCatalogo(CATALOG_KEYS.SUCURSALES),
+      getCatalogo(CATALOG_KEYS.ENTIDADES),
+      getCatalogo(CATALOG_KEYS.CATALOGO),
+    ]);
 
-  return { atributos, marcas, sucursales, catalogo };
+  return { atributos, marcas, sucursales, entidades, catalogo };
 }
 
 export async function isCatalogStale(): Promise<boolean> {

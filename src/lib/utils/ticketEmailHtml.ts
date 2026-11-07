@@ -1,5 +1,5 @@
 import { DATOS_EMPRESA, POLITICAS } from "@/lib/utils/constantes";
-import type { Pedido } from "@/lib/supabase/types";
+import type { EntidadEmisora, Pedido } from "@/lib/supabase/types";
 
 function esc(value: unknown): string {
   return String(value ?? "")
@@ -14,8 +14,28 @@ function money(value: number): string {
   return `$${Number(value ?? 0).toFixed(2)}`;
 }
 
-export function renderTicketHtml(pedido: Pedido): string {
+function urlAbsoluta(valor: string | null | undefined, baseUrl?: string): string {
+  if (!valor) return "";
+  if (/^https?:\/\//i.test(valor)) return valor;
+  if (!baseUrl) return valor;
+  const base = baseUrl.replace(/\/$/, "");
+  const ruta = valor.startsWith("/") ? valor : `/${valor}`;
+  return `${base}${ruta}`;
+}
+
+export function renderTicketHtml(
+  pedido: Pedido,
+  emisor?: EntidadEmisora | null,
+  baseUrl?: string,
+): string {
   const numeroTicket = pedido.numero_pedido || pedido.id.slice(0, 8).toUpperCase();
+  const nombre = emisor?.nombre_comercial || DATOS_EMPRESA.nombre;
+  const razonSocial = emisor?.razon_social || DATOS_EMPRESA.nombre;
+  const rfc = emisor?.rfc || DATOS_EMPRESA.rfc;
+  const direccion = emisor?.direccion || DATOS_EMPRESA.direccion;
+  const telefonos = emisor?.telefonos || DATOS_EMPRESA.telefono;
+  const correo = emisor?.email || DATOS_EMPRESA.correo;
+  const logo = urlAbsoluta(emisor?.logo_url, baseUrl);
 
   const lineas = (pedido.detalle_pedidos ?? [])
     .map((d) => {
@@ -47,11 +67,15 @@ export function renderTicketHtml(pedido: Pedido): string {
   return `
   <div style="font-family: Arial, sans-serif; max-width: 420px; margin: 0 auto; color:#1f2937;">
     <div style="text-align:center;border-bottom:1px dashed #9ca3af;padding-bottom:12px;margin-bottom:12px;">
-      <div style="font-size:18px;font-weight:bold;color:#111827;">${esc(DATOS_EMPRESA.nombre)}</div>
-      <div style="font-size:12px;">RFC: ${esc(DATOS_EMPRESA.rfc)}</div>
-      <div style="font-size:11px;color:#6b7280;">${esc(DATOS_EMPRESA.direccion)}</div>
-      <div style="font-size:11px;color:#6b7280;">Tel: ${esc(DATOS_EMPRESA.telefono)}</div>
-      <div style="font-size:11px;color:#6b7280;">Correo: ${esc(DATOS_EMPRESA.correo)}</div>
+      ${logo ? `<img src="${esc(logo)}" alt="${esc(nombre)}" width="72" height="72" style="display:block;margin:0 auto 6px;max-width:72px;max-height:72px;object-fit:contain;" />` : ""}
+      <div style="font-size:18px;font-weight:bold;color:#111827;">${esc(nombre)}</div>
+      ${razonSocial && razonSocial !== nombre ? `<div style="font-size:12px;color:#374151;">${esc(razonSocial)}</div>` : ""}
+      <div style="font-size:12px;">RFC: ${esc(rfc)}</div>
+      ${emisor?.regimen_fiscal ? `<div style="font-size:10px;color:#6b7280;">${esc(emisor.regimen_fiscal)}</div>` : ""}
+      <div style="font-size:11px;color:#6b7280;">${esc(direccion)}</div>
+      <div style="font-size:11px;color:#6b7280;">Tel: ${esc(telefonos)}</div>
+      <div style="font-size:11px;color:#6b7280;">Correo: ${esc(correo)}</div>
+      ${emisor?.sitio_web ? `<div style="font-size:11px;color:#6b7280;">${esc(emisor.sitio_web)}</div>` : ""}
     </div>
 
     <table style="width:100%;font-size:12px;margin-bottom:12px;">

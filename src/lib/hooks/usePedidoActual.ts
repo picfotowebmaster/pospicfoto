@@ -35,13 +35,18 @@ const CLIENTE_VACIO: ClienteData = {
   cpFiscal: "",
 };
 
-export function usePedidoActual(sucursalId: string) {
+export function usePedidoActual(
+  sucursalId: string,
+  entidadEmisoraId = "",
+  marcaEntidadId = "",
+) {
   const [cliente, setCliente] = useState<ClienteData>({ ...CLIENTE_VACIO });
   const [lineas, setLineas] = useState<LineaPedidoDraft[]>([]);
   const [porcentajeAnticipo, setPorcentajeAnticipo] = useState(ANTICIPO_POR_DEFECTO);
   const [metodoPago, setMetodoPago] = useState<MetodoPago>("Efectivo");
   const [rutaDefault, setRutaDefault] = useState<RutaProduccion>("R1");
   const [marcaId, setMarcaId] = useState("");
+  const marcaIdActual = marcaEntidadId || marcaId;
   const [draftRestored, setDraftRestored] = useState(false);
   const persistTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
@@ -52,9 +57,18 @@ export function usePedidoActual(sucursalId: string) {
       porcentajeAnticipo,
       metodoPago,
       ruta: rutaDefault,
-      marcaId,
+      marcaId: marcaIdActual,
+      entidadEmisoraId,
     }),
-    [cliente, lineas, porcentajeAnticipo, metodoPago, rutaDefault, marcaId],
+    [
+      cliente,
+      lineas,
+      porcentajeAnticipo,
+      metodoPago,
+      rutaDefault,
+      marcaIdActual,
+      entidadEmisoraId,
+    ],
   );
 
   useEffect(() => {
@@ -82,13 +96,15 @@ export function usePedidoActual(sucursalId: string) {
         if (typeof d.porcentajeAnticipo === "number") setPorcentajeAnticipo(d.porcentajeAnticipo as number);
         if (typeof d.metodoPago === "string") setMetodoPago(d.metodoPago as MetodoPago);
         if (typeof d.ruta === "string") setRutaDefault(d.ruta as RutaProduccion);
-        if (typeof d.marcaId === "string") setMarcaId(d.marcaId as string);
+        if (!marcaEntidadId && typeof d.marcaId === "string") {
+          setMarcaId(d.marcaId as string);
+        }
       }
     } catch {
       // silencioso
     }
     setDraftRestored(true);
-  }, []);
+  }, [marcaEntidadId]);
 
   const subtotal = sumarLineas(lineas);
   const anticipo = calcularAnticipo(subtotal, porcentajeAnticipo);
@@ -153,7 +169,8 @@ export function usePedidoActual(sucursalId: string) {
     cliente.fechaEntrega !== "" &&
     cliente.horaEntrega !== "" &&
     sucursalId !== "" &&
-    marcaId !== "" &&
+    entidadEmisoraId !== "" &&
+    marcaIdActual !== "" &&
     facturaValida &&
     lineas.length > 0 &&
     lineas.every(
@@ -168,8 +185,10 @@ export function usePedidoActual(sucursalId: string) {
   if (cliente.nombre.trim() === "") pendientes.push("Nombre del cliente");
   if (cliente.fechaEntrega === "") pendientes.push("Fecha de entrega");
   if (cliente.horaEntrega === "") pendientes.push("Hora de entrega");
+  if (entidadEmisoraId === "")
+    pendientes.push("Razón social / Sucursal asignada");
   if (sucursalId === "") pendientes.push("Sucursal asignada");
-  if (marcaId === "") pendientes.push("Marca");
+  if (marcaIdActual === "") pendientes.push("Marca");
   if (cliente.requiereFactura) {
     if (cliente.email.trim() === "") pendientes.push("Correo para factura");
     if (!rfcValido(cliente.rfc)) pendientes.push("RFC válido");
@@ -210,7 +229,8 @@ export function usePedidoActual(sucursalId: string) {
     rutasUnicas,
     getLineasPorRuta,
     sucursalId,
-    marcaId,
+    entidadEmisoraId,
+    marcaId: marcaIdActual,
     setMarcaId,
     valido,
     pendientes,

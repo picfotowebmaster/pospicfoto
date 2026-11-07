@@ -85,6 +85,48 @@ describe("crearPedido", () => {
     await expect(crearPedido(mockDraft, "cajero-1")).rejects.toThrow("RPC error");
   });
 
+  it("deriva marca, sucursal y entidad emisora desde la entidad asignada", async () => {
+    const pedidoBuilders: ReturnType<typeof qb>[] = [];
+    mockFrom((table: string) => {
+      if (table === "entidades_emisoras") {
+        return qb("maybeSingle", {
+          id: "e-frx",
+          marca_id: "m-frx",
+          sucursal_id: "s-cub",
+        }) as ReturnType<typeof supabase.from>;
+      }
+      if (table === "marcas") return qb("single", { codigo: "FRX" }) as ReturnType<typeof supabase.from>;
+      if (table === "sucursales") return qb("single", { codigo: "CUB" }) as ReturnType<typeof supabase.from>;
+      if (table === "pedidos") {
+        const builder = qb("single", {
+          id: "p1",
+          numero_pedido: "FRX-CUB-00001",
+        });
+        pedidoBuilders.push(builder);
+        return builder as ReturnType<typeof supabase.from>;
+      }
+      return qb(null, null) as ReturnType<typeof supabase.from>;
+    });
+    vi.mocked(supabase.rpc).mockResolvedValue({
+      data: "FRX-CUB-00001",
+      error: null,
+    });
+
+    const result = await crearPedido(
+      { ...mockDraft, entidad_emisora_id: "e-frx" },
+      "cajero-1",
+    );
+
+    expect(result).toBe("FRX-CUB-00001");
+    expect(pedidoBuilders[0]?.insert).toHaveBeenCalledWith(
+      expect.objectContaining({
+        entidad_emisora_id: "e-frx",
+        marca_id: "m-frx",
+        sucursal_id: "s-cub",
+      }),
+    );
+  });
+
   it("lanza error si insert falla", async () => {
     mockFrom((table: string) => {
       if (table === "marcas") return qb("single", { codigo: "PIC" }) as ReturnType<typeof supabase.from>;

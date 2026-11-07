@@ -1,7 +1,7 @@
 import { Resend } from "resend";
 import { NOMBRE_EMPRESA } from "@/lib/utils/constantes";
 import { renderTicketHtml } from "@/lib/utils/ticketEmailHtml";
-import type { Pedido } from "@/lib/supabase/types";
+import type { EntidadEmisora, Pedido } from "@/lib/supabase/types";
 
 export interface AdjuntoCorreo {
   filename: string;
@@ -23,12 +23,15 @@ interface EnviarFacturaParams {
   uuid: string;
   pdfUrl: string | null;
   xmlUrl: string | null;
+  emisorNombre?: string;
   adjuntos?: AdjuntoCorreo[];
 }
 
 interface EnviarTicketParams {
   to: string;
   pedido: Pedido;
+  emisor?: EntidadEmisora | null;
+  baseUrl?: string;
 }
 
 interface EnviarFacturaGlobalParams {
@@ -40,6 +43,7 @@ interface EnviarFacturaGlobalParams {
   pedidosCount: number;
   pdfUrl: string | null;
   xmlUrl: string | null;
+  emisorNombre?: string;
   adjuntos?: AdjuntoCorreo[];
 }
 
@@ -82,6 +86,7 @@ export async function enviarFacturaPorCorreo({
   uuid,
   pdfUrl,
   xmlUrl,
+  emisorNombre,
   adjuntos = [],
 }: EnviarFacturaParams): Promise<void> {
   const enlaces = [
@@ -96,6 +101,7 @@ export async function enviarFacturaPorCorreo({
       <h2 style="margin:0 0 8px;">Factura emitida</h2>
       <p>Hola ${clienteNombre}, tu factura ha sido emitida correctamente.</p>
       <table style="font-size:14px; margin:12px 0;">
+        ${emisorNombre ? `<tr><td><strong>Emisor:</strong></td><td>${emisorNombre}</td></tr>` : ""}
         <tr><td><strong>Pedido:</strong></td><td>${numeroPedido}</td></tr>
         <tr><td><strong>UUID:</strong></td><td>${uuid}</td></tr>
       </table>
@@ -106,7 +112,7 @@ export async function enviarFacturaPorCorreo({
 
   await enviarCorreo({
     to,
-    subject: `Tu factura ${numeroPedido} - ${NOMBRE_EMPRESA}`,
+    subject: `Tu factura ${numeroPedido} - ${emisorNombre || NOMBRE_EMPRESA}`,
     html,
     adjuntos,
   });
@@ -121,6 +127,7 @@ export async function enviarFacturaGlobalPorCorreo({
   pedidosCount,
   pdfUrl,
   xmlUrl,
+  emisorNombre,
   adjuntos = [],
 }: EnviarFacturaGlobalParams): Promise<void> {
   const enlaces = [
@@ -135,6 +142,7 @@ export async function enviarFacturaGlobalPorCorreo({
       <h2 style="margin:0 0 8px;">Factura global emitida</h2>
       <p>Se emitió la factura global correspondiente al periodo <strong>${periodo}</strong>.</p>
       <table style="font-size:14px; margin:12px 0;">
+        ${emisorNombre ? `<tr><td><strong>Emisor:</strong></td><td>${emisorNombre}</td></tr>` : ""}
         <tr><td><strong>Periodo:</strong></td><td>${periodo}</td></tr>
         <tr><td><strong>Folio:</strong></td><td>${folio}</td></tr>
         <tr><td><strong>Tickets:</strong></td><td>${pedidosCount}</td></tr>
@@ -148,18 +156,24 @@ export async function enviarFacturaGlobalPorCorreo({
 
   await enviarCorreo({
     to,
-    subject: `Factura global ${periodo} - ${NOMBRE_EMPRESA}`,
+    subject: `Factura global ${periodo} - ${emisorNombre || NOMBRE_EMPRESA}`,
     html,
     adjuntos,
   });
 }
 
-export async function enviarTicketPorCorreo({ to, pedido }: EnviarTicketParams): Promise<void> {
+export async function enviarTicketPorCorreo({
+  to,
+  pedido,
+  emisor,
+  baseUrl,
+}: EnviarTicketParams): Promise<void> {
   const numeroTicket = pedido.numero_pedido || pedido.id.slice(0, 8).toUpperCase();
+  const nombreEmisor = emisor?.nombre_comercial || NOMBRE_EMPRESA;
 
   await enviarCorreo({
     to,
-    subject: `Tu ticket ${numeroTicket} - ${NOMBRE_EMPRESA}`,
-    html: renderTicketHtml(pedido),
+    subject: `Tu ticket ${numeroTicket} - ${nombreEmisor}`,
+    html: renderTicketHtml(pedido, emisor, baseUrl),
   });
 }

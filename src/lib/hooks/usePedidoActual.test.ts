@@ -27,7 +27,7 @@ describe("usePedidoActual", () => {
   });
 
   it("inicia con valores por defecto", () => {
-    const { result } = renderHook(() => usePedidoActual("suc-1"));
+    const { result } = renderHook(() => usePedidoActual("suc-1", "ent-1"));
 
     expect(result.current.cliente.nombre).toBe("");
     expect(result.current.cliente.telefono).toBe("");
@@ -51,7 +51,7 @@ describe("usePedidoActual", () => {
       marcaId: "m2",
     });
 
-    const { result } = renderHook(() => usePedidoActual("suc-1"));
+    const { result } = renderHook(() => usePedidoActual("suc-1", "ent-1"));
 
     act(() => {
       result.current.restoreDraft();
@@ -69,7 +69,7 @@ describe("usePedidoActual", () => {
   });
 
   it("agrega una linea con id generado", () => {
-    const { result } = renderHook(() => usePedidoActual("suc-1"));
+    const { result } = renderHook(() => usePedidoActual("suc-1", "ent-1"));
 
     act(() => {
       result.current.agregarLinea(helperLinea({ producto_nombre: "Foto 4x6", cantidad: 2, precio_unitario: 50 }));
@@ -81,7 +81,7 @@ describe("usePedidoActual", () => {
   });
 
   it("elimina una linea por id", () => {
-    const { result } = renderHook(() => usePedidoActual("suc-1"));
+    const { result } = renderHook(() => usePedidoActual("suc-1", "ent-1"));
 
     act(() => {
       result.current.agregarLinea(helperLinea({ producto_nombre: "A" }));
@@ -95,7 +95,7 @@ describe("usePedidoActual", () => {
   });
 
   it("actualiza una linea existente", () => {
-    const { result } = renderHook(() => usePedidoActual("suc-1"));
+    const { result } = renderHook(() => usePedidoActual("suc-1", "ent-1"));
 
     act(() => {
       result.current.agregarLinea(helperLinea({ producto_nombre: "A" }));
@@ -111,7 +111,7 @@ describe("usePedidoActual", () => {
   });
 
   it("calcula subtotal correctamente", () => {
-    const { result } = renderHook(() => usePedidoActual("suc-1"));
+    const { result } = renderHook(() => usePedidoActual("suc-1", "ent-1"));
 
     act(() => {
       result.current.agregarLinea(helperLinea({ producto_nombre: "A", cantidad: 2, precio_unitario: 100 }));
@@ -123,7 +123,7 @@ describe("usePedidoActual", () => {
   });
 
   it("calcula anticipo segun porcentaje", async () => {
-    const { result } = renderHook(() => usePedidoActual("suc-1"));
+    const { result } = renderHook(() => usePedidoActual("suc-1", "ent-1"));
 
     act(() => {
       result.current.setPorcentajeAnticipo(70);
@@ -134,7 +134,7 @@ describe("usePedidoActual", () => {
   });
 
   it("valida que el pedido este completo", () => {
-    const { result } = renderHook(() => usePedidoActual("suc-1"));
+    const { result } = renderHook(() => usePedidoActual("suc-1", "ent-1"));
 
     expect(result.current.valido).toBe(false);
 
@@ -148,7 +148,7 @@ describe("usePedidoActual", () => {
   });
 
   it("exige datos fiscales validos cuando requiere factura", () => {
-    const { result } = renderHook(() => usePedidoActual("suc-1"));
+    const { result } = renderHook(() => usePedidoActual("suc-1", "ent-1"));
 
     act(() => {
       result.current.setCliente({
@@ -181,7 +181,7 @@ describe("usePedidoActual", () => {
   });
 
   it("valido es false si una linea tiene nombre vacio", () => {
-    const { result } = renderHook(() => usePedidoActual("suc-1"));
+    const { result } = renderHook(() => usePedidoActual("suc-1", "ent-1"));
 
     act(() => {
       result.current.setCliente({ ...result.current.cliente, nombre: "Juan", fechaEntrega: "2026-01-01", horaEntrega: "10:00" });
@@ -193,7 +193,7 @@ describe("usePedidoActual", () => {
   });
 
   it("valido es false con cantidad <= 0", () => {
-    const { result } = renderHook(() => usePedidoActual("suc-1"));
+    const { result } = renderHook(() => usePedidoActual("suc-1", "ent-1"));
 
     act(() => {
       result.current.setCliente({ ...result.current.cliente, nombre: "Juan", fechaEntrega: "2026-01-01", horaEntrega: "10:00" });
@@ -205,7 +205,7 @@ describe("usePedidoActual", () => {
   });
 
   it("limpia todo y borra el draft", async () => {
-    const { result } = renderHook(() => usePedidoActual("suc-1"));
+    const { result } = renderHook(() => usePedidoActual("suc-1", "ent-1"));
 
     act(() => {
       result.current.setCliente({ ...result.current.cliente, nombre: "Juan", fechaEntrega: "2026-01-01", horaEntrega: "10:00" });
@@ -226,7 +226,7 @@ describe("usePedidoActual", () => {
 
   it("auto-guarda el draft", async () => {
     vi.useFakeTimers();
-    const { result } = renderHook(() => usePedidoActual("suc-1"));
+    const { result } = renderHook(() => usePedidoActual("suc-1", "ent-1"));
 
     act(() => {
       result.current.setCliente({ ...result.current.cliente, nombre: "Carlos" });

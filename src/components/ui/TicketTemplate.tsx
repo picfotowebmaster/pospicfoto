@@ -1,29 +1,44 @@
 import React from "react";
-import Image from "next/image";
 import { DATOS_EMPRESA, POLITICAS } from "@/lib/utils/constantes";
-import type { Pedido } from "@/lib/supabase/types";
+import type { EntidadEmisora, Pedido } from "@/lib/supabase/types";
 
 interface TicketTemplateProps {
   pedido: Pedido;
+  emisor?: EntidadEmisora | null;
 }
 
-export function TicketTemplate({ pedido }: TicketTemplateProps) {
+export function TicketTemplate({ pedido, emisor }: TicketTemplateProps) {
+  const nombre = emisor?.nombre_comercial || DATOS_EMPRESA.nombre;
+  const razonSocial = emisor?.razon_social || DATOS_EMPRESA.nombre;
+  const rfc = emisor?.rfc || DATOS_EMPRESA.rfc;
+  const direccion = emisor?.direccion || DATOS_EMPRESA.direccion;
+  const telefonos = emisor?.telefonos || DATOS_EMPRESA.telefono;
+  const correo = emisor?.email || DATOS_EMPRESA.correo;
+  const logo = emisor?.logo_url || "/icons/icon-128.png";
+
   return (
     <div className="ticket-container max-w-[72mm] mx-auto font-mono text-[10px] leading-tight text-black bg-white">
       <div className="text-center mb-1">
-        <Image
-          src="/icons/icon-128.png"
-          alt="Logotipo de Pic Foto"
+        {/* eslint-disable-next-line @next/next/no-img-element */}
+        <img
+          src={logo}
+          alt={`Logotipo de ${nombre}`}
           width={128}
           height={128}
-          unoptimized
           className="mx-auto mb-1 h-[16mm] w-[16mm] object-contain"
         />
-        <div className="font-bold text-xs">{DATOS_EMPRESA.nombre}</div>
-        <div>RFC: {DATOS_EMPRESA.rfc}</div>
-        <div className="text-[8px]">{DATOS_EMPRESA.direccion}</div>
-        <div>Tel: {DATOS_EMPRESA.telefono}</div>
-        <div>Correo: {DATOS_EMPRESA.correo}</div>
+        <div className="font-bold text-xs">{nombre}</div>
+        {razonSocial && razonSocial !== nombre && (
+          <div className="text-[9px]">{razonSocial}</div>
+        )}
+        <div>RFC: {rfc}</div>
+        {emisor?.regimen_fiscal && (
+          <div className="text-[8px]">{emisor.regimen_fiscal}</div>
+        )}
+        <div className="text-[8px]">{direccion}</div>
+        <div>Tel: {telefonos}</div>
+        <div>Correo: {correo}</div>
+        {emisor?.sitio_web && <div>{emisor.sitio_web}</div>}
       </div>
 
       <div className="border-t border-b border-dashed border-gray-400 py-0.5 mb-1">

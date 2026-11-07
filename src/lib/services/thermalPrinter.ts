@@ -1,4 +1,11 @@
 import { DATOS_EMPRESA, NOMBRE_EMPRESA } from "@/lib/utils/constantes";
+import type { EntidadEmisora } from "@/lib/supabase/types";
+
+export interface EscPosRaster {
+  widthBytes: number;
+  height: number;
+  data: Uint8Array;
+}
 
 export function encodeText(text: string): Uint8Array {
   return new TextEncoder().encode(text);
@@ -9,6 +16,26 @@ export class EscPosBuilder {
 
   reset(): this {
     this.buffer = [0x1b, 0x40];
+    return this;
+  }
+
+  raw(bytes: Uint8Array): this {
+    for (const b of bytes) this.buffer.push(b);
+    return this;
+  }
+
+  raster(image: EscPosRaster): this {
+    this.push(
+      0x1d,
+      0x76,
+      0x30,
+      0x00,
+      image.widthBytes & 0xff,
+      (image.widthBytes >> 8) & 0xff,
+      image.height & 0xff,
+      (image.height >> 8) & 0xff,
+    );
+    this.raw(image.data);
     return this;
   }
 
@@ -62,6 +89,65 @@ export class EscPosBuilder {
   private push(...bytes: number[]): void {
     for (const b of bytes) this.buffer.push(b);
   }
+}
+
+function cargarImagen(src: string): Promise<HTMLImageElement> {
+  return new Promise((resolve, reject) => {
+    const img = new Image();
+    img.crossOrigin = "anonymous";
+    img.onload = () => resolve(img);
+    img.onerror = () => reject(new Error("No se pudo cargar el logo"));
+    img.src = src;
+  });
+}
+
+export async function imageToEscPosRaster(
+  src: string,
+  maxWidthDots = 192,
+  maxHeightDots = 192,
+  threshold = 160,
+): Promise<EscPosRaster | null> {
+  if (typeof document === "undefined" || !src) return null;
+
+  const img = await cargarImagen(src);
+  const anchoOriginal = img.naturalWidth || img.width || 256;
+  const altoOriginal = img.naturalHeight || img.height || 256;
+  const escala = Math.min(
+    maxWidthDots / anchoOriginal,
+    maxHeightDots / altoOriginal,
+    1,
+  );
+  const width = Math.max(1, Math.floor(anchoOriginal * escala));
+  const height = Math.max(1, Math.floor(altoOriginal * escala));
+
+  const canvas = document.createElement("canvas");
+  canvas.width = width;
+  canvas.height = height;
+
+  const ctx = canvas.getContext("2d");
+  if (!ctx) return null;
+
+  ctx.fillStyle = "#ffffff";
+  ctx.fillRect(0, 0, width, height);
+  ctx.drawImage(img, 0, 0, width, height);
+
+  const pixels = ctx.getImageData(0, 0, width, height).data;
+  const widthBytes = Math.ceil(width / 8);
+  const data = new Uint8Array(widthBytes * height);
+
+  for (let y = 0; y < height; y++) {
+    for (let x = 0; x < width; x++) {
+      const i = (y * width + x) * 4;
+      const luminancia =
+        0.299 * pixels[i] + 0.587 * pixels[i + 1] + 0.114 * pixels[i + 2];
+
+      if (luminancia < threshold) {
+        data[y * widthBytes + (x >> 3)] |= 0x80 >> (x & 7);
+      }
+    }
+  }
+
+  return { widthBytes, height, data };
 }
 
 const THERMAL_PRINTER_SERVICE = "e7810a71-73ae-499d-8c15-faa9aef0c3f2";
@@ -129,17 +215,36 @@ export function buildTicketCommands(builder: EscPosBuilder, data: {
     descuento?: number;
     atributos?: Record<string, string>;
   }[];
+  emisor?: EntidadEmisora | null;
+  logoRaster?: EscPosRaster | null;
 }): void {
+  const nombre = data.emisor?.nombre_comercial || NOMBRE_EMPRESA;
+  const razonSocial = data.emisor?.razon_social || NOMBRE_EMPRESA;
+  const rfc = data.emisor?.rfc || DATOS_EMPRESA.rfc;
+  const telefonos = data.emisor?.telefonos || DATOS_EMPRESA.telefono;
+  const correo = data.emisor?.email || DATOS_EMPRESA.correo;
+
+  builder.align("center");
+
+  if (data.logoRaster) {
+    builder.raster(data.logoRaster).feed();
+  }
+
   builder
-    .align("center")
     .doubleHeight(true)
     .bold(true)
-    .text(NOMBRE_EMPRESA)
+    .text(nombre)
     .doubleHeight(false)
-    .bold(false)
-    .text("RFC: PPH180924PK9")
-    .text(`Tel: ${DATOS_EMPRESA.telefono}`)
-    .text(`Correo: ${DATOS_EMPRESA.correo}`)
+    .bold(false);
+
+  if (razonSocial && razonSocial !== nombre) {
+    builder.text(razonSocial);
+  }
+
+  builder
+    .text(`RFC: ${rfc}`)
+    .text(`Tel: ${telefonos}`)
+    .text(`Correo: ${correo}`)
     .feed()
     .align("left")
     .line("=")

@@ -94,8 +94,23 @@ export async function POST(request: NextRequest) {
     );
   }
 
+  let emisor = null;
+  if (pedido.entidad_emisora_id) {
+    const { data } = await admin
+      .from("entidades_emisoras")
+      .select("*")
+      .eq("id", pedido.entidad_emisora_id)
+      .maybeSingle();
+    emisor = data;
+  }
+
   try {
-    await enviarTicketPorCorreo({ to: email, pedido });
+    await enviarTicketPorCorreo({
+      to: email,
+      pedido,
+      emisor,
+      baseUrl: request.nextUrl.origin,
+    });
   } catch (err) {
     const detalle = err instanceof Error ? err.message : "Error desconocido";
     console.error("Error al enviar ticket por correo:", err);

@@ -149,11 +149,35 @@ export interface Marca {
   codigo: string;
 }
 
+export interface EntidadEmisora {
+  id: string;
+  codigo: string;
+  nombre_comercial: string;
+  razon_social: string;
+  rfc: string;
+  regimen_fiscal: string;
+  direccion: string;
+  telefonos: string | null;
+  email: string | null;
+  sitio_web: string | null;
+  logo_url: string | null;
+  marca_id: string | null;
+  sucursal_id: string | null;
+  cp_expedicion: string;
+  serie_factura: string | null;
+  facturacion_key: string;
+  activo: boolean;
+  orden: number;
+  created_at?: string;
+  updated_at?: string;
+}
+
 export interface Profile {
   id: string;
   rol: Rol;
   nombre: string;
   sucursal_id?: string | null;
+  entidad_emisora_id?: string | null;
   created_at: string;
 }
 
@@ -201,6 +225,7 @@ export interface Pedido {
   fecha_pago_total?: string | null;
   sucursal_id?: string | null;
   marca_id?: string | null;
+  entidad_emisora_id?: string | null;
   prioridad?: PrioridadPedido | null;
   asignado_a?: string | null;
   motivo_correccion?: string | null;
@@ -264,6 +289,7 @@ export interface FacturaGlobal {
   periodo: string;
   fecha_desde: string;
   fecha_hasta: string;
+  entidad_emisora_id?: string | null;
   folio: string | null;
   serie: string | null;
   uuid: string | null;
@@ -321,6 +347,7 @@ export interface PedidoDraft extends DatosFiscalesPedido {
   ruta: RutaProduccion;
   sucursal_id: string;
   marca_id: string;
+  entidad_emisora_id?: string;
 }
 
 export interface ProductionArea {

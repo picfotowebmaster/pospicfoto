@@ -11,7 +11,8 @@ import { ThermalPrintButton } from "@/app/_components/ThermalPrintButton";
 import { Button } from "@/components/ui/Button";
 import { useToast } from "@/components/ui/Toast";
 import { pedidoPagado } from "@/lib/utils/fiscal";
-import type { Pedido } from "@/lib/supabase/types";
+import { fetchEntidadesPorIds } from "@/lib/services/entidadesEmisoras";
+import type { EntidadEmisora, Pedido } from "@/lib/supabase/types";
 
 export default function TicketPage() {
   const { id } = useParams<{ id: string }>();
@@ -19,6 +20,9 @@ export default function TicketPage() {
   const { signOut } = useAuth();
   const { showError, showSuccess } = useToast();
   const [pedidos, setPedidos] = useState<Pedido[]>([]);
+  const [emisores, setEmisores] = useState<Map<string, EntidadEmisora>>(
+    new Map(),
+  );
   const [cargando, setCargando] = useState(true);
   const [facturando, setFacturando] = useState(false);
   const [enviandoTicket, setEnviandoTicket] = useState(false);
@@ -66,6 +70,18 @@ export default function TicketPage() {
     })();
   }, [id]);
 
+  useEffect(() => {
+    const ids = pedidos
+      .map((pedido) => pedido.entidad_emisora_id)
+      .filter((id): id is string => Boolean(id));
+
+    if (ids.length === 0) return;
+
+    fetchEntidadesPorIds(ids)
+      .then(setEmisores)
+      .catch(() => {});
+  }, [pedidos]);
+
   const handleThermalPrint = useCallback(() => {
     for (const pedido of pedidos) {
       const lineas = (pedido.detalle_pedidos ?? []).map((d) => ({
@@ -89,9 +105,12 @@ export default function TicketPage() {
         anticipo: pedido.anticipo,
         total: pedido.total,
         lineas,
+        emisor: pedido.entidad_emisora_id
+          ? emisores.get(pedido.entidad_emisora_id) ?? null
+          : null,
       });
     }
-  }, [pedidos, printer]);
+  }, [pedidos, printer, emisores]);
 
   async function handleEnviarTicket() {
     const pedido = pedidos[0];
@@ -275,7 +294,14 @@ export default function TicketPage() {
       </div>
       <div className="ticket-print-area">
         {pedidos.length === 1 ? (
-          <TicketTemplate pedido={pedidos[0]} />
+          <TicketTemplate
+            pedido={pedidos[0]}
+            emisor={
+              pedidos[0].entidad_emisora_id
+                ? emisores.get(pedidos[0].entidad_emisora_id) ?? null
+                : null
+            }
+          />
         ) : (
           <div>
             <div className="ticket-container max-w-[72mm] mx-auto font-mono text-[10px] leading-tight text-black bg-white mb-4">
@@ -289,7 +315,14 @@ export default function TicketPage() {
             {pedidos.map((p, i) => (
               <div key={p.id}>
                 {i > 0 && <div className="border-t-4 border-dashed border-gray-300 my-4 max-w-[72mm] mx-auto" />}
-                <TicketTemplate pedido={p} />
+                <TicketTemplate
+                  pedido={p}
+                  emisor={
+                    p.entidad_emisora_id
+                      ? emisores.get(p.entidad_emisora_id) ?? null
+                      : null
+                  }
+                />
               </div>
             ))}
           </div>

@@ -19,7 +19,8 @@ import {
   enviarFacturaGlobalPorCorreo,
   type AdjuntoCorreo,
 } from "@/lib/services/email";
-import type { Pedido } from "@/lib/supabase/types";
+import { resolverConfigFacturacion } from "@/lib/services/facturacionConfig";
+import type { EntidadEmisora, Pedido } from "@/lib/supabase/types";
 
 const ROLES_PERMITIDOS = ["contador", "admin", "superadmin"];
 
@@ -69,7 +70,7 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: "No autorizado" }, { status: 403 });
   }
 
-  let body: { periodo?: string };
+  let body: { periodo?: string; entidad_emisora_id?: string };
   try {
     body = await request.json();
   } catch {
@@ -84,6 +85,14 @@ export async function POST(request: NextRequest) {
     );
   }
 
+  const entidadEmisoraId = body?.entidad_emisora_id;
+  if (!entidadEmisoraId || typeof entidadEmisoraId !== "string") {
+    return NextResponse.json(
+      { error: "La razón social / sucursal es requerida" },
+      { status: 400 },
+    );
+  }
+
   const info = calcularPeriodo(periodo);
   if (!info) {
     return NextResponse.json(
@@ -94,9 +103,27 @@ export async function POST(request: NextRequest) {
 
   const admin = createAdminClient();
 
+  const { data: entidadData } = await admin
+    .from("entidades_emisoras")
+    .select("*")
+    .eq("id", entidadEmisoraId)
+    .eq("activo", true)
+    .maybeSingle();
+
+  const entidad = (entidadData as EntidadEmisora | null) ?? null;
+  if (!entidad) {
+    return NextResponse.json(
+      { error: "Entidad emisora no encontrada o inactiva" },
+      { status: 400 },
+    );
+  }
+
+  const configFacturacion = resolverConfigFacturacion(entidad);
+
   const { data, error } = await admin
     .from("pedidos")
     .select("*, detalle_pedidos(*)")
+    .eq("entidad_emisora_id", entidad.id)
     .gte("fecha_pago_total", info.desdeISO)
     .lt("fecha_pago_total", info.hastaISO)
     .is("factura_uuid", null)
@@ -131,7 +158,9 @@ export async function POST(request: NextRequest) {
   const pedidosCount = contarPedidosGlobal(pedidos);
 
   const { data: folioData, error: folioErr } =
-    await admin.rpc("generar_folio_factura");
+    await admin.rpc("generar_folio_factura_entidad", {
+      p_entidad_id: entidad.id,
+    });
   if (folioErr) {
     return NextResponse.json(
       { error: "No se pudo generar el folio de la factura global" },
@@ -140,7 +169,7 @@ export async function POST(request: NextRequest) {
   }
 
   const folio = String(folioData ?? Date.now());
-  const serie = process.env.FACTUREMOSYA_SERIE || "";
+  const serie = configFacturacion.serie;
 
   const { data: registro, error: registroErr } = await admin
     .from("facturas_globales")
@@ -148,6 +177,7 @@ export async function POST(request: NextRequest) {
       periodo: info.periodo,
       fecha_desde: info.desde,
       fecha_hasta: info.hasta,
+      entidad_emisora_id: entidad.id,
       folio,
       serie,
       estado: "pendiente",
@@ -172,8 +202,8 @@ export async function POST(request: NextRequest) {
     lineas,
     {
       tasaIVA: 0.16,
-      regimenEmisor: process.env.FACTUREMOSYA_REGIMEN_EMISOR || "601",
-      cpExpedicion: process.env.FACTUREMOSYA_CP_EXPEDICION || "06450",
+      regimenEmisor: configFacturacion.regimenEmisor,
+      cpExpedicion: configFacturacion.cpExpedicion,
       folio,
       serie,
       formaPago: "99",
@@ -188,11 +218,9 @@ export async function POST(request: NextRequest) {
   try {
     respuesta = await timbrarTxt(
       {
-        url:
-          process.env.FACTUREMOSYA_URL ||
-          "https://www.facturemosya.com/webservice/timbrarCfdi4_0.php",
-        usuario: process.env.FACTUREMOSYA_USUARIO || "democfdi",
-        password: process.env.FACTUREMOSYA_PASSWORD || "demo2011",
+        url: configFacturacion.url,
+        usuario: configFacturacion.usuario,
+        password: configFacturacion.password,
       },
       documento,
       "0",
@@ -294,6 +322,7 @@ export async function POST(request: NextRequest) {
         pedidosCount,
         pdfUrl,
         xmlUrl,
+        emisorNombre: entidad.nombre_comercial,
         adjuntos,
       });
       emailEnviado = true;

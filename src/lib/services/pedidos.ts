@@ -3,6 +3,61 @@ import type { PedidoDraft, Pedido, MetodoPago, RutaProduccion, LineaPedidoDraft,
 import { upsertHistorial } from "./historial";
 import { guardarClienteFiscal } from "./clientesFiscales";
 
+interface EntidadResuelta {
+  marcaId: string;
+  sucursalId: string;
+  marcaCodigo: string;
+  sucursalCodigo: string;
+  entidadEmisoraId: string | null;
+}
+
+async function resolverEntidadEmisora(draft: {
+  entidad_emisora_id?: string;
+  marca_id: string;
+  sucursal_id: string;
+}): Promise<EntidadResuelta> {
+  let marcaId = draft.marca_id;
+  let sucursalId = draft.sucursal_id;
+  let entidadEmisoraId: string | null = null;
+
+  if (draft.entidad_emisora_id) {
+    const { data: entidad, error } = await supabase
+      .from("entidades_emisoras")
+      .select("id, marca_id, sucursal_id")
+      .eq("id", draft.entidad_emisora_id)
+      .maybeSingle();
+
+    if (error) throw error;
+    if (!entidad) throw new Error("Entidad emisora no encontrada");
+
+    entidadEmisoraId = entidad.id;
+    marcaId = entidad.marca_id || marcaId;
+    sucursalId = entidad.sucursal_id || sucursalId;
+  }
+
+  const { data: marca } = await supabase
+    .from("marcas")
+    .select("codigo")
+    .eq("id", marcaId)
+    .single();
+
+  const { data: sucursal } = await supabase
+    .from("sucursales")
+    .select("codigo")
+    .eq("id", sucursalId)
+    .single();
+
+  if (!marca || !sucursal) throw new Error("Marca o sucursal no encontrada");
+
+  return {
+    marcaId,
+    sucursalId,
+    marcaCodigo: marca.codigo,
+    sucursalCodigo: sucursal.codigo,
+    entidadEmisoraId,
+  };
+}
+
 export interface FiltrosPedidos {
   pagina: number;
   porPagina: number;
@@ -17,24 +72,12 @@ export interface FiltrosPedidos {
 }
 
 export async function crearPedido(draft: PedidoDraft, cajeroId: string): Promise<string> {
-  const { data: marca } = await supabase
-    .from("marcas")
-    .select("codigo")
-    .eq("id", draft.marca_id)
-    .single();
-
-  const { data: sucursal } = await supabase
-    .from("sucursales")
-    .select("codigo")
-    .eq("id", draft.sucursal_id)
-    .single();
-
-  if (!marca || !sucursal) throw new Error("Marca o sucursal no encontrada");
+  const entidad = await resolverEntidadEmisora(draft);
 
   const { data: numData, error: numErr } = await supabase
     .rpc("generar_numero_pedido", {
-      marca_codigo: marca.codigo,
-      sucursal_codigo: sucursal.codigo,
+      marca_codigo: entidad.marcaCodigo,
+      sucursal_codigo: entidad.sucursalCodigo,
     });
 
   if (numErr) throw numErr;
@@ -65,8 +108,9 @@ export async function crearPedido(draft: PedidoDraft, cajeroId: string): Promise
       metodo_pago: draft.metodo_pago,
       ruta: draft.ruta,
       area_actual: "mostrador",
-      sucursal_id: draft.sucursal_id,
-      marca_id: draft.marca_id,
+      sucursal_id: entidad.sucursalId,
+      marca_id: entidad.marcaId,
+      entidad_emisora_id: entidad.entidadEmisoraId,
       numero_pedido: numData,
     })
     .select()
@@ -129,6 +173,7 @@ async function insertarSubPedido(
     ruta: RutaProduccion;
     sucursal_id: string;
     marca_id: string;
+    entidad_emisora_id?: string | null;
     subtotal: number;
     anticipo: number;
     total: number;
@@ -172,6 +217,7 @@ async function insertarSubPedido(
       area_actual: "mostrador",
       sucursal_id: draft.sucursal_id,
       marca_id: draft.marca_id,
+      entidad_emisora_id: draft.entidad_emisora_id || null,
       numero_pedido: numData,
       factura_numero: facturaNumero,
     })
@@ -228,22 +274,11 @@ export interface DraftAgrupado extends DatosFiscalesPedido {
   metodo_pago: MetodoPago;
   sucursal_id: string;
   marca_id: string;
+  entidad_emisora_id?: string;
 }
 
 export async function crearPedidoAgrupado(draft: DraftAgrupado, cajeroId: string): Promise<{ facturaNumero: string; pedidoIds: string[] }> {
-  const { data: marca } = await supabase
-    .from("marcas")
-    .select("codigo")
-    .eq("id", draft.marca_id)
-    .single();
-
-  const { data: sucursal } = await supabase
-    .from("sucursales")
-    .select("codigo")
-    .eq("id", draft.sucursal_id)
-    .single();
-
-  if (!marca || !sucursal) throw new Error("Marca o sucursal no encontrada");
+  const entidad = await resolverEntidadEmisora(draft);
 
   const groups: Record<string, LineaPedidoDraft[]> = {};
   for (const l of draft.lineas) {
@@ -275,8 +310,9 @@ export async function crearPedidoAgrupado(draft: DraftAgrupado, cajeroId: string
         total: draft.total,
         metodo_pago: draft.metodo_pago,
         ruta,
-        sucursal_id: draft.sucursal_id,
-        marca_id: draft.marca_id,
+        sucursal_id: entidad.sucursalId,
+        marca_id: entidad.marcaId,
+        entidad_emisora_id: entidad.entidadEmisoraId ?? undefined,
       },
       cajeroId,
     );
@@ -285,8 +321,8 @@ export async function crearPedidoAgrupado(draft: DraftAgrupado, cajeroId: string
 
   const { data: facturaData, error: facturaNumErr } = await supabase
     .rpc("generar_numero_pedido", {
-      marca_codigo: marca.codigo,
-      sucursal_codigo: sucursal.codigo,
+      marca_codigo: entidad.marcaCodigo,
+      sucursal_codigo: entidad.sucursalCodigo,
     });
 
   if (facturaNumErr) throw facturaNumErr;
@@ -300,8 +336,8 @@ export async function crearPedidoAgrupado(draft: DraftAgrupado, cajeroId: string
 
     const pedidoId = await insertarSubPedido(
       cajeroId,
-      marca.codigo,
-      sucursal.codigo,
+      entidad.marcaCodigo,
+      entidad.sucursalCodigo,
       {
         cliente_nombre: draft.cliente_nombre,
         cliente_telefono: draft.cliente_telefono,
@@ -317,8 +353,9 @@ export async function crearPedidoAgrupado(draft: DraftAgrupado, cajeroId: string
         requiere_correccion: draft.requiere_correccion,
         metodo_pago: draft.metodo_pago,
         ruta: ruta as RutaProduccion,
-        sucursal_id: draft.sucursal_id,
-        marca_id: draft.marca_id,
+        sucursal_id: entidad.sucursalId,
+        marca_id: entidad.marcaId,
+        entidad_emisora_id: entidad.entidadEmisoraId,
         subtotal: Math.round(draft.subtotal * factor * 100) / 100,
         anticipo: Math.round(draft.anticipo * factor * 100) / 100,
         total: Math.round(draft.total * factor * 100) / 100,

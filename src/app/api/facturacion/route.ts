@@ -11,7 +11,9 @@ import { timbrarTxt } from "@/lib/services/facturemosya";
 import { formatearErrorFacturemosya } from "@/lib/services/facturemosyaErrores";
 import { enviarFacturaPorCorreo, type AdjuntoCorreo } from "@/lib/services/email";
 import { subirFacturaAStorage } from "@/lib/services/facturaStorage";
+import { resolverConfigFacturacion } from "@/lib/services/facturacionConfig";
 import { pedidoPagado } from "@/lib/utils/fiscal";
+import type { EntidadEmisora } from "@/lib/supabase/types";
 
 const ROLES_PERMITIDOS = ["mostrador", "admin", "superadmin", "contador"];
 const UUID_RE =
@@ -119,6 +121,18 @@ export async function POST(request: NextRequest) {
   if (!principal) {
     return NextResponse.json({ error: "Pedido no encontrado" }, { status: 404 });
   }
+
+  let entidad: EntidadEmisora | null = null;
+  if (principal.entidad_emisora_id) {
+    const { data } = await admin
+      .from("entidades_emisoras")
+      .select("*")
+      .eq("id", principal.entidad_emisora_id as string)
+      .maybeSingle();
+    entidad = (data as EntidadEmisora | null) ?? null;
+  }
+
+  const configFacturacion = resolverConfigFacturacion(entidad);
 
   if (principal.factura_uuid) {
     return NextResponse.json({
@@ -253,14 +267,18 @@ export async function POST(request: NextRequest) {
     );
   }
 
-  const { data: folioData } = await admin.rpc("generar_folio_factura");
+  const { data: folioData } = entidad
+    ? await admin.rpc("generar_folio_factura_entidad", {
+        p_entidad_id: entidad.id,
+      })
+    : await admin.rpc("generar_folio_factura");
   const folioFactura = String(folioData ?? Date.now());
-  const serieFactura = process.env.FACTUREMOSYA_SERIE || "";
+  const serieFactura = configFacturacion.serie;
 
   const documento = construirDocumentoTxt(lineas, {
     tasaIVA: 0.16,
-    regimenEmisor: process.env.FACTUREMOSYA_REGIMEN_EMISOR || "601",
-    cpExpedicion: process.env.FACTUREMOSYA_CP_EXPEDICION || "06450",
+    regimenEmisor: configFacturacion.regimenEmisor,
+    cpExpedicion: configFacturacion.cpExpedicion,
     folio: folioFactura,
     serie: serieFactura,
     formaPago: mapearFormaPagoFinal(principal),
@@ -273,11 +291,9 @@ export async function POST(request: NextRequest) {
   try {
     respuesta = await timbrarTxt(
       {
-        url:
-          process.env.FACTUREMOSYA_URL ||
-          "https://www.facturemosya.com/webservice/timbrarCfdi4_0.php",
-        usuario: process.env.FACTUREMOSYA_USUARIO || "democfdi",
-        password: process.env.FACTUREMOSYA_PASSWORD || "demo2011",
+        url: configFacturacion.url,
+        usuario: configFacturacion.usuario,
+        password: configFacturacion.password,
       },
       documento,
       "0",
@@ -333,6 +349,8 @@ export async function POST(request: NextRequest) {
       factura_fecha: new Date().toISOString(),
       factura_serie: serieFactura,
       factura_folio: folioFactura,
+      entidad_emisora_id:
+        entidad?.id ?? (principal.entidad_emisora_id as string | null) ?? null,
     })
     .in("id", ids);
 
@@ -363,6 +381,7 @@ export async function POST(request: NextRequest) {
         uuid,
         pdfUrl,
         xmlUrl,
+        emisorNombre: entidad?.nombre_comercial,
         adjuntos,
       });
 
