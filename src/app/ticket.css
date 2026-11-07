@@ -20,16 +20,22 @@
     display: none !important;
   }
 
-  .ticket-print-area,
-  .ticket-print-area * {
+  .ticket-page,
+  .ticket-page * {
     visibility: visible !important;
   }
 
-  .ticket-print-area {
-    position: absolute !important;
-    top: 0 !important;
-    left: 0 !important;
+  .ticket-page {
     display: block !important;
+    position: static !important;
+    min-height: 0 !important;
+    padding: 0 !important;
+    background: white !important;
+  }
+
+  .ticket-print-area {
+    display: block !important;
+    position: static !important;
     width: 72mm !important;
     margin: 0 !important;
     padding: 0 !important;
@@ -58,12 +64,5 @@
   .ticket-container .grid {
     break-inside: avoid;
     page-break-inside: avoid;
-  }
-
-  .ticket-page {
-    display: block !important;
-    min-height: 0 !important;
-    padding: 0 !important;
-    background: white !important;
   }
 }

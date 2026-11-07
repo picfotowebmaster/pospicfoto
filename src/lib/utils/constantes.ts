@@ -4,6 +4,8 @@ export const DATOS_EMPRESA = {
   nombre: NOMBRE_EMPRESA,
   rfc: "PPH180924PK9",
   direccion: 'REPÚBLICA DE CUBA #81 LOCAL "A" Y "C", CENTRO HISTÓRICO, CDMX.',
+  telefono: "55 5518 4687",
+  correo: "miorden@picfoto.mx",
 };
 
 export const POLITICAS = [

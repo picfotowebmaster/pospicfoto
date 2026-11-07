@@ -1,4 +1,4 @@
-import { NOMBRE_EMPRESA } from "@/lib/utils/constantes";
+import { DATOS_EMPRESA, NOMBRE_EMPRESA } from "@/lib/utils/constantes";
 
 export function encodeText(text: string): Uint8Array {
   return new TextEncoder().encode(text);
@@ -138,6 +138,8 @@ export function buildTicketCommands(builder: EscPosBuilder, data: {
     .doubleHeight(false)
     .bold(false)
     .text("RFC: PPH180924PK9")
+    .text(`Tel: ${DATOS_EMPRESA.telefono}`)
+    .text(`Correo: ${DATOS_EMPRESA.correo}`)
     .feed()
     .align("left")
     .line("=")

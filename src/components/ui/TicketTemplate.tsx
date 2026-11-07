@@ -1,4 +1,5 @@
 import React from "react";
+import Image from "next/image";
 import { DATOS_EMPRESA, POLITICAS } from "@/lib/utils/constantes";
 import type { Pedido } from "@/lib/supabase/types";
 
@@ -10,9 +11,19 @@ export function TicketTemplate({ pedido }: TicketTemplateProps) {
   return (
     <div className="ticket-container max-w-[72mm] mx-auto font-mono text-[10px] leading-tight text-black bg-white">
       <div className="text-center mb-1">
+        <Image
+          src="/icons/icon-128.png"
+          alt="Logotipo de Pic Foto"
+          width={128}
+          height={128}
+          unoptimized
+          className="mx-auto mb-1 h-[16mm] w-[16mm] object-contain"
+        />
         <div className="font-bold text-xs">{DATOS_EMPRESA.nombre}</div>
         <div>RFC: {DATOS_EMPRESA.rfc}</div>
         <div className="text-[8px]">{DATOS_EMPRESA.direccion}</div>
+        <div>Tel: {DATOS_EMPRESA.telefono}</div>
+        <div>Correo: {DATOS_EMPRESA.correo}</div>
       </div>
 
       <div className="border-t border-b border-dashed border-gray-400 py-0.5 mb-1">

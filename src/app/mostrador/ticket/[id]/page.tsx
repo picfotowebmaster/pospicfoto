@@ -20,7 +20,6 @@ export default function TicketPage() {
   const { showError, showSuccess } = useToast();
   const [pedidos, setPedidos] = useState<Pedido[]>([]);
   const [cargando, setCargando] = useState(true);
-  const [autoPrintDone, setAutoPrintDone] = useState(false);
   const [facturando, setFacturando] = useState(false);
   const [enviandoTicket, setEnviandoTicket] = useState(false);
   const [facturaInfo, setFacturaInfo] = useState<{
@@ -66,15 +65,6 @@ export default function TicketPage() {
       }
     })();
   }, [id]);
-
-  useEffect(() => {
-    if (pedidos.length > 0 && !cargando && !autoPrintDone) {
-      setTimeout(() => {
-        window.print();
-        setAutoPrintDone(true);
-      }, 300);
-    }
-  }, [pedidos, cargando, autoPrintDone]);
 
   const handleThermalPrint = useCallback(() => {
     for (const pedido of pedidos) {

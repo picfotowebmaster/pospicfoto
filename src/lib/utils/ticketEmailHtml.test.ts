@@ -35,6 +35,8 @@ describe("renderTicketHtml", () => {
     expect(html).toContain("$100.00");
     expect(html).toContain("Tarjeta");
     expect(html).toContain("Foto");
+    expect(html).toContain("55 5518 4687");
+    expect(html).toContain("miorden@picfoto.mx");
   });
 
   it("escapa el contenido dinámico para evitar inyección HTML", () => {

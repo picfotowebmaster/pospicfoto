@@ -50,6 +50,8 @@ export function renderTicketHtml(pedido: Pedido): string {
       <div style="font-size:18px;font-weight:bold;color:#111827;">${esc(DATOS_EMPRESA.nombre)}</div>
       <div style="font-size:12px;">RFC: ${esc(DATOS_EMPRESA.rfc)}</div>
       <div style="font-size:11px;color:#6b7280;">${esc(DATOS_EMPRESA.direccion)}</div>
+      <div style="font-size:11px;color:#6b7280;">Tel: ${esc(DATOS_EMPRESA.telefono)}</div>
+      <div style="font-size:11px;color:#6b7280;">Correo: ${esc(DATOS_EMPRESA.correo)}</div>
     </div>
 
     <table style="width:100%;font-size:12px;margin-bottom:12px;">
