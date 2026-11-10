@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect, Suspense } from "react";
+import React, { useState, useEffect, useCallback, useRef, Suspense } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useAuth } from "@/lib/hooks/useAuth";
 import { usePedidoActual } from "@/lib/hooks/usePedidoActual";
@@ -18,13 +18,17 @@ import { crearPedidoAgrupado } from "@/lib/services/pedidos";
 import { supabase } from "@/lib/supabase/client";
 import { Logo } from "@/components/ui/Logo";
 import { NOMBRE_EMPRESA } from "@/lib/utils/constantes";
-import { fetchAtributosConValores } from "@/lib/services/atributos";
-import { fetchCatalogo, type Catalogo } from "@/lib/services/catalogo";
+import type { Catalogo } from "@/lib/services/catalogo";
 import { useOffline } from "@/lib/offline/useOffline";
 import { useOfflineSync } from "@/lib/offline/useOfflineSync";
 import { queueOrder, getQueueCount } from "@/lib/offline/orderQueue";
-import { loadCatalog } from "@/lib/offline/catalogSync";
-import { fetchEntidadEmisora } from "@/lib/services/entidadesEmisoras";
+import { loadCatalog, refreshCatalog } from "@/lib/offline/catalogSync";
+import {
+  emparejarEntidad,
+  fetchEntidadEmisora,
+  fetchEntidadPorMarcaSucursal,
+} from "@/lib/services/entidadesEmisoras";
+import { facturacionHabilitada } from "@/lib/config/features";
 import OfflineIndicator from "../_components/OfflineIndicator";
 import RoleSwitcher from "@/app/_components/RoleSwitcher";
 import type {
@@ -42,10 +46,11 @@ function MostradorContent() {
   const { showError, showSuccess } = useToast();
   const sucursalId = profile?.sucursal_id ?? "";
   const [entidad, setEntidad] = useState<EntidadEmisora | null>(null);
+  const entidadEmisoraId = profile?.entidad_emisora_id ?? entidad?.id ?? "";
   const pedido = usePedidoActual(
     sucursalId,
-    profile?.entidad_emisora_id ?? "",
-    entidad?.marca_id ?? "",
+    entidadEmisoraId,
+    entidad?.marca_id ?? profile?.marca_id ?? "",
   );
   const { isOnline } = useOffline();
   useOfflineSync({ cajeroId: session?.user.id, isOnline });
@@ -61,6 +66,37 @@ function MostradorContent() {
   const [marcas, setMarcas] = useState<{ id: string; nombre: string; codigo: string }[]>([]);
   const [queueCount, setQueueCount] = useState(0);
   const [confirmando, setConfirmando] = useState(false);
+  const [refrescandoCatalogo, setRefrescandoCatalogo] = useState(false);
+  const refrescandoRef = useRef<Promise<void> | null>(null);
+
+  const refrescarCatalogo = useCallback(
+    (opciones?: { silencioso?: boolean }): Promise<void> => {
+      if (!isOnline) return Promise.resolve();
+      if (refrescandoRef.current) return refrescandoRef.current;
+
+      setRefrescandoCatalogo(true);
+      const promesa = (async () => {
+        try {
+          const { atributos, catalogo } = await refreshCatalog();
+          setAtributosPool(atributos);
+          setCatalogo(catalogo);
+          if (!opciones?.silencioso) showSuccess("Catálogo actualizado.");
+        } catch (err) {
+          showError(
+            err instanceof Error
+              ? `No se pudo actualizar el catálogo: ${err.message}`
+              : "No se pudo actualizar el catálogo.",
+          );
+        } finally {
+          refrescandoRef.current = null;
+          setRefrescandoCatalogo(false);
+        }
+      })();
+      refrescandoRef.current = promesa;
+      return promesa;
+    },
+    [isOnline, showError, showSuccess],
+  );
 
   const mensajeParam = searchParams.get("mensaje");
   const mensajeError = mensajeDescartado
@@ -85,15 +121,15 @@ function MostradorContent() {
         const found = sucs.find((s) => s.id === sucursalId);
         if (found) setSucursalNombre(found.nombre);
       }
-      if (cached.entidades && profile?.entidad_emisora_id) {
+      if (cached.entidades) {
         const entidades = cached.entidades as EntidadEmisora[];
-        const found = entidades.find(
-          (e) => e.id === profile.entidad_emisora_id,
-        );
+        const found =
+          entidades.find((e) => e.id === profile?.entidad_emisora_id) ??
+          emparejarEntidad(entidades, profile?.marca_id, sucursalId);
         if (found) setEntidad(found);
       }
     }).catch(() => {});
-  }, [isOnline, sucursalId, profile?.entidad_emisora_id]);
+  }, [isOnline, sucursalId, profile?.entidad_emisora_id, profile?.marca_id]);
 
   useEffect(() => {
     if (isOnline && sucursalId) {
@@ -111,35 +147,53 @@ function MostradorContent() {
 
   useEffect(() => {
     let ignore = false;
-    fetchEntidadEmisora(profile?.entidad_emisora_id)
-      .then((data) => {
+    (async () => {
+      try {
+        let data = await fetchEntidadEmisora(profile?.entidad_emisora_id);
+        if (!data && profile?.marca_id && sucursalId) {
+          data = await fetchEntidadPorMarcaSucursal(
+            profile.marca_id,
+            sucursalId,
+          );
+        }
         if (!ignore) setEntidad(data);
-      })
-      .catch(() => {
+      } catch {
         if (!ignore) setEntidad(null);
-      });
+      }
+    })();
     return () => {
       ignore = true;
     };
-  }, [profile?.entidad_emisora_id]);
+  }, [profile?.entidad_emisora_id, profile?.marca_id, sucursalId]);
 
   useEffect(() => {
-    if (isOnline) {
-      fetchAtributosConValores()
-        .then(setAtributosPool)
-        .catch(() => {});
-      fetchCatalogo()
-        .then(setCatalogo)
-        .catch(() => {});
-      supabase
-        .from("marcas")
-        .select("id, nombre, codigo")
-        .then(({ data }: { data: unknown }) => {
-          if (data) setMarcas(data as { id: string; nombre: string; codigo: string }[]);
-        })
-        .catch(() => {});
+    if (!isOnline) return;
+    void refrescarCatalogo({ silencioso: true });
+    supabase
+      .from("marcas")
+      .select("id, nombre, codigo")
+      .then(({ data }: { data: unknown }) => {
+        if (data) setMarcas(data as { id: string; nombre: string; codigo: string }[]);
+      })
+      .catch(() => {});
+  }, [isOnline, refrescarCatalogo]);
+
+  useEffect(() => {
+    let ultimo = 0;
+    function alVolver() {
+      if (document.visibilityState !== "visible" || !isOnline) return;
+      const ahora = Date.now();
+      if (ahora - ultimo < 60_000) return;
+      ultimo = ahora;
+      void refrescarCatalogo({ silencioso: true });
     }
-  }, [isOnline]);
+    window.addEventListener("focus", alVolver);
+    document.addEventListener("visibilitychange", alVolver);
+    return () => {
+      window.removeEventListener("focus", alVolver);
+      document.removeEventListener("visibilitychange", alVolver);
+    };
+  }, [isOnline, refrescarCatalogo]);
 
   const restoreDraft = pedido.restoreDraft;
   useEffect(() => {
@@ -154,12 +208,14 @@ function MostradorContent() {
     return () => clearInterval(interval);
   }, []);
 
-  function handleAgregarLinea() {
+  async function handleAgregarLinea() {
+    await refrescarCatalogo({ silencioso: true });
     setEditandoLinea(null);
     setMostrandoLinea(true);
   }
 
-  function handleEditarLinea(linea: LineaPedidoDraft) {
+  async function handleEditarLinea(linea: LineaPedidoDraft) {
+    await refrescarCatalogo({ silencioso: true });
     setEditandoLinea(linea);
     setMostrandoLinea(true);
   }
@@ -210,12 +266,21 @@ function MostradorContent() {
       cliente_nombre: pedido.cliente.nombre,
       cliente_telefono: pedido.cliente.telefono,
       cliente_email: pedido.cliente.email,
-      requiere_factura: pedido.cliente.requiereFactura,
-      cliente_rfc: pedido.cliente.rfc,
-      cliente_razon_social: pedido.cliente.razonSocial,
-      cliente_regimen_fiscal: pedido.cliente.regimenFiscal,
-      cliente_uso_cfdi: pedido.cliente.usoCfdi,
-      cliente_cp_fiscal: pedido.cliente.cpFiscal,
+      requiere_factura:
+        facturacionHabilitada() && pedido.cliente.requiereFactura,
+      cliente_rfc: facturacionHabilitada() ? pedido.cliente.rfc : "",
+      cliente_razon_social: facturacionHabilitada()
+        ? pedido.cliente.razonSocial
+        : "",
+      cliente_regimen_fiscal: facturacionHabilitada()
+        ? pedido.cliente.regimenFiscal
+        : "",
+      cliente_uso_cfdi: facturacionHabilitada()
+        ? pedido.cliente.usoCfdi
+        : "",
+      cliente_cp_fiscal: facturacionHabilitada()
+        ? pedido.cliente.cpFiscal
+        : "",
       fecha_entrega: pedido.cliente.fechaEntrega,
       hora_entrega: pedido.cliente.horaEntrega,
       requiere_correccion: requiereCorreccion,
@@ -307,6 +372,21 @@ function MostradorContent() {
           </Button>
         </form>
         <div className="flex items-center gap-3">
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={() => void refrescarCatalogo()}
+            disabled={refrescandoCatalogo}
+          >
+            <i
+              className={`fas ${
+                refrescandoCatalogo ? "fa-spinner fa-spin" : "fa-sync-alt"
+              } mr-1.5`}
+            />
+            <span className="hidden sm:inline">
+              {refrescandoCatalogo ? "Actualizando..." : "Actualizar catálogo"}
+            </span>
+          </Button>
           <OfflineIndicator />
           <ThemeToggle />
           <RoleSwitcher />
@@ -501,6 +581,7 @@ function MostradorContent() {
         editData={editandoLinea ?? undefined}
         rutaDefault={pedido.rutaDefault}
         catalogo={catalogo ?? undefined}
+        onRefrescarCatalogo={() => void refrescarCatalogo()}
       />
 
       <ModalConfirmarPedido

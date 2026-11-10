@@ -1,5 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
+  atributosPrecioSinClaveWeb,
+  claveWebParaAtributo,
   construirCsvImportacion,
   generarImportacionProducto,
   normalizarTexto,
@@ -1010,5 +1012,246 @@ describe("Marcos", () => {
     expect(resultado.detalle).toHaveLength(1);
     expect(resultado.detalle[0].valores_ids).toEqual(["m-85x11"]);
     expect(resultado.detalle[0].precio).toBe(135);
+  });
+});
+
+describe("generarImportacionProducto sin atributos de precio", () => {
+  const simple: ProductoCatalogoPrecio = {
+    id: "p-simple",
+    nombre: "Producto Simple",
+    atributos: [
+      {
+        atributo_id: "a-color",
+        nombre: "Color",
+        afecta_precio: false,
+        valores: [{ id: "v-negro", valor: "Negro" }],
+      },
+    ],
+  };
+
+  it("rechaza un producto con varias variaciones y cero atributos de precio", () => {
+    expect(() =>
+      generarImportacionProducto(
+        simple,
+        [
+          { id: 1, precio: 100, atributos: {} },
+          { id: 2, precio: 200, atributos: {} },
+        ],
+        [],
+      ),
+    ).toThrow(/atributo de precio/i);
+  });
+
+  it("acepta un precio base único sin atributos de precio", () => {
+    const resultado = generarImportacionProducto(
+      simple,
+      [{ id: 1, precio: 100, atributos: {} }],
+      [],
+    );
+
+    expect(resultado.atributos_precio).toEqual([]);
+    expect(resultado.filas).toEqual([
+      { valores_ids: [], precio: 100, etiqueta: "Precio base" },
+    ]);
+  });
+});
+
+describe("mapeo de atributos de precio a la tienda", () => {
+  it("mapea Grosor con la clave attribute_pa_grosor", () => {
+    expect(
+      claveWebParaAtributo("Grosor", "Acrílico con Bastidor y Chapetones"),
+    ).toBe("attribute_pa_grosor");
+  });
+
+  it("importa un producto donde Grosor afecta el precio", () => {
+    const producto: ProductoCatalogoPrecio = {
+      id: "acr-bastidor",
+      nombre: "Acrílico con Bastidor y Chapetones",
+      atributos: [
+        {
+          atributo_id: "a-size",
+          nombre: "Impresión Tamaño",
+          afecta_precio: true,
+          valores: [
+            { id: "v-6x6", valor: '6x6"' },
+            { id: "v-8x10", valor: '8x10"' },
+          ],
+        },
+        {
+          atributo_id: "a-grosor",
+          nombre: "Grosor",
+          afecta_precio: true,
+          valores: [{ id: "v-2mm", valor: "2mm" }],
+        },
+      ],
+    };
+
+    const resultado = generarImportacionProducto(
+      producto,
+      [
+        {
+          id: 1,
+          precio: 520,
+          atributos: {
+            "attribute_pa_tamano-de-impresion": "6x6",
+            "attribute_pa_grosor": "2mm",
+          },
+        },
+        {
+          id: 2,
+          precio: 895,
+          atributos: {
+            "attribute_pa_tamano-de-impresion": "8x10",
+            "attribute_pa_grosor": "2mm",
+          },
+        },
+      ],
+      [],
+    );
+
+    expect(resultado.atributos_precio).toEqual(["a-size", "a-grosor"]);
+    expect(resultado.filas.map((f) => f.valores_ids)).toEqual([
+      ["v-6x6", "v-2mm"],
+      ["v-8x10", "v-2mm"],
+    ]);
+    expect(resultado.sin_mapear).toHaveLength(0);
+  });
+
+  it("detecta atributos de precio sin clave web", () => {
+    const producto: ProductoCatalogoPrecio = {
+      id: "p",
+      nombre: "Producto X",
+      atributos: [
+        {
+          atributo_id: "a1",
+          nombre: "Grosor",
+          afecta_precio: true,
+          valores: [],
+        },
+        {
+          atributo_id: "a2",
+          nombre: "Acabado Especial",
+          afecta_precio: true,
+          valores: [],
+        },
+        {
+          atributo_id: "a3",
+          nombre: "Color",
+          afecta_precio: false,
+          valores: [],
+        },
+      ],
+    };
+
+    expect(atributosPrecioSinClaveWeb(producto)).toEqual(["Acabado Especial"]);
+  });
+
+  it("lanza un error accionable si falta la clave web", () => {
+    const producto: ProductoCatalogoPrecio = {
+      id: "p",
+      nombre: "Producto X",
+      atributos: [
+        {
+          atributo_id: "a1",
+          nombre: "Acabado Especial",
+          afecta_precio: true,
+          valores: [{ id: "v1", valor: "Mate" }],
+        },
+      ],
+    };
+
+    expect(() =>
+      generarImportacionProducto(
+        producto,
+        [{ id: 1, precio: 100, atributos: {} }],
+        [],
+      ),
+    ).toThrow(/clave web/i);
+  });
+});
+
+describe("validación de dimensiones de precio contra la tienda", () => {
+  it("rechaza un atributo de precio que no está en las variaciones", () => {
+    const producto: ProductoCatalogoPrecio = {
+      id: "acr-caja",
+      nombre: "Acrílico con Caja",
+      atributos: [
+        {
+          atributo_id: "a-size",
+          nombre: "Impresión Tamaño",
+          afecta_precio: true,
+          valores: [{ id: "v-4x6", valor: '4x6"' }],
+        },
+        {
+          atributo_id: "a-grosor",
+          nombre: "Grosor",
+          afecta_precio: true,
+          valores: [{ id: "v-2mm", valor: "2mm" }],
+        },
+      ],
+    };
+
+    expect(() =>
+      generarImportacionProducto(
+        producto,
+        [
+          {
+            id: 1,
+            precio: 100,
+            atributos: {
+              "attribute_pa_tamano-de-impresion": "4x6",
+            },
+          },
+        ],
+        [],
+      ),
+    ).toThrow(/no lo incluye en las variaciones/i);
+  });
+
+  it("descarta precios existentes incompatibles con las dimensiones nuevas", () => {
+    const producto: ProductoCatalogoPrecio = {
+      id: "acr-flotado",
+      nombre: "Acrílico Flotado",
+      atributos: [
+        {
+          atributo_id: "a-size",
+          nombre: "Impresión Tamaño",
+          afecta_precio: true,
+          valores: [{ id: "v-6x6", valor: '6x6"' }],
+        },
+        {
+          atributo_id: "a-grosor",
+          nombre: "Grosor",
+          afecta_precio: true,
+          valores: [{ id: "v-2mm", valor: "2mm" }],
+        },
+      ],
+    };
+
+    const resultado = generarImportacionProducto(
+      producto,
+      [
+        {
+          id: 1,
+          precio: 520,
+          atributos: {
+            "attribute_pa_tamano-de-impresion": "6x6",
+            "attribute_pa_grosor": "2mm",
+          },
+        },
+      ],
+      [{ valores_ids: ["v-6x6"], precio: 500 }],
+      { reemplazar: false },
+    );
+
+    expect(resultado.filas).toEqual([
+      {
+        valores_ids: ["v-6x6", "v-2mm"],
+        precio: 520,
+        etiqueta: '6x6" · 2mm',
+      },
+    ]);
+    expect(resultado.faltantes).toHaveLength(0);
+    expect(resultado.resumen.precios_existentes).toBe(0);
   });
 });

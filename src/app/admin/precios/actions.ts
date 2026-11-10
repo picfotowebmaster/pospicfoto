@@ -68,6 +68,7 @@ export interface HistorialPrecioAdmin {
 
 export interface PreciosProductoAdmin {
   precios: PrecioAdmin[];
+  inactivos: number;
   historial: HistorialPrecioAdmin[];
 }
 
@@ -77,12 +78,18 @@ export async function obtenerPreciosProducto(
   await requireAdmin();
   const client = createAdminClient();
 
-  const [preciosRes, historialRes] = await Promise.all([
+  const [preciosRes, inactivosRes, historialRes] = await Promise.all([
     client
       .from("producto_precios")
       .select("id, valores_ids, precio")
       .eq("producto_id", productoId)
+      .eq("activo", true)
       .order("created_at"),
+    client
+      .from("producto_precios")
+      .select("id", { count: "exact", head: true })
+      .eq("producto_id", productoId)
+      .eq("activo", false),
     client
       .from("producto_precios_historial")
       .select(
@@ -98,6 +105,12 @@ export async function obtenerPreciosProducto(
       throw new Error(MENSAJE_MIGRACION);
     }
     throw new Error(preciosRes.error.message);
+  }
+  if (inactivosRes.error) {
+    if (esTablaPreciosFaltante(inactivosRes.error)) {
+      throw new Error(MENSAJE_MIGRACION);
+    }
+    throw new Error(inactivosRes.error.message);
   }
   if (historialRes.error) {
     if (esTablaPreciosFaltante(historialRes.error)) {
@@ -134,6 +147,7 @@ export async function obtenerPreciosProducto(
 
   return {
     precios: (preciosRes.data ?? []) as PrecioAdmin[],
+    inactivos: inactivosRes.count ?? 0,
     historial: historial.map((h) => ({
       ...h,
       usuario_nombre: h.usuario_id
@@ -141,6 +155,24 @@ export async function obtenerPreciosProducto(
         : null,
     })),
   };
+}
+
+export async function reactivarPreciosProducto(
+  productoId: string,
+): Promise<number> {
+  await requireAdmin();
+  if (!productoId) throw new Error("Producto inválido");
+
+  const client = createAdminClient();
+  const { data, error } = await client
+    .from("producto_precios")
+    .update({ activo: true, updated_at: new Date().toISOString() })
+    .eq("producto_id", productoId)
+    .eq("activo", false)
+    .select("id");
+
+  if (error) throw new Error(error.message);
+  return data?.length ?? 0;
 }
 
 export interface FilaPrecioInput {

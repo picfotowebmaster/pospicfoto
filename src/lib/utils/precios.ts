@@ -78,10 +78,9 @@ export function resolverPrecio(
   }
 
   const firma = firmaValores(valoresSeleccionados);
+  const preciosActivos = (producto.precios ?? []).filter((p) => p.activo);
   const regla =
-    (producto.precios ?? []).find(
-      (p) => p.activo && firmaValores(p.valores_ids) === firma,
-    ) ?? null;
+    preciosActivos.find((p) => firmaValores(p.valores_ids) === firma) ?? null;
 
   return {
     precio: regla?.precio ?? null,
@@ -107,4 +106,71 @@ export function generarCombinaciones(
     },
     [[]],
   );
+}
+
+function valoresDistintos(a: string[], b: string[]): number {
+  const setA = new Set(a);
+  const setB = new Set(b);
+  let distintos = 0;
+  for (const id of setA) if (!setB.has(id)) distintos++;
+  for (const id of setB) if (!setA.has(id)) distintos++;
+  return distintos;
+}
+
+function esPrecioValido(precio: string): boolean {
+  if (precio.trim() === "") return false;
+  const valor = Number(precio);
+  return Number.isFinite(valor) && valor >= 0;
+}
+
+export interface ResultadoCompletarPrecios<T> {
+  filas: T[];
+  completadas: number;
+  sinReferencia: number;
+}
+
+export function completarPreciosFaltantes<
+  T extends { valores_ids: string[]; precio: string },
+>(filas: T[]): ResultadoCompletarPrecios<T> {
+  const referencias = filas.filter((fila) => esPrecioValido(fila.precio));
+  if (referencias.length === 0) {
+    return {
+      filas,
+      completadas: 0,
+      sinReferencia: filas.filter((fila) => !esPrecioValido(fila.precio)).length,
+    };
+  }
+
+  let completadas = 0;
+  let sinReferencia = 0;
+
+  const nuevas = filas.map((fila) => {
+    if (esPrecioValido(fila.precio)) return fila;
+
+    let mejorDistancia = Infinity;
+    let candidatos: T[] = [];
+    for (const referencia of referencias) {
+      const distancia = valoresDistintos(
+        fila.valores_ids,
+        referencia.valores_ids,
+      );
+      if (distancia < mejorDistancia) {
+        mejorDistancia = distancia;
+        candidatos = [referencia];
+      } else if (distancia === mejorDistancia) {
+        candidatos.push(referencia);
+      }
+    }
+
+    if (candidatos.length === 0) {
+      sinReferencia++;
+      return fila;
+    }
+
+    const precio = Math.min(...candidatos.map((c) => Number(c.precio)));
+    completadas++;
+    return { ...fila, precio: precio.toFixed(2) } as T;
+  });
+
+  return { filas: nuevas, completadas, sinReferencia };
 }

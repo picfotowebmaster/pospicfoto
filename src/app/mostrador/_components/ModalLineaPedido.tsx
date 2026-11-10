@@ -18,6 +18,7 @@ interface ModalLineaPedidoProps {
   editData?: LineaPedidoDraft;
   rutaDefault: RutaProduccion;
   catalogo?: Catalogo;
+  onRefrescarCatalogo?: () => void;
 }
 
 export function ModalLineaPedido({
@@ -28,6 +29,7 @@ export function ModalLineaPedido({
   editData,
   rutaDefault,
   catalogo,
+  onRefrescarCatalogo,
 }: ModalLineaPedidoProps) {
   if (!open) return null;
 
@@ -74,6 +76,7 @@ export function ModalLineaPedido({
           editData={editData}
           rutaDefault={rutaDefault}
           catalogo={catalogo}
+          onRefrescarCatalogo={onRefrescarCatalogo}
         />
       </div>
     </div>

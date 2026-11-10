@@ -21,6 +21,10 @@ import {
 } from "@/lib/services/email";
 import { resolverConfigFacturacion } from "@/lib/services/facturacionConfig";
 import type { EntidadEmisora, Pedido } from "@/lib/supabase/types";
+import {
+  facturacionHabilitada,
+  MENSAJE_FACTURACION_DESHABILITADA,
+} from "@/lib/config/features";
 
 const ROLES_PERMITIDOS = ["contador", "admin", "superadmin"];
 
@@ -31,6 +35,13 @@ function extraerUUID(timbrefiscal?: string): string {
 }
 
 export async function POST(request: NextRequest) {
+  if (!facturacionHabilitada()) {
+    return NextResponse.json(
+      { error: MENSAJE_FACTURACION_DESHABILITADA },
+      { status: 503 },
+    );
+  }
+
   const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
   const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
   if (!supabaseUrl || !supabaseAnonKey) {

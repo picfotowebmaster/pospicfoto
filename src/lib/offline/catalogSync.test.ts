@@ -1,9 +1,17 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { syncCatalogFromServer, getCatalogFromCache, isCatalogStale, loadCatalog } from "./catalogSync";
+import { syncCatalogFromServer, getCatalogFromCache, isCatalogStale, loadCatalog, refreshCatalog } from "./catalogSync";
 import { supabase } from "@/lib/supabase/client";
 
 vi.mock("@/lib/services/atributos", () => ({
   fetchAtributosConValores: vi.fn().mockResolvedValue([{ id: "a1", nombre: "Material", valores: [] }]),
+}));
+
+vi.mock("@/lib/services/catalogo", () => ({
+  fetchCatalogo: vi.fn().mockResolvedValue({
+    categorias: [],
+    productos: [],
+    descuentos: [],
+  }),
 }));
 
 vi.mock("./db", () => ({
@@ -118,5 +126,27 @@ describe("loadCatalog", () => {
 
     expect(saveCatalogo).not.toHaveBeenCalled();
     expect(result.marcas).toBeDefined();
+  });
+});
+
+describe("refreshCatalog", () => {
+  beforeEach(() => vi.clearAllMocks());
+
+  it("refresca y guarda atributos y catálogo", async () => {
+    const resultado = await refreshCatalog();
+
+    expect(resultado.atributos).toEqual([
+      { id: "a1", nombre: "Material", valores: [] },
+    ]);
+    expect(resultado.catalogo).toEqual({
+      categorias: [],
+      productos: [],
+      descuentos: [],
+    });
+    expect(saveCatalogo).toHaveBeenCalledWith("atributos", resultado.atributos);
+    expect(saveCatalogo).toHaveBeenCalledWith(
+      "catalogoProductos:v3",
+      resultado.catalogo,
+    );
   });
 });

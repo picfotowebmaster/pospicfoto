@@ -34,6 +34,7 @@ interface LineaPedidoProps {
   editData?: LineaPedidoDraft;
   rutaDefault: RutaProduccion;
   catalogo?: Catalogo;
+  onRefrescarCatalogo?: () => void;
 }
 
 const ETIQUETA_PASO =
@@ -46,6 +47,7 @@ export function LineaPedido({
   editData,
   rutaDefault,
   catalogo,
+  onRefrescarCatalogo,
 }: LineaPedidoProps) {
   const [descripcion, setDescripcion] = useState(
     editData?.producto_nombre || "",
@@ -184,10 +186,24 @@ export function LineaPedido({
       (attr) => (atributos[attr.nombre] || "").trim() !== "",
     );
 
+  const resolucionPrecio = producto ? resolverPrecio(producto, atributos) : null;
+  const precioCompleto = resolucionPrecio?.completo ?? false;
+
+  const faltantesPrecio = atributosVisibles.filter(
+    (attr) => attr.afecta_precio && !(atributos[attr.nombre] || "").trim(),
+  );
+  const faltantesNoPrecio = atributosVisibles.filter(
+    (attr) => !attr.afecta_precio && !(atributos[attr.nombre] || "").trim(),
+  );
+
   const tienePrecioDeLista = Boolean(
     producto &&
       (producto.atributos.some((attr) => attr.afecta_precio) ||
         producto.precios.length > 0),
+  );
+
+  const sinPreciosConfigurados = Boolean(
+    producto && producto.precios.length === 0,
   );
 
   const puedeGuardar =
@@ -304,11 +320,15 @@ export function LineaPedido({
         <div className="space-y-2">
           <div className="flex items-center justify-between">
             <span className={ETIQUETA_PASO}>2. Opciones del producto</span>
-            {!atributosCompletos && (
+            {faltantesPrecio.length > 0 ? (
               <span className="text-xs text-amber-600 dark:text-amber-400">
-                Selecciona todas las opciones
+                Selecciona las opciones de precio
               </span>
-            )}
+            ) : faltantesNoPrecio.length > 0 ? (
+              <span className="text-xs text-gray-500 dark:text-gray-400">
+                Faltan opciones para guardar
+              </span>
+            ) : null}
           </div>
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-2">
             {atributosVisibles.map((attr) => (
@@ -396,14 +416,31 @@ export function LineaPedido({
 
         {!modoLibre && producto && tienePrecioDeLista && (
           <div className="text-xs">
-            {!atributosCompletos ? (
+            {sinPreciosConfigurados ? (
+              <div className="space-y-1">
+                <span className="text-amber-600 dark:text-amber-400">
+                  Este producto aún no tiene precios configurados. Configúralos
+                  en Admin → Precios o captura el precio manualmente.
+                </span>
+                {onRefrescarCatalogo && (
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={onRefrescarCatalogo}
+                  >
+                    <i className="fas fa-sync-alt mr-1.5" />
+                    Actualizar catálogo
+                  </Button>
+                )}
+              </div>
+            ) : !precioCompleto ? (
               <span className="text-gray-500 dark:text-gray-400">
-                Selecciona todas las opciones para calcular el precio.
+                Selecciona las opciones de precio para calcularlo.
               </span>
             ) : precioLista === null ? (
               <span className="text-amber-600 dark:text-amber-400">
-                Sin precio configurado para esta variante. Captura el precio
-                manualmente.
+                Esta combinación no tiene precio configurado. Captura el precio
+                manualmente o revisa Admin → Precios → Solo faltantes.
               </span>
             ) : (
               <div className="space-y-1">
@@ -468,6 +505,13 @@ export function LineaPedido({
                       ? `${descuentoAplicado.descuento_valor}%`
                       : `$${descuentoAplicado.descuento_valor.toFixed(2)}`}
                     )
+                  </p>
+                )}
+
+                {faltantesNoPrecio.length > 0 && (
+                  <p className="text-[11px] text-gray-500 dark:text-gray-400">
+                    Completa para guardar:{" "}
+                    {faltantesNoPrecio.map((attr) => attr.nombre).join(", ")}.
                   </p>
                 )}
               </div>

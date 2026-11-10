@@ -100,6 +100,7 @@ const WEB_KEYS: Record<string, string> = {
   "cantidad de hojas": "attribute_pa_cantidad-de-hojas",
   "tipo de papel ink jet": "attribute_pa_tipo-de-papel-ink-jet",
   "tamano de marco": "attribute_pa_tamano-de-marco",
+  grosor: "attribute_pa_grosor",
   textura: "attribute_pa_textura",
   "hojas y paginas": "attribute_pa_hojas-y-paginas",
   "hoja extra": "attribute_pa_hoja-extra",
@@ -199,17 +200,38 @@ const WEB_KEYS_POR_PRODUCTO: Record<string, Record<string, string>> = {
   },
 };
 
+export function claveWebParaAtributo(
+  nombreAtributo: string,
+  nombreProducto: string,
+): string | null {
+  const nombreProductoNormalizado = normalizarTexto(nombreProducto);
+  const nombreAtributoNormalizado = normalizarTexto(nombreAtributo);
+  return (
+    WEB_KEYS_POR_PRODUCTO[nombreProductoNormalizado]?.[
+      nombreAtributoNormalizado
+    ] ??
+    WEB_KEYS[nombreAtributoNormalizado] ??
+    null
+  );
+}
+
+export function atributosPrecioSinClaveWeb(
+  producto: Pick<ProductoCatalogoPrecio, "nombre" | "atributos">,
+): string[] {
+  return producto.atributos
+    .filter((atributo) => atributo.afecta_precio)
+    .filter(
+      (atributo) =>
+        !claveWebParaAtributo(atributo.nombre, producto.nombre),
+    )
+    .map((atributo) => atributo.nombre);
+}
+
 function webKeyPara(
   atributo: AtributoCatalogoPrecio,
   productoNombre: string,
 ): string | null {
-  const nombreProducto = normalizarTexto(productoNombre);
-  const nombreAtributo = normalizarTexto(atributo.nombre);
-  return (
-    WEB_KEYS_POR_PRODUCTO[nombreProducto]?.[nombreAtributo] ??
-    WEB_KEYS[nombreAtributo] ??
-    null
-  );
+  return claveWebParaAtributo(atributo.nombre, productoNombre);
 }
 
 interface EntradaMapeada {
@@ -228,15 +250,47 @@ export function generarImportacionProducto(
 ): ResultadoImportacion {
   const atributosPrecio = producto.atributos.filter((a) => a.afecta_precio);
 
+  if (atributosPrecio.length === 0 && variaciones.length > 1) {
+    throw new Error(
+      `Marca al menos un atributo de precio en Productos antes de importar "${producto.nombre}".`,
+    );
+  }
+
+  const sinClaveWeb = atributosPrecioSinClaveWeb(producto);
+  if (sinClaveWeb.length > 0) {
+    throw new Error(
+      `No se pueden importar desde la tienda estos atributos de precio de "${producto.nombre}": ${sinClaveWeb.join(
+        ", ",
+      )}. Desmárcalos en Admin → Productos o configura su clave web.`,
+    );
+  }
+
   const clavesWeb = new Map<string, string>();
   for (const atributo of atributosPrecio) {
     const clave = webKeyPara(atributo, producto.nombre);
     if (!clave) {
       throw new Error(
-        `No sé cómo importar el atributo "${atributo.nombre}" de "${producto.nombre}"`,
+        `No se puede importar "${atributo.nombre}" de "${producto.nombre}": no tiene clave web. Desmárcalo en Admin → Productos o configura su clave.`,
       );
     }
     clavesWeb.set(atributo.atributo_id, clave);
+  }
+
+  const clavesEnVariaciones = new Set<string>();
+  for (const variacion of variaciones) {
+    for (const clave of Object.keys(variacion.atributos)) {
+      clavesEnVariaciones.add(clave);
+    }
+  }
+  for (const [atributoId, clave] of clavesWeb) {
+    if (!clavesEnVariaciones.has(clave)) {
+      const nombre =
+        atributosPrecio.find((a) => a.atributo_id === atributoId)?.nombre ??
+        clave;
+      throw new Error(
+        `El atributo "${nombre}" está marcado como precio pero la tienda no lo incluye en las variaciones de "${producto.nombre}". Desmárcalo o corrige las variaciones.`,
+      );
+    }
   }
 
   const incompletos: DetalleImportacion[] = [];
@@ -359,8 +413,30 @@ export function generarImportacionProducto(
   const importadasPorFirma = new Map(
     filasImportadas.map((f) => [firmaValores(f.valores_ids), f]),
   );
+  const valoresPermitidos = new Set(
+    atributosPrecio.flatMap((a) => a.valores.map((v) => v.id)),
+  );
+  const atributoPorValor = new Map<string, string>();
+  for (const atributo of atributosPrecio) {
+    for (const valor of atributo.valores) {
+      atributoPorValor.set(valor.id, atributo.atributo_id);
+    }
+  }
+  const existentesValidos = preciosExistentes.filter((existente) => {
+    const ids = existente.valores_ids ?? [];
+    if (ids.length !== atributosPrecio.length) return false;
+    if (new Set(ids).size !== ids.length) return false;
+    const atributos = new Set<string>();
+    for (const id of ids) {
+      if (!valoresPermitidos.has(id)) return false;
+      const atributoId = atributoPorValor.get(id);
+      if (!atributoId || atributos.has(atributoId)) return false;
+      atributos.add(atributoId);
+    }
+    return true;
+  });
   const existentesPorFirma = new Map(
-    preciosExistentes.map((p) => [firmaValores(p.valores_ids), p]),
+    existentesValidos.map((p) => [firmaValores(p.valores_ids), p]),
   );
   const reemplazar = opciones.reemplazar ?? false;
 
@@ -397,7 +473,7 @@ export function generarImportacionProducto(
   const preciosFinales = new Map<string, FilaPrecioImportada>();
 
   if (!reemplazar) {
-    for (const existente of preciosExistentes) {
+    for (const existente of existentesValidos) {
       preciosFinales.set(firmaValores(existente.valores_ids), {
         valores_ids: existente.valores_ids,
         precio: existente.precio,
@@ -442,7 +518,7 @@ export function generarImportacionProducto(
     resumen: {
       total_variaciones: variaciones.length,
       precios_importados: filasImportadas.length,
-      precios_existentes: preciosExistentes.length,
+      precios_existentes: existentesValidos.length,
       precios_a_guardar: filas.length,
       nuevos,
       actualizados,

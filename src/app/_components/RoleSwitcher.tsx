@@ -4,6 +4,7 @@ import { useState, useSyncExternalStore } from "react";
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/Button";
 import { useAuth } from "@/lib/hooks/useAuth";
+import { facturacionHabilitada } from "@/lib/config/features";
 
 const ROLES_VER_COMO = [
   { key: "mostrador", label: "Mostrador" },
@@ -20,11 +21,13 @@ const ROLES_VER_COMO = [
 ] as const;
 
 const MODULOS = [
-  { path: "/contabilidad/pedidos", label: "Contabilidad" },
+  facturacionHabilitada()
+    ? { path: "/contabilidad/pedidos", label: "Contabilidad" }
+    : { path: "/contabilidad/reportes", label: "Reportes contables" },
   { path: "/admin", label: "Admin" },
   { path: "/produccion/kanban", label: "Producción Kanban" },
   { path: "/mostrador", label: "Mostrador" },
-] as const;
+];
 
 const ROLE_LABELS: Record<string, string> = {
   ...Object.fromEntries(ROLES_VER_COMO.map((r) => [r.key, r.label])),

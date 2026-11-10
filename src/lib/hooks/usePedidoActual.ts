@@ -6,6 +6,7 @@ import { sumarLineas, calcularAnticipo, generarIdLocal } from "@/lib/utils/calcu
 import { ANTICIPO_POR_DEFECTO } from "@/lib/utils/constantes";
 import { cpValido, rfcValido } from "@/lib/utils/fiscal";
 import { savePedidoDraft, getPedidoDraft, clearPedidoDraft } from "@/lib/offline/db";
+import { facturacionHabilitada } from "@/lib/config/features";
 
 interface ClienteData {
   nombre: string;
@@ -156,6 +157,7 @@ export function usePedidoActual(
   );
 
   const facturaValida =
+    !facturacionHabilitada() ||
     !cliente.requiereFactura ||
     (cliente.email.trim() !== "" &&
       rfcValido(cliente.rfc) &&
@@ -186,10 +188,10 @@ export function usePedidoActual(
   if (cliente.fechaEntrega === "") pendientes.push("Fecha de entrega");
   if (cliente.horaEntrega === "") pendientes.push("Hora de entrega");
   if (entidadEmisoraId === "")
-    pendientes.push("Razón social / Sucursal asignada");
+    pendientes.push("Entidad emisora asignada");
   if (sucursalId === "") pendientes.push("Sucursal asignada");
   if (marcaIdActual === "") pendientes.push("Marca");
-  if (cliente.requiereFactura) {
+  if (facturacionHabilitada() && cliente.requiereFactura) {
     if (cliente.email.trim() === "") pendientes.push("Correo para factura");
     if (!rfcValido(cliente.rfc)) pendientes.push("RFC válido");
     if (cliente.razonSocial.trim() === "") pendientes.push("Razón social");

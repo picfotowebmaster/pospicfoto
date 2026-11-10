@@ -9,12 +9,23 @@ import {
 import { formatearErrorCancelacion } from "@/lib/services/facturemosyaErrores";
 import { resolverConfigFacturacion } from "@/lib/services/facturacionConfig";
 import type { EntidadEmisora } from "@/lib/supabase/types";
+import {
+  facturacionHabilitada,
+  MENSAJE_FACTURACION_DESHABILITADA,
+} from "@/lib/config/features";
 
 const ROLES_PERMITIDOS = ["admin", "superadmin", "contador"];
 const UUID_RE =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 export async function POST(request: NextRequest) {
+  if (!facturacionHabilitada()) {
+    return NextResponse.json(
+      { error: MENSAJE_FACTURACION_DESHABILITADA },
+      { status: 503 },
+    );
+  }
+
   const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
   const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
   if (!supabaseUrl || !supabaseAnonKey) {

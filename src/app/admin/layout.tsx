@@ -42,7 +42,10 @@ export default function AdminLayout({
     { href: "/admin/pedidos", label: "Pedidos" },
     { href: "/admin/reportes", label: "Reportes" },
     ...(rol === "superadmin"
-      ? [{ href: "/admin/usuarios", label: "Usuarios" }]
+      ? [
+          { href: "/admin/entidades", label: "Datos fiscales" },
+          { href: "/admin/usuarios", label: "Usuarios" },
+        ]
       : []),
   ];
 

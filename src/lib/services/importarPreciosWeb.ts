@@ -1,4 +1,5 @@
 import { createAdminClient } from "@/lib/supabase/admin";
+import { fetchAllPages } from "@/lib/utils/paginado";
 import {
   generarImportacionProducto,
   normalizarTexto,
@@ -173,13 +174,20 @@ async function cargarCatalogo(
   let pav: { producto_atributo_id: string; valor_id: string; orden: number }[] =
     [];
   if (paIds.length > 0) {
-    const { data, error } = await client
-      .from("producto_atributo_valores")
-      .select("producto_atributo_id, valor_id, orden")
-      .in("producto_atributo_id", paIds)
-      .order("orden");
-    if (error) throw new Error(error.message);
-    pav = (data ?? []) as typeof pav;
+    pav = await fetchAllPages<{
+      producto_atributo_id: string;
+      valor_id: string;
+      orden: number;
+    }>((from, to) =>
+      client
+        .from("producto_atributo_valores")
+        .select("producto_atributo_id, valor_id, orden")
+        .in("producto_atributo_id", paIds)
+        .order("producto_atributo_id")
+        .order("orden")
+        .order("valor_id")
+        .range(from, to),
+    );
   }
 
   const valorIds = [...new Set(pav.map((p) => p.valor_id))];
@@ -242,12 +250,14 @@ async function cargarPreciosExistentes(
   productoId: string,
 ): Promise<PrecioExistente[]> {
   const client = createAdminClient();
-  const { data, error } = await client
-    .from("producto_precios")
-    .select("valores_ids, precio")
-    .eq("producto_id", productoId);
-  if (error) throw new Error(error.message);
-  return (data ?? []) as PrecioExistente[];
+  return fetchAllPages<PrecioExistente>((from, to) =>
+    client
+      .from("producto_precios")
+      .select("valores_ids, precio")
+      .eq("producto_id", productoId)
+      .order("id")
+      .range(from, to),
+  );
 }
 
 async function generarImportacion(

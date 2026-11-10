@@ -5,7 +5,16 @@ import { Button } from "@/components/ui/Button";
 import { ConfirmModal } from "@/components/ui/ConfirmModal";
 import { supabase } from "@/lib/supabase/client";
 import { useAuth } from "@/lib/hooks/useAuth";
-import { listarUsuarios, resetPassword, createUser, updateUserEntidad, updateUserRol, type UsuarioRow } from "./actions";
+import { listarUsuarios, resetPassword, createUser, updateUserUbicacion, updateUserRol, type UsuarioRow } from "./actions";
+
+type MarcaOpcion = { id: string; nombre: string; codigo: string };
+type SucursalOpcion = { id: string; nombre: string; codigo: string };
+type EntidadOpcion = {
+  id: string;
+  nombre_comercial: string;
+  marca_id: string | null;
+  sucursal_id: string | null;
+};
 
 const ROLES = [
   { value: "mostrador", label: "Mostrador" },
@@ -169,21 +178,36 @@ function ResetModal({
 function CreateModal({
   onClose,
   onDone,
+  marcas,
+  sucursales,
   entidades,
 }: {
   onClose: () => void;
   onDone: () => void;
-  entidades: { id: string; nombre_comercial: string }[];
+  marcas: MarcaOpcion[];
+  sucursales: SucursalOpcion[];
+  entidades: EntidadOpcion[];
 }) {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [nombre, setNombre] = useState("");
   const [rol, setRol] = useState("mostrador");
-  const [entidadId, setEntidadId] = useState("");
+  const [marcaId, setMarcaId] = useState(
+    marcas.find((m) => m.codigo === "PIC")?.id ?? marcas[0]?.id ?? "",
+  );
+  const [sucursalId, setSucursalId] = useState(
+    sucursales.find((s) => s.codigo === "CUB")?.id ??
+      sucursales[0]?.id ??
+      "",
+  );
   const [error, setError] = useState("");
   const [cargando, setCargando] = useState(false);
 
   const requiereEntidad = ["mostrador", "admin", "superadmin"].includes(rol);
+  const combinacionValida = entidades.some(
+    (entidad) =>
+      entidad.marca_id === marcaId && entidad.sucursal_id === sucursalId,
+  );
 
   async function handleCreate(e: React.FormEvent) {
     e.preventDefault();
@@ -197,14 +221,21 @@ function CreateModal({
       setError("La contraseña debe tener al menos 6 caracteres.");
       return;
     }
-    if (requiereEntidad && !entidadId) {
-      setError("Selecciona la razón social / sucursal del usuario.");
+    if (requiereEntidad && (!marcaId || !sucursalId)) {
+      setError("Selecciona la razón social y la sucursal del usuario.");
+      return;
+    }
+    if (requiereEntidad && !combinacionValida) {
+      setError("No hay una entidad emisora configurada para esa combinación.");
       return;
     }
 
     setCargando(true);
     try {
-      await createUser(email.trim(), password, nombre.trim(), rol, entidadId || undefined);
+      await createUser(email.trim(), password, nombre.trim(), rol, {
+        marcaId: marcaId || undefined,
+        sucursalId: sucursalId || undefined,
+      });
       onDone();
     } catch (err: unknown) {
       setError(
@@ -270,23 +301,49 @@ function CreateModal({
 
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">
-              Razón social / Sucursal{" "}
+              Razón Social{" "}
               {requiereEntidad && <span className="text-red-500">*</span>}
             </label>
             <select
-              value={entidadId}
-              onChange={(e) => setEntidadId(e.target.value)}
+              value={marcaId}
+              onChange={(e) => setMarcaId(e.target.value)}
               required={requiereEntidad}
               className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white"
             >
-              <option value="">Seleccionar entidad...</option>
-              {entidades.map((e) => (
-                <option key={e.id} value={e.id}>
-                  {e.nombre_comercial}
+              <option value="">Seleccionar razón social...</option>
+              {marcas.map((m) => (
+                <option key={m.id} value={m.id}>
+                  {m.nombre}
                 </option>
               ))}
             </select>
           </div>
+
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">
+              Sucursal{" "}
+              {requiereEntidad && <span className="text-red-500">*</span>}
+            </label>
+            <select
+              value={sucursalId}
+              onChange={(e) => setSucursalId(e.target.value)}
+              required={requiereEntidad}
+              className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white"
+            >
+              <option value="">Seleccionar sucursal...</option>
+              {sucursales.map((s) => (
+                <option key={s.id} value={s.id}>
+                  {s.nombre}
+                </option>
+              ))}
+            </select>
+          </div>
+
+          {requiereEntidad && marcaId && sucursalId && !combinacionValida && (
+            <div className="bg-amber-50 text-amber-700 text-xs px-3 py-2 rounded-lg">
+              No existe una entidad emisora configurada para esta combinación.
+            </div>
+          )}
 
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">
@@ -337,9 +394,9 @@ export default function UsuariosPage() {
   const [error, setError] = useState("");
   const [modalUsuario, setModalUsuario] = useState<UsuarioRow | null>(null);
   const [showCreate, setShowCreate] = useState(false);
-  const [entidades, setEntidades] = useState<
-    { id: string; nombre_comercial: string }[]
-  >([]);
+  const [marcas, setMarcas] = useState<MarcaOpcion[]>([]);
+  const [sucursales, setSucursales] = useState<SucursalOpcion[]>([]);
+  const [entidades, setEntidades] = useState<EntidadOpcion[]>([]);
   const [pendienteRol, setPendienteRol] = useState<{
     usuario: UsuarioRow;
     nuevoRol: string;
@@ -358,6 +415,56 @@ export default function UsuariosPage() {
     }
     setCargando(false);
   }, []);
+
+  async function cambiarUbicacion(
+    usuario: UsuarioRow,
+    cambios: { marcaId?: string; sucursalId?: string },
+  ) {
+    setError("");
+
+    if (cambios.marcaId === "" || cambios.sucursalId === "") {
+      try {
+        await updateUserUbicacion(usuario.id, null, null);
+        await cargar();
+      } catch (err: unknown) {
+        setError(
+          err instanceof Error
+            ? err.message
+            : "Error al actualizar la ubicación.",
+        );
+        await cargar();
+      }
+      return;
+    }
+
+    const marcaFinal =
+      (cambios.marcaId !== undefined ? cambios.marcaId : usuario.marca_id) ||
+      marcas.find((m) => m.codigo === "PIC")?.id ||
+      marcas[0]?.id ||
+      "";
+    const sucursalFinal =
+      (cambios.sucursalId !== undefined
+        ? cambios.sucursalId
+        : usuario.sucursal_id) ||
+      sucursales.find((s) => s.codigo === "CUB")?.id ||
+      sucursales[0]?.id ||
+      "";
+
+    if (!marcaFinal || !sucursalFinal) {
+      setError("Selecciona la razón social y la sucursal.");
+      return;
+    }
+
+    try {
+      await updateUserUbicacion(usuario.id, marcaFinal, sucursalFinal);
+      await cargar();
+    } catch (err: unknown) {
+      setError(
+        err instanceof Error ? err.message : "Error al actualizar la ubicación.",
+      );
+      await cargar();
+    }
+  }
 
   async function aplicarCambioRol(usuario: UsuarioRow, nuevoRol: string) {
     setError("");
@@ -407,16 +514,28 @@ export default function UsuariosPage() {
 
   useEffect(() => {
     supabase
+      .from("marcas")
+      .select("id, nombre, codigo")
+      .then(({ data }: { data: unknown }) => {
+        if (data) setMarcas(data as MarcaOpcion[]);
+      })
+      .catch(() => {});
+
+    supabase
+      .from("sucursales")
+      .select("id, nombre, codigo")
+      .then(({ data }: { data: unknown }) => {
+        if (data) setSucursales(data as SucursalOpcion[]);
+      })
+      .catch(() => {});
+
+    supabase
       .from("entidades_emisoras")
-      .select("id, nombre_comercial")
+      .select("id, nombre_comercial, marca_id, sucursal_id")
       .eq("activo", true)
       .order("orden", { ascending: true })
       .then(({ data }: { data: unknown }) => {
-        if (data) {
-          setEntidades(
-            data as { id: string; nombre_comercial: string }[],
-          );
-        }
+        if (data) setEntidades(data as EntidadOpcion[]);
       })
       .catch(() => {});
   }, []);
@@ -458,7 +577,10 @@ export default function UsuariosPage() {
                   <th className="py-2 px-3 font-medium text-gray-500">Email</th>
                   <th className="py-2 px-3 font-medium text-gray-500">Nombre</th>
                   <th className="py-2 px-3 font-medium text-gray-500">
-                    Razón social / Sucursal
+                    Razón Social
+                  </th>
+                  <th className="py-2 px-3 font-medium text-gray-500">
+                    Sucursal
                   </th>
                   <th className="py-2 px-3 font-medium text-gray-500">Rol</th>
                   <th className="py-2 px-3 font-medium text-gray-500">Creado</th>
@@ -477,27 +599,34 @@ export default function UsuariosPage() {
                     <td className="py-2 px-3 text-gray-600">{u.nombre || "—"}</td>
                     <td className="py-2 px-3 text-gray-600">
                       <select
-                        value={u.entidad_emisora_id || ""}
+                        value={u.marca_id || ""}
                         disabled={!esSuperadmin}
-                        onChange={async (e) => {
-                          const nuevo = e.target.value || null;
-                          try {
-                            await updateUserEntidad(u.id, nuevo);
-                            await cargar();
-                          } catch (err: unknown) {
-                            setError(
-                              err instanceof Error
-                                ? err.message
-                                : "Error al actualizar la entidad.",
-                            );
-                          }
-                        }}
+                        onChange={(e) =>
+                          cambiarUbicacion(u, { marcaId: e.target.value })
+                        }
                         className="w-full border border-gray-200 rounded-lg px-2 py-1 text-xs focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white disabled:opacity-60 disabled:cursor-not-allowed"
                       >
                         <option value="">— Sin asignar —</option>
-                        {entidades.map((entidad) => (
-                          <option key={entidad.id} value={entidad.id}>
-                            {entidad.nombre_comercial}
+                        {marcas.map((marca) => (
+                          <option key={marca.id} value={marca.id}>
+                            {marca.nombre}
+                          </option>
+                        ))}
+                      </select>
+                    </td>
+                    <td className="py-2 px-3 text-gray-600">
+                      <select
+                        value={u.sucursal_id || ""}
+                        disabled={!esSuperadmin}
+                        onChange={(e) =>
+                          cambiarUbicacion(u, { sucursalId: e.target.value })
+                        }
+                        className="w-full border border-gray-200 rounded-lg px-2 py-1 text-xs focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white disabled:opacity-60 disabled:cursor-not-allowed"
+                      >
+                        <option value="">— Sin asignar —</option>
+                        {sucursales.map((sucursal) => (
+                          <option key={sucursal.id} value={sucursal.id}>
+                            {sucursal.nombre}
                           </option>
                         ))}
                       </select>
@@ -550,7 +679,7 @@ export default function UsuariosPage() {
                 ))}
                 {usuarios.length === 0 && (
                   <tr>
-                    <td colSpan={7} className="py-8 text-center text-gray-400">
+                    <td colSpan={8} className="py-8 text-center text-gray-400">
                       No se encontraron usuarios.
                     </td>
                   </tr>
@@ -574,6 +703,8 @@ export default function UsuariosPage() {
 
       {showCreate && (
         <CreateModal
+          marcas={marcas}
+          sucursales={sucursales}
           entidades={entidades}
           onClose={() => setShowCreate(false)}
           onDone={() => {

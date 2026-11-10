@@ -89,3 +89,13 @@ export async function loadCatalog(isOnline: boolean) {
   }
   return getCatalogFromCache();
 }
+
+export async function refreshCatalog() {
+  const [atributos, catalogo] = await Promise.all([
+    fetchAtributosConValores(),
+    fetchCatalogo(),
+  ]);
+  await saveCatalogo(CATALOG_KEYS.ATRIBUTOS, atributos);
+  await saveCatalogo(CATALOG_KEYS.CATALOGO, catalogo);
+  return { atributos, catalogo };
+}

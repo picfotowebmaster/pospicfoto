@@ -15,11 +15,15 @@ import { useToast } from "@/components/ui/Toast";
 import type { AtributoValor } from "@/lib/supabase/types";
 import type { ImportacionResumen } from "@/lib/services/importarPreciosWeb";
 import {
+  completarPreciosFaltantes,
   firmaValores,
   generarCombinaciones,
   normalizarValoresIds,
 } from "@/lib/utils/precios";
-import { construirCsvImportaciones } from "@/lib/utils/importarPrecios";
+import {
+  atributosPrecioSinClaveWeb,
+  construirCsvImportaciones,
+} from "@/lib/utils/importarPrecios";
 import { descargarCsv, slugArchivo } from "@/lib/utils/descargarCsv";
 import {
   listarCatalogoAdmin,
@@ -30,6 +34,7 @@ import {
   aplicarImportacion,
   guardarPreciosProducto,
   obtenerPreciosProducto,
+  reactivarPreciosProducto,
   previsualizarImportacion,
   type HistorialPrecioAdmin,
   type PrecioAdmin,
@@ -58,9 +63,11 @@ function construirAtributosProducto(
     .map((pa) => {
       const atributo = catalogo.atributos.find((a) => a.id === pa.atributo_id);
       if (!atributo) return null;
-      const valores = pa.valor_ids
+      const configurados = pa.valor_ids
         .map((id) => atributo.valores.find((v) => v.id === id))
         .filter((v): v is AtributoValor => Boolean(v));
+      const valores =
+        configurados.length > 0 ? configurados : atributo.valores;
       return {
         id: atributo.id,
         nombre: atributo.nombre,
@@ -137,6 +144,7 @@ function PreciosContent() {
   const [atributos, setAtributos] = useState<AtributoProducto[]>([]);
   const [atributosPrecio, setAtributosPrecio] = useState<string[]>([]);
   const [precios, setPrecios] = useState<PrecioAdmin[]>([]);
+  const [preciosInactivos, setPreciosInactivos] = useState(0);
   const [historial, setHistorial] = useState<HistorialPrecioAdmin[]>([]);
   const [filas, setFilas] = useState<FilaPrecio[]>([]);
   const [cargando, setCargando] = useState(false);
@@ -156,6 +164,7 @@ function PreciosContent() {
   const [importError, setImportError] = useState<string | null>(null);
   const [importReemplazar, setImportReemplazar] = useState(false);
   const [confirmarCategoria, setConfirmarCategoria] = useState(false);
+  const [confirmarCompletar, setConfirmarCompletar] = useState(false);
   const [importandoCategoria, setImportandoCategoria] = useState(false);
   const [progresoCategoria, setProgresoCategoria] = useState({
     actual: 0,
@@ -166,6 +175,30 @@ function PreciosContent() {
     () =>
       catalogo?.productos.filter((p) => p.categoria_id === categoriaSel) ?? [],
     [catalogo, categoriaSel],
+  );
+
+  const atributosSinClave = useMemo(() => {
+    const productoActual = catalogo?.productos.find((p) => p.id === productoSel);
+    if (!productoActual) return [];
+    return atributosPrecioSinClaveWeb({
+      nombre: productoActual.nombre,
+      atributos: atributos.map((a) => ({
+        atributo_id: a.id,
+        nombre: a.nombre,
+        afecta_precio: atributosPrecio.includes(a.id),
+        valores: a.valores.map((v) => ({ id: v.id, valor: v.valor })),
+      })),
+    });
+  }, [catalogo, productoSel, atributos, atributosPrecio]);
+
+  const atributosPrecioUnValor = useMemo(
+    () =>
+      atributos
+        .filter(
+          (a) => atributosPrecio.includes(a.id) && a.valores.length === 1,
+        )
+        .map((a) => a.nombre),
+    [atributos, atributosPrecio],
   );
 
   const filasFiltradas = useMemo(() => {
@@ -218,6 +251,7 @@ function PreciosContent() {
         setAtributos(atributosProducto);
         setAtributosPrecio(idsPrecio);
         setPrecios(data.precios);
+        setPreciosInactivos(data.inactivos);
         setHistorial(data.historial);
         setFilas(construirFilas(atributosProducto, idsPrecio, data.precios));
       } catch (err) {
@@ -266,6 +300,7 @@ function PreciosContent() {
     setAtributos([]);
     setAtributosPrecio([]);
     setPrecios([]);
+    setPreciosInactivos(0);
     setHistorial([]);
     setFilas([]);
     setCargando(false);
@@ -277,6 +312,7 @@ function PreciosContent() {
     setAtributos([]);
     setAtributosPrecio([]);
     setPrecios([]);
+    setPreciosInactivos(0);
     setHistorial([]);
     setFilas([]);
     if (id && catalogo) void cargarProducto(id, catalogo);
@@ -315,6 +351,26 @@ function PreciosContent() {
     );
   }
 
+  function completarFaltantes() {
+    setConfirmarCompletar(false);
+    const { filas: nuevas, completadas, sinReferencia } =
+      completarPreciosFaltantes(filas);
+    setFilas(nuevas);
+    if (completadas === 0) {
+      showError(
+        "No hay precios de referencia. Captura al menos uno para completar.",
+      );
+    } else if (sinReferencia > 0) {
+      showSuccess(
+        `Se completaron ${completadas} variante(s); ${sinReferencia} no tenían referencia y quedaron sin precio.`,
+      );
+    } else {
+      showSuccess(
+        `Se completaron ${completadas} variante(s) con el precio de la más cercana.`,
+      );
+    }
+  }
+
   const valoresPorId = useMemo(() => {
     const mapa = new Map<string, string>();
     for (const atributo of atributos) {
@@ -332,6 +388,14 @@ function PreciosContent() {
 
   async function abrirImportacion() {
     if (!productoSel) return;
+    if (atributosSinClave.length > 0) {
+      showError(
+        `Sin equivalencia en la tienda: ${atributosSinClave.join(
+          ", ",
+        )}. Desmárcalos como precio o configura su clave web antes de importar.`,
+      );
+      return;
+    }
     setImportOpen(true);
     setImportCargando(true);
     setImportAplicando(false);
@@ -441,6 +505,22 @@ function PreciosContent() {
     );
   }
 
+  async function reactivarInactivos() {
+    if (!productoSel || guardando) return;
+    setGuardando(true);
+    try {
+      const reactivados = await reactivarPreciosProducto(productoSel);
+      if (catalogo) await cargarProducto(productoSel, catalogo);
+      showSuccess(`${reactivados} precio(s) reactivados.`);
+    } catch (err) {
+      showError(
+        err instanceof Error ? err.message : "Error al reactivar los precios",
+      );
+    } finally {
+      setGuardando(false);
+    }
+  }
+
   async function guardar() {
     if (!productoSel || guardando) return;
     setGuardando(true);
@@ -455,6 +535,7 @@ function PreciosContent() {
       await guardarPreciosProducto(productoSel, atributosPrecio, filasGuardar);
       const data = await obtenerPreciosProducto(productoSel);
       setPrecios(data.precios);
+      setPreciosInactivos(data.inactivos);
       setHistorial(data.historial);
       setAtributos((prev) =>
         prev.map((a) => ({
@@ -624,12 +705,32 @@ function PreciosContent() {
                       {faltantes} sin precio
                     </p>
                   )}
+                  {preciosInactivos > 0 && (
+                    <div className="text-amber-600 dark:text-amber-400 space-y-1">
+                      <p>
+                        {preciosInactivos} precio(s) inactivo(s) que el POS no
+                        usa
+                      </p>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={reactivarInactivos}
+                        disabled={guardando}
+                      >
+                        Reactivar precios
+                      </Button>
+                    </div>
+                  )}
                 </div>
                 <Button
                   variant="ghost"
                   size="sm"
                   onClick={abrirImportacion}
-                  disabled={importCargando || importAplicando}
+                  disabled={
+                    importCargando ||
+                    importAplicando ||
+                    atributosSinClave.length > 0
+                  }
                 >
                   <i className="fas fa-cloud-download-alt mr-1.5" />
                   Importar desde tienda
@@ -681,6 +782,27 @@ function PreciosContent() {
                   Productos antes de capturar precios.
                 </p>
               )}
+              {atributosPrecioUnValor.length > 0 && (
+                <p className="text-xs text-amber-600 dark:text-amber-400 mt-2">
+                  Estos atributos de precio tienen un solo valor:{" "}
+                  {atributosPrecioUnValor.join(", ")}. La matriz no crece; si
+                  agregas más valores, reimporta o vuelve a guardar.
+                </p>
+              )}
+              {atributosSinClave.length > 0 && (
+                <p className="text-xs text-amber-600 dark:text-amber-400 mt-2">
+                  Sin equivalencia en la tienda: {atributosSinClave.join(", ")}.
+                  Desmárcalos como precio o configura su clave web antes de
+                  importar.
+                </p>
+              )}
+              {precios.length > 0 && (
+                <p className="text-[11px] text-gray-400 dark:text-gray-500 mt-2">
+                  Cambiar los atributos de precio recalcula la matriz; los
+                  precios que no coincidan con la nueva combinación se eliminarán
+                  al guardar.
+                </p>
+              )}
             </div>
 
             <div className="flex flex-wrap items-end gap-2 border-t border-gray-100 dark:border-gray-800 pt-3">
@@ -701,6 +823,17 @@ function PreciosContent() {
                 Aplicar
               </Button>
               <div className="flex-1" />
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => setConfirmarCompletar(true)}
+                disabled={
+                  guardando || faltantes === 0 || preciosCapturados === 0
+                }
+              >
+                <i className="fas fa-magic mr-1.5" />
+                Completar faltantes
+              </Button>
               <Button
                 size="sm"
                 onClick={guardar}
@@ -865,6 +998,16 @@ function PreciosContent() {
         variant="warning"
         onConfirm={importarCategoria}
         onCancel={() => setConfirmarCategoria(false)}
+      />
+
+      <ConfirmModal
+        open={confirmarCompletar}
+        title="Completar variantes sin precio"
+        message={`Se intentarán completar ${faltantes} variante(s) usando el precio de la variante más cercana (menor diferencia de opciones; en empate, el precio más bajo). No se sobrescriben precios existentes. Revisa el resultado y pulsa "Guardar cambios" para aplicarlo.`}
+        confirmLabel="Completar"
+        variant="warning"
+        onConfirm={completarFaltantes}
+        onCancel={() => setConfirmarCompletar(false)}
       />
     </div>
   );

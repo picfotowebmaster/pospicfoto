@@ -71,6 +71,8 @@ export type UsuarioRow = {
   email: string | undefined;
   nombre: string | null;
   rol: string | null;
+  marca_id: string | null;
+  marca_nombre: string | null;
   sucursal_id: string | null;
   sucursal_nombre: string | null;
   entidad_emisora_id: string | null;
@@ -90,12 +92,14 @@ export async function listarUsuarios(): Promise<UsuarioRow[]> {
   if (usersError) throw new Error(usersError.message);
 
   const { data: profiles } = await client.from("profiles").select("*");
+  const { data: marcas } = await client.from("marcas").select("id, nombre");
   const { data: sucursales } = await client.from("sucursales").select("id, nombre");
   const { data: entidades } = await client
     .from("entidades_emisoras")
     .select("id, nombre_comercial");
 
   const profileMap = new Map((profiles || []).map((p) => [p.id, p]));
+  const marcaMap = new Map((marcas || []).map((m) => [m.id, m.nombre]));
   const sucursalMap = new Map((sucursales || []).map((s) => [s.id, s.nombre]));
   const entidadMap = new Map(
     (entidades || []).map((e) => [e.id, e.nombre_comercial]),
@@ -108,6 +112,8 @@ export async function listarUsuarios(): Promise<UsuarioRow[]> {
       email: user.email,
       nombre: profile?.nombre || null,
       rol: profile?.rol || null,
+      marca_id: profile?.marca_id || null,
+      marca_nombre: profile?.marca_id ? marcaMap.get(profile.marca_id) || null : null,
       sucursal_id: profile?.sucursal_id || null,
       sucursal_nombre: profile?.sucursal_id ? sucursalMap.get(profile.sucursal_id) || null : null,
       entidad_emisora_id: profile?.entidad_emisora_id || null,
@@ -134,48 +140,62 @@ export async function resetPassword(userId: string, newPassword: string) {
   return { success: true };
 }
 
-async function obtenerEntidadEmisora(
+async function resolverEntidadEmisora(
   client: ReturnType<typeof createAdminClient>,
-  entidadId: string,
+  marcaId: string,
+  sucursalId: string,
 ) {
   const { data, error } = await client
     .from("entidades_emisoras")
-    .select("id, sucursal_id, activo")
-    .eq("id", entidadId)
+    .select("id, marca_id, sucursal_id, activo")
+    .eq("marca_id", marcaId)
+    .eq("sucursal_id", sucursalId)
     .maybeSingle();
 
   if (error) throw new Error(error.message);
   if (!data || !data.activo) {
-    throw new Error("La entidad emisora no existe o está inactiva.");
+    throw new Error(
+      "No existe una entidad emisora activa para esa razón social y sucursal.",
+    );
   }
   return data;
 }
 
-export async function updateUserEntidad(
+export async function updateUserUbicacion(
   userId: string,
-  entidadEmisoraId: string | null,
+  marcaId: string | null,
+  sucursalId: string | null,
 ) {
   await requireSuperadmin();
 
   const client = createAdminClient();
 
-  if (!entidadEmisoraId) {
+  if (!marcaId && !sucursalId) {
     const { error } = await client
       .from("profiles")
-      .update({ entidad_emisora_id: null, sucursal_id: null })
+      .update({
+        marca_id: null,
+        sucursal_id: null,
+        entidad_emisora_id: null,
+      })
       .eq("id", userId);
 
     if (error) throw new Error(error.message);
     return { success: true };
   }
 
-  const entidad = await obtenerEntidadEmisora(client, entidadEmisoraId);
+  if (!marcaId || !sucursalId) {
+    throw new Error("Selecciona la razón social y la sucursal.");
+  }
+
+  const entidad = await resolverEntidadEmisora(client, marcaId, sucursalId);
 
   const { error } = await client
     .from("profiles")
     .update({
-      entidad_emisora_id: entidadEmisoraId,
-      sucursal_id: entidad.sucursal_id || null,
+      marca_id: marcaId,
+      sucursal_id: sucursalId,
+      entidad_emisora_id: entidad.id,
     })
     .eq("id", userId);
 
@@ -212,7 +232,7 @@ export async function createUser(
   password: string,
   nombre: string,
   rol: string,
-  entidadEmisoraId?: string,
+  ubicacion?: { marcaId?: string; sucursalId?: string },
 ) {
   await requireSuperadmin();
 
@@ -224,16 +244,21 @@ export async function createUser(
     rol as (typeof ROLES_CON_ENTIDAD)[number],
   );
 
-  if (requiereEntidad && !entidadEmisoraId) {
+  if (requiereEntidad && (!ubicacion?.marcaId || !ubicacion?.sucursalId)) {
     throw new Error(
-      "Debes asignar una razón social / sucursal para este rol.",
+      "Debes asignar una razón social y una sucursal para este rol.",
     );
   }
 
   const client = createAdminClient();
-  const entidad = entidadEmisoraId
-    ? await obtenerEntidadEmisora(client, entidadEmisoraId)
-    : null;
+  const entidad =
+    ubicacion?.marcaId && ubicacion?.sucursalId
+      ? await resolverEntidadEmisora(
+          client,
+          ubicacion.marcaId,
+          ubicacion.sucursalId,
+        )
+      : null;
 
   const { data: created, error } = await client.auth.admin.createUser({
     email,
@@ -248,8 +273,9 @@ export async function createUser(
     const updateData: Record<string, unknown> = {
       rol,
       nombre,
+      marca_id: ubicacion?.marcaId || null,
+      sucursal_id: ubicacion?.sucursalId || null,
       entidad_emisora_id: entidad?.id || null,
-      sucursal_id: entidad?.sucursal_id || null,
     };
 
     const { error: profileError } = await client

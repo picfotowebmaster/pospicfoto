@@ -6,6 +6,7 @@ import { ThemeToggle } from "@/components/ui/ThemeToggle";
 import { NOMBRE_EMPRESA } from "@/lib/utils/constantes";
 import { Logo } from "@/components/ui/Logo";
 import RoleSwitcher from "@/app/_components/RoleSwitcher";
+import { facturacionHabilitada } from "@/lib/config/features";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 
@@ -18,7 +19,9 @@ export default function ContabilidadLayout({
   const pathname = usePathname();
 
   const tabs = [
-    { href: "/contabilidad/pedidos", label: "Facturas" },
+    ...(facturacionHabilitada()
+      ? [{ href: "/contabilidad/pedidos", label: "Facturas" }]
+      : []),
     { href: "/contabilidad/reportes", label: "Reportes" },
   ];
 

@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { ComponentProps } from "react";
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
@@ -47,7 +47,12 @@ function renderForm(overrides: Partial<ComponentProps<typeof FormCliente>> = {})
 
 describe("FormCliente", () => {
   beforeEach(() => {
+    process.env.NEXT_PUBLIC_FACTURACION_HABILITADA = "true";
     vi.mocked(buscarClienteFiscal).mockReset();
+  });
+
+  afterEach(() => {
+    process.env.NEXT_PUBLIC_FACTURACION_HABILITADA = "true";
   });
 
   it("muestra el calendario y las horas en español", () => {
@@ -109,6 +114,17 @@ describe("FormCliente", () => {
     expect(screen.getByLabelText(/Régimen fiscal/i)).toBeInTheDocument();
     expect(screen.getByLabelText(/Uso de CFDI/i)).toBeInTheDocument();
     expect(screen.getByLabelText(/CP fiscal/i)).toBeInTheDocument();
+  });
+
+  it("oculta la captura fiscal cuando la facturación está en stand-by", () => {
+    process.env.NEXT_PUBLIC_FACTURACION_HABILITADA = "false";
+    renderForm({ requiereFactura: true });
+
+    expect(screen.queryByLabelText(/¿Requiere factura\?/i)).not.toBeInTheDocument();
+    expect(screen.queryByLabelText(/^RFC/i)).not.toBeInTheDocument();
+    expect(
+      screen.getByText(/Correo\s*\(opcional\)/),
+    ).toBeInTheDocument();
   });
 
   it("oculta los campos fiscales cuando no requiere factura", () => {

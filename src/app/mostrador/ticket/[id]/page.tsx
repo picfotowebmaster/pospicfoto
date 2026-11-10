@@ -12,6 +12,7 @@ import { Button } from "@/components/ui/Button";
 import { useToast } from "@/components/ui/Toast";
 import { pedidoPagado } from "@/lib/utils/fiscal";
 import { fetchEntidadesPorIds } from "@/lib/services/entidadesEmisoras";
+import { facturacionHabilitada } from "@/lib/config/features";
 import type { EntidadEmisora, Pedido } from "@/lib/supabase/types";
 
 export default function TicketPage() {
@@ -232,6 +233,7 @@ export default function TicketPage() {
         </Button>
       </div>
 
+      {(facturacionHabilitada() || uuidActual) && (
       <div className="mb-4 w-full max-w-[72mm] no-print flex flex-col gap-2">
         {uuidActual ? (
           <div className="bg-green-50 border border-green-300 rounded-lg p-3 text-center text-sm">
@@ -292,6 +294,7 @@ export default function TicketPage() {
           </Button>
         )}
       </div>
+      )}
       <div className="ticket-print-area">
         {pedidos.length === 1 ? (
           <TicketTemplate

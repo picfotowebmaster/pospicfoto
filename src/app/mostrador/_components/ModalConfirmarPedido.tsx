@@ -3,6 +3,7 @@
 import { Button } from "@/components/ui/Button";
 import { RUTAS_PRODUCCION } from "@/lib/utils/constantes";
 import type { LineaPedidoDraft, MetodoPago } from "@/lib/supabase/types";
+import { facturacionHabilitada } from "@/lib/config/features";
 
 interface ModalConfirmarPedidoProps {
   open: boolean;
@@ -87,7 +88,7 @@ export function ModalConfirmarPedido({
               {telefono && (
                 <p className="text-xs text-gray-500 dark:text-gray-400">{telefono}</p>
               )}
-              {requiereFactura && (
+              {facturacionHabilitada() && requiereFactura && (
                 <p className="text-[10px] text-blue-600 dark:text-blue-400 mt-1">
                   Factura: {rfc} · {razonSocial}
                 </p>

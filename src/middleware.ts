@@ -2,6 +2,7 @@ import { createServerClient } from "@supabase/ssr";
 import { createClient } from "@supabase/supabase-js";
 import { NextResponse, type NextRequest } from "next/server";
 import type { User } from "@supabase/supabase-js";
+import { facturacionHabilitada } from "@/lib/config/features";
 
 const ROLES_PRODUCCION = [
   "diseno", "impresion", "laminado", "montaje", "books", "bastidores", "marcos",
@@ -131,6 +132,14 @@ export async function middleware(request: NextRequest) {
     if (!ROLES_CONTABILIDAD.includes(rol)) {
       return NextResponse.redirect(new URL("/mostrador?mensaje=acceso_denegado", request.url));
     }
+  }
+
+  if (
+    user &&
+    !facturacionHabilitada() &&
+    pathname.startsWith("/contabilidad/pedidos")
+  ) {
+    return NextResponse.redirect(new URL("/contabilidad/reportes", request.url));
   }
 
   if (user && pathname.startsWith("/mostrador") && !pathname.startsWith("/mostrador/ticket")) {

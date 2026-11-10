@@ -176,6 +176,7 @@ export interface Profile {
   id: string;
   rol: Rol;
   nombre: string;
+  marca_id?: string | null;
   sucursal_id?: string | null;
   entidad_emisora_id?: string | null;
   created_at: string;

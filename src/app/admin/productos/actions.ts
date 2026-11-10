@@ -3,6 +3,7 @@
 import { createServerClient } from "@supabase/ssr";
 import { cookies } from "next/headers";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { fetchAllPages } from "@/lib/utils/paginado";
 import type {
   Atributo,
   AtributoValor,
@@ -69,12 +70,11 @@ export async function listarCatalogoAdmin(): Promise<CatalogoAdmin> {
   await requireAdmin();
   const client = createAdminClient();
 
-  const [cats, prods, mapping, attrs, pav] = await Promise.all([
+  const [cats, prods, mapping, attrs] = await Promise.all([
     client.from("categorias").select("*").order("orden").order("nombre"),
     client.from("productos").select("*").order("orden").order("nombre"),
     client.from("producto_atributos").select("*").order("orden"),
     client.from("atributos").select("*, atributo_valores(*)").order("nombre"),
-    client.from("producto_atributo_valores").select("producto_atributo_id, valor_id, orden").order("orden"),
   ]);
 
   if (cats.error) throw new Error(cats.error.message);
@@ -82,18 +82,29 @@ export async function listarCatalogoAdmin(): Promise<CatalogoAdmin> {
   if (mapping.error) throw new Error(mapping.error.message);
   if (attrs.error) throw new Error(attrs.error.message);
 
+  const pavRows = await fetchAllPages<{
+    producto_atributo_id: string;
+    valor_id: string;
+  }>((from, to) =>
+    client
+      .from("producto_atributo_valores")
+      .select("producto_atributo_id, valor_id, orden")
+      .order("producto_atributo_id")
+      .order("orden")
+      .order("valor_id")
+      .range(from, to),
+  ).catch(() => []);
+
   const categorias = (cats.data ?? []) as Categoria[];
   const productos = (prods.data ?? []) as Producto[];
   const map = (mapping.data ?? []) as ProductoAtributo[];
   const catById = new Map(categorias.map((c) => [c.id, c.nombre]));
 
   const valoresPorPa = new Map<string, string[]>();
-  if (!pav.error) {
-    for (const row of (pav.data ?? []) as { producto_atributo_id: string; valor_id: string }[]) {
-      const lista = valoresPorPa.get(row.producto_atributo_id) ?? [];
-      lista.push(row.valor_id);
-      valoresPorPa.set(row.producto_atributo_id, lista);
-    }
+  for (const row of pavRows) {
+    const lista = valoresPorPa.get(row.producto_atributo_id) ?? [];
+    lista.push(row.valor_id);
+    valoresPorPa.set(row.producto_atributo_id, lista);
   }
 
   return {

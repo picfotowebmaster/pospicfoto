@@ -10,6 +10,7 @@ import { buscarClienteFiscal } from "@/lib/services/clientesFiscales";
 import { redondearA30Min } from "@/lib/utils/pedido";
 import { REGIMENES_FISCALES, USOS_CFDI } from "@/lib/utils/fiscalCatalogos";
 import { cpValido, normalizarRfc, rfcValido } from "@/lib/utils/fiscal";
+import { facturacionHabilitada } from "@/lib/config/features";
 
 function fechaLocal(fecha: string): Date | null {
   if (!fecha) return null;
@@ -102,6 +103,11 @@ export function FormCliente({
       onTelefonoChange(c.telefono ?? "");
       onEmailChange(c.email ?? "");
 
+      if (!facturacionHabilitada()) {
+        setFiscalCargado(false);
+        return;
+      }
+
       const solicitud = ++solicitudFiscalRef.current;
       try {
         const fiscal = await buscarClienteFiscal(
@@ -184,7 +190,12 @@ export function FormCliente({
         </div>
         <div>
           <label htmlFor="cliente-email" className="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1">
-            Correo {requiereFactura ? "*" : "(para factura)"}
+            Correo{" "}
+            {!facturacionHabilitada()
+              ? "(opcional)"
+              : requiereFactura
+                ? "*"
+                : "(para factura)"}
           </label>
           <input
             id="cliente-email"
@@ -245,7 +256,8 @@ export function FormCliente({
         </div>
       </div>
 
-      <div className="border-t border-gray-200 dark:border-gray-700 pt-3 space-y-3">
+      {facturacionHabilitada() && (
+        <div className="border-t border-gray-200 dark:border-gray-700 pt-3 space-y-3">
         <label
           htmlFor="requiere-factura"
           className="flex items-start gap-2 cursor-pointer select-none"
@@ -366,7 +378,8 @@ export function FormCliente({
             </div>
           </div>
         )}
-      </div>
+        </div>
+      )}
     </div>
   );
 }

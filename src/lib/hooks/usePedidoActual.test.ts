@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach } from "vitest";
+import { afterEach, describe, it, expect, vi, beforeEach } from "vitest";
 import { renderHook, act, waitFor } from "@testing-library/react";
 import { usePedidoActual } from "./usePedidoActual";
 import type { LineaPedidoDraft } from "@/lib/supabase/types";
@@ -22,8 +22,13 @@ import { savePedidoDraft, getPedidoDraft, clearPedidoDraft } from "@/lib/offline
 
 describe("usePedidoActual", () => {
   beforeEach(() => {
+    process.env.NEXT_PUBLIC_FACTURACION_HABILITADA = "true";
     vi.clearAllMocks();
     vi.mocked(getPedidoDraft).mockResolvedValue(null);
+  });
+
+  afterEach(() => {
+    process.env.NEXT_PUBLIC_FACTURACION_HABILITADA = "true";
   });
 
   it("inicia con valores por defecto", () => {
@@ -178,6 +183,26 @@ describe("usePedidoActual", () => {
     });
 
     expect(result.current.valido).toBe(true);
+  });
+
+  it("no exige datos fiscales en stand-by aunque el cliente los tenga marcados", () => {
+    process.env.NEXT_PUBLIC_FACTURACION_HABILITADA = "false";
+    const { result } = renderHook(() => usePedidoActual("suc-1", "ent-1"));
+
+    act(() => {
+      result.current.setCliente({
+        ...result.current.cliente,
+        nombre: "Juan",
+        fechaEntrega: "2026-01-01",
+        horaEntrega: "10:00",
+        requiereFactura: true,
+      });
+      result.current.setMarcaId("m1");
+      result.current.agregarLinea(helperLinea({ producto_nombre: "Foto" }));
+    });
+
+    expect(result.current.valido).toBe(true);
+    expect(result.current.pendientes).not.toContain("RFC válido");
   });
 
   it("valido es false si una linea tiene nombre vacio", () => {

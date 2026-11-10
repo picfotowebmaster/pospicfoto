@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import type { ProductoConAtributos } from "@/lib/supabase/types";
 import {
+  completarPreciosFaltantes,
   esTablaPreciosFaltante,
   firmaValores,
   generarCombinaciones,
@@ -248,5 +249,96 @@ describe("resolverPrecio con atributos múltiples de Photo Books", () => {
         "Color Vinipiel": "Negro",
       }).completo,
     ).toBe(false);
+  });
+});
+
+describe("resolverPrecio con precio base", () => {
+  const conBase: Pick<ProductoConAtributos, "atributos" | "precios"> = {
+    atributos: [
+      {
+        id: "a-tamano",
+        nombre: "Tamaño",
+        activo: true,
+        afecta_precio: true,
+        valores: [{ id: "v-20", atributo_id: "a-tamano", valor: "20" }],
+      },
+    ],
+    precios: [
+      {
+        id: "p-base",
+        producto_id: "p1",
+        valores_ids: [],
+        precio: 500,
+        activo: true,
+      },
+    ],
+  };
+
+  it("no usa la fila base para sustituir un precio de variante faltante", () => {
+    expect(resolverPrecio(conBase, { Tamaño: "20" })).toEqual({
+      precio: null,
+      completo: true,
+      regla: null,
+    });
+  });
+
+  it("ignora una fila base inactiva", () => {
+    const inactiva = {
+      ...conBase,
+      precios: [{ ...conBase.precios[0], activo: false }],
+    };
+    expect(resolverPrecio(inactiva, { Tamaño: "20" })).toEqual({
+      precio: null,
+      completo: true,
+      regla: null,
+    });
+  });
+});
+
+describe("completarPreciosFaltantes", () => {
+  it("copia el precio de la variante más cercana", () => {
+    const filas = [
+      { valores_ids: ["a", "x"], precio: "100" },
+      { valores_ids: ["a", "y"], precio: "120" },
+      { valores_ids: ["b", "x"], precio: "" },
+      { valores_ids: ["b", "y"], precio: "" },
+    ];
+
+    const resultado = completarPreciosFaltantes(filas);
+
+    expect(resultado.completadas).toBe(2);
+    expect(resultado.sinReferencia).toBe(0);
+    expect(resultado.filas[2].precio).toBe("100.00");
+    expect(resultado.filas[3].precio).toBe("120.00");
+  });
+
+  it("en empate usa el precio más bajo", () => {
+    const resultado = completarPreciosFaltantes([
+      { valores_ids: ["a"], precio: "300" },
+      { valores_ids: ["b"], precio: "200" },
+      { valores_ids: ["c"], precio: "" },
+    ]);
+
+    expect(resultado.filas[2].precio).toBe("200.00");
+  });
+
+  it("no sobrescribe precios existentes", () => {
+    const resultado = completarPreciosFaltantes([
+      { valores_ids: ["a"], precio: "50" },
+      { valores_ids: ["b"], precio: "75" },
+    ]);
+
+    expect(resultado.completadas).toBe(0);
+    expect(resultado.filas.map((f) => f.precio)).toEqual(["50", "75"]);
+  });
+
+  it("deja sin precio las variantes sin referencia", () => {
+    const resultado = completarPreciosFaltantes([
+      { valores_ids: ["a"], precio: "" },
+    ]);
+
+    expect(resultado.completadas).toBe(0);
+    expect(resultado.sinReferencia).toBe(1);
+    expect(resultado.filas[0].precio).toBe("");
   });
 });

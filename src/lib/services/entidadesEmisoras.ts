@@ -49,6 +49,40 @@ export async function fetchEntidadEmisora(
   return (data as EntidadEmisora | null) ?? null;
 }
 
+export async function fetchEntidadPorMarcaSucursal(
+  marcaId: string | null | undefined,
+  sucursalId: string | null | undefined,
+): Promise<EntidadEmisora | null> {
+  if (!marcaId || !sucursalId) return null;
+
+  const { data, error } = await supabase
+    .from("entidades_emisoras")
+    .select("*")
+    .eq("marca_id", marcaId)
+    .eq("sucursal_id", sucursalId)
+    .eq("activo", true)
+    .maybeSingle();
+
+  if (error) throw error;
+  return (data as EntidadEmisora | null) ?? null;
+}
+
+export function emparejarEntidad(
+  entidades: EntidadEmisora[],
+  marcaId: string | null | undefined,
+  sucursalId: string | null | undefined,
+): EntidadEmisora | null {
+  if (!marcaId || !sucursalId) return null;
+  return (
+    entidades.find(
+      (entidad) =>
+        entidad.marca_id === marcaId &&
+        entidad.sucursal_id === sucursalId &&
+        entidad.activo,
+    ) ?? null
+  );
+}
+
 export async function fetchEntidadesPorIds(
   ids: string[],
 ): Promise<Map<string, EntidadEmisora>> {
