@@ -1,0 +1,6 @@
+"$schema" = "https://open-api.netlify.com/netlify.schema.json"
+
+[build.environment]
+  # El correo remitente es público y aparece por diseño en tickets y migraciones,
+  # por lo que no debe bloquear el escaneo de secretos de Netlify.
+  SECRETS_SCAN_OMIT_KEYS = "RESEND_FROM_EMAIL"
