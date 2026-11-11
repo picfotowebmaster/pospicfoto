@@ -1,5 +1,6 @@
 import React from "react";
 import { DATOS_EMPRESA, POLITICAS } from "@/lib/utils/constantes";
+import { pedidoPagado } from "@/lib/utils/fiscal";
 import type { EntidadEmisora } from "@/lib/supabase/types";
 
 export interface TicketDetalle {
@@ -23,6 +24,9 @@ export interface TicketPedido {
   anticipo: number;
   total: number;
   metodo_pago: string;
+  saldo_cobrado?: boolean | null;
+  saldo_metodo_pago?: string | null;
+  saldo_cobrado_en?: string | null;
   detalle_pedidos?: TicketDetalle[];
 }
 
@@ -32,7 +36,23 @@ interface TicketTemplateProps {
   nota?: string;
 }
 
+function formatearFechaHora(fecha: string | null | undefined): string | null {
+  if (!fecha) return null;
+  const d = new Date(fecha);
+  if (Number.isNaN(d.getTime())) return null;
+  return d.toLocaleString("es-MX", {
+    day: "2-digit",
+    month: "2-digit",
+    year: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+  });
+}
+
 export function TicketTemplate({ pedido, emisor, nota }: TicketTemplateProps) {
+  const saldo = Math.max(0, pedido.total - pedido.anticipo);
+  const pagado = pedidoPagado(pedido);
+  const fechaLiquidacion = formatearFechaHora(pedido.saldo_cobrado_en);
   const nombre = emisor?.nombre_comercial || DATOS_EMPRESA.nombre;
   const razonSocial = emisor?.razon_social || DATOS_EMPRESA.nombre;
   const rfc = emisor?.rfc || DATOS_EMPRESA.rfc;
@@ -71,6 +91,10 @@ export function TicketTemplate({ pedido, emisor, nota }: TicketTemplateProps) {
           {nota}
         </div>
       )}
+
+      <div className="text-center text-[9px] font-bold border border-black px-1 py-0.5 mb-1">
+        {pagado ? "PAGADO" : "PENDIENTE"}
+      </div>
 
       <div className="border-t border-b border-dashed border-gray-400 py-0.5 mb-1">
         <div>
@@ -131,9 +155,34 @@ export function TicketTemplate({ pedido, emisor, nota }: TicketTemplateProps) {
           <span className="font-bold">Total:</span>
           <span>${pedido.total.toFixed(2)}</span>
         </div>
-        <div>
-          <span className="font-bold">Pago:</span> {pedido.metodo_pago}
+        <div className="flex justify-between gap-2">
+          <span className="font-bold">Estado de pago:</span>
+          <span>{pagado ? "Pagado" : "Pendiente"}</span>
         </div>
+        {saldo > 0.01 && (
+          <div className="flex justify-between gap-2">
+            <span className="font-bold">
+              {pedido.saldo_cobrado ? "Saldo pagado:" : "Saldo pendiente:"}
+            </span>
+            <span>${saldo.toFixed(2)}</span>
+          </div>
+        )}
+        {pedido.saldo_cobrado && saldo > 0.01 && (
+          <div>
+            <span className="font-bold">Método saldo:</span>{" "}
+            {pedido.saldo_metodo_pago || "—"}
+          </div>
+        )}
+        {pedido.saldo_cobrado && saldo > 0.01 && fechaLiquidacion && (
+          <div>
+            <span className="font-bold">Fecha de pago:</span> {fechaLiquidacion}
+          </div>
+        )}
+        {pedido.anticipo > 0 && (
+          <div>
+            <span className="font-bold">Pago:</span> {pedido.metodo_pago}
+          </div>
+        )}
       </div>
 
       <div className="text-[8px] text-center border-t border-dashed border-gray-400 pt-1">

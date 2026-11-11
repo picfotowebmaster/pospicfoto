@@ -32,14 +32,20 @@ function mapearFormaPago(metodoPago: string | null | undefined): string {
 function mapearFormaPagoFinal(principal: Record<string, unknown>): string {
   const metodoAnticipo = principal.metodo_pago as string | null | undefined;
   const metodoSaldo = principal.saldo_metodo_pago as string | null | undefined;
-  if (
-    principal.saldo_cobrado &&
-    metodoSaldo &&
-    metodoAnticipo &&
-    metodoSaldo !== metodoAnticipo
-  ) {
-    return "99";
+  const anticipo = Number(principal.anticipo ?? 0);
+
+  if (anticipo > 0) {
+    if (
+      principal.saldo_cobrado &&
+      metodoSaldo &&
+      metodoAnticipo &&
+      metodoSaldo !== metodoAnticipo
+    ) {
+      return "99";
+    }
+    return mapearFormaPago(metodoAnticipo);
   }
+
   return mapearFormaPago(metodoSaldo || metodoAnticipo);
 }
 

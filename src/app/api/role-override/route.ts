@@ -1,31 +1,13 @@
 import { createServerClient } from "@supabase/ssr";
 import { cookies } from "next/headers";
 import { NextRequest, NextResponse } from "next/server";
+import {
+  ROLE_DESTINO,
+  esAdminRol,
+  rolesSwitchDisponibles,
+} from "@/lib/utils/roles";
 
-const ROLES_DESTINO: Record<string, string> = {
-  mostrador: "/mostrador",
-  diseno: "/produccion/kanban",
-  impresion: "/produccion/kanban",
-  laminado: "/produccion/kanban",
-  montaje: "/produccion/kanban",
-  books: "/produccion/kanban",
-  bastidores: "/produccion/kanban",
-  marcos: "/produccion/kanban",
-  taller: "/produccion/kanban",
-  corte: "/produccion/kanban",
-  contador: "/contabilidad",
-};
-
-export async function POST(request: NextRequest) {
-  const { role, redirectTo } = await request.json();
-
-  if (!role || !ROLES_DESTINO[role]) {
-    return NextResponse.json(
-      { error: "Rol inválido" },
-      { status: 400 }
-    );
-  }
-
+async function getProfileRole() {
   const cookieStore = await cookies();
   const supabase = createServerClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -39,16 +21,14 @@ export async function POST(request: NextRequest) {
           // no-op en API route
         },
       },
-    }
+    },
   );
 
   const {
     data: { user },
   } = await supabase.auth.getUser();
 
-  if (!user) {
-    return NextResponse.json({ error: "No autenticado" }, { status: 401 });
-  }
+  if (!user) return { user: null, rol: null };
 
   const { data: profile } = await supabase
     .from("profiles")
@@ -56,11 +36,32 @@ export async function POST(request: NextRequest) {
     .eq("id", user.id)
     .single();
 
-  if (!profile || !["admin", "superadmin"].includes(profile.rol)) {
+  return { user, rol: (profile?.rol as string | null) ?? null };
+}
+
+export async function POST(request: NextRequest) {
+  const { role } = await request.json();
+
+  if (!role || !ROLE_DESTINO[role]) {
+    return NextResponse.json(
+      { error: "Rol inválido" },
+      { status: 400 },
+    );
+  }
+
+  const { user, rol } = await getProfileRole();
+
+  if (!user) {
+    return NextResponse.json({ error: "No autenticado" }, { status: 401 });
+  }
+
+  const permitidos = rolesSwitchDisponibles(rol);
+
+  if (!permitidos.includes(role)) {
     return NextResponse.json({ error: "No autorizado" }, { status: 403 });
   }
 
-  const destino = redirectTo || ROLES_DESTINO[role];
+  const destino = ROLE_DESTINO[role];
   const response = NextResponse.json({ success: true, redirectTo: destino });
   response.cookies.set("role_override", role, {
     path: "/",
@@ -73,7 +74,20 @@ export async function POST(request: NextRequest) {
 }
 
 export async function DELETE() {
-  const response = NextResponse.json({ success: true, redirectTo: "/admin" });
+  const { user, rol } = await getProfileRole();
+
+  if (!user) {
+    return NextResponse.json({ error: "No autenticado" }, { status: 401 });
+  }
+
+  const destino =
+    rol === "taller"
+      ? "/produccion/kanban"
+      : esAdminRol(rol)
+        ? "/admin"
+        : "/";
+
+  const response = NextResponse.json({ success: true, redirectTo: destino });
   response.cookies.set("role_override", "", {
     path: "/",
     maxAge: 0,

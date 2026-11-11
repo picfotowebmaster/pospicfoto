@@ -4,6 +4,7 @@ import { useState, useEffect } from "react";
 import dynamic from "next/dynamic";
 import { supabase } from "@/lib/supabase/client";
 import { useToast } from "@/components/ui/Toast";
+import { construirResumenReporte, type PedidoReporte } from "@/lib/utils/reportes";
 
 const VentasChart = dynamic(
   () => import("@/app/admin/reportes/_components/VentasChart").then((m) => ({ default: m.VentasChart })),
@@ -50,7 +51,13 @@ export default function ReportesContabilidadPage() {
   const [periodo, setPeriodo] = useState<string>("30d");
   const [cargando, setCargando] = useState(true);
   const [ventas, setVentas] = useState<VentaDia[]>([]);
+  const [cobrado, setCobrado] = useState<VentaDia[]>([]);
   const [metodosPago, setMetodosPago] = useState<MetodoPagoData[]>([]);
+  const [resumen, setResumen] = useState<{
+    totalVendido: number;
+    totalCobrado: number;
+    saldoPendiente: number;
+  } | null>(null);
 
   const periodoActual = PERIODOS.find((p) => p.key === periodo) ?? PERIODOS[2];
   const dias = periodoActual.days;
@@ -61,45 +68,28 @@ export default function ReportesContabilidadPage() {
     async function cargar() {
       setCargando(true);
       try {
-        const [ventasRes, metodosRes] = await Promise.all([
-          supabase
-            .from("pedidos")
-            .select("fecha_recepcion, total")
-            .gte("fecha_recepcion", start)
-            .order("fecha_recepcion"),
-          supabase
-            .from("pedidos")
-            .select("metodo_pago, total")
-            .gte("fecha_recepcion", start),
-        ]);
+        const { data } = await supabase
+          .from("pedidos")
+          .select(
+            "fecha_recepcion, total, anticipo, metodo_pago, saldo_cobrado, saldo_metodo_pago, saldo_cobrado_en, estado",
+          )
+          .or(
+            `fecha_recepcion.gte.${start},saldo_cobrado_en.gte.${start}T00:00:00`,
+          )
+          .order("fecha_recepcion");
 
-        if (ventasRes.data) {
-          const agrupado: Record<string, { count: number; total: number }> = {};
-          for (const row of ventasRes.data as { fecha_recepcion: string; total: number }[]) {
-            const d = row.fecha_recepcion;
-            if (!agrupado[d]) agrupado[d] = { count: 0, total: 0 };
-            agrupado[d].count++;
-            agrupado[d].total += row.total ?? 0;
-          }
-          setVentas(
-            Object.entries(agrupado).map(([fecha, val]) => ({
-              fecha_recepcion: fecha,
-              count: val.count,
-              total: val.total,
-            })),
-          );
-        }
-
-        if (metodosRes.data) {
-          const agrupado: Record<string, MetodoPagoData> = {};
-          for (const row of metodosRes.data as { metodo_pago: string; total: number }[]) {
-            const m = row.metodo_pago;
-            if (!agrupado[m]) agrupado[m] = { metodo_pago: m, count: 0, total: 0 };
-            agrupado[m].count++;
-            agrupado[m].total += row.total ?? 0;
-          }
-          setMetodosPago(Object.values(agrupado));
-        }
+        const resumenPagos = construirResumenReporte(
+          (data ?? []) as PedidoReporte[],
+          start,
+        );
+        setVentas(resumenPagos.ventasPorDia as VentaDia[]);
+        setCobrado(resumenPagos.cobradoPorDia as VentaDia[]);
+        setMetodosPago(resumenPagos.cobradoPorMetodo as MetodoPagoData[]);
+        setResumen({
+          totalVendido: resumenPagos.totalVendido,
+          totalCobrado: resumenPagos.totalCobrado,
+          saldoPendiente: resumenPagos.saldoPendiente,
+        });
       } catch (err) {
         console.error("Error cargando reportes:", err);
         showError("Error al cargar reportes.");
@@ -140,9 +130,52 @@ export default function ReportesContabilidadPage() {
           Cargando reportes...
         </div>
       ) : (
-        <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
-          <VentasChart data={ventas} />
-          <MetodoPagoChart data={metodosPago} />
+        <div className="space-y-6">
+          {resumen && (
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+              <div className="bg-white dark:bg-gray-900 rounded-xl shadow p-4">
+                <p className="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wide">
+                  Vendido
+                </p>
+                <p className="text-2xl font-bold text-gray-900 dark:text-gray-100 mt-1">
+                  ${resumen.totalVendido.toFixed(2)}
+                </p>
+              </div>
+              <div className="bg-white dark:bg-gray-900 rounded-xl shadow p-4">
+                <p className="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wide">
+                  Cobrado
+                </p>
+                <p className="text-2xl font-bold text-emerald-600 mt-1">
+                  ${resumen.totalCobrado.toFixed(2)}
+                </p>
+              </div>
+              <div className="bg-white dark:bg-gray-900 rounded-xl shadow p-4">
+                <p className="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wide">
+                  Saldo pendiente
+                </p>
+                <p className="text-2xl font-bold text-amber-600 mt-1">
+                  ${resumen.saldoPendiente.toFixed(2)}
+                </p>
+              </div>
+            </div>
+          )}
+
+          <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
+            <VentasChart
+              data={ventas}
+              titulo="Vendido por día"
+              serieNombre="Vendido"
+            />
+            <VentasChart
+              data={cobrado}
+              titulo="Cobrado por día"
+              serieNombre="Cobrado"
+            />
+            <MetodoPagoChart
+              data={metodosPago}
+              titulo="Cobrado por método"
+            />
+          </div>
         </div>
       )}
     </div>

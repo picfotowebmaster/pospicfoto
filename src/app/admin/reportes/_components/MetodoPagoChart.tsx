@@ -12,6 +12,7 @@ const COLOR_DEFAULT = "#9ca3af";
 
 interface Props {
   data: { metodo_pago: string; count: number; total: number }[];
+  titulo?: string;
 }
 
 const monedaFormatter = new Intl.NumberFormat("es-MX", { style: "currency", currency: "MXN" });
@@ -20,12 +21,15 @@ function formatearMoneda(valor: number): string {
   return monedaFormatter.format(valor);
 }
 
-export function MetodoPagoChart({ data }: Props) {
+export function MetodoPagoChart({
+  data,
+  titulo = "Método de Pago",
+}: Props) {
   if (data.length === 0) {
     return (
         <div className="bg-white dark:bg-gray-900 rounded-xl shadow p-4">
         <h3 className="text-sm font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide mb-4">
-          Método de Pago
+          {titulo}
         </h3>
         <div className="text-center text-gray-400 dark:text-gray-500 py-10 text-sm">
           Sin datos en este período
@@ -46,7 +50,7 @@ export function MetodoPagoChart({ data }: Props) {
   return (
     <div className="bg-white dark:bg-gray-900 rounded-xl shadow p-4">
       <h3 className="text-sm font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide mb-4">
-        Método de Pago
+        {titulo}
       </h3>
       <ResponsiveContainer width="100%" height={280}>
         <PieChart>

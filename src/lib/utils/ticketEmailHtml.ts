@@ -1,4 +1,5 @@
 import { DATOS_EMPRESA, POLITICAS } from "@/lib/utils/constantes";
+import { pedidoPagado } from "@/lib/utils/fiscal";
 import type { EntidadEmisora, Pedido } from "@/lib/supabase/types";
 
 function esc(value: unknown): string {
@@ -29,6 +30,17 @@ export function renderTicketHtml(
   baseUrl?: string,
 ): string {
   const numeroTicket = pedido.numero_pedido || pedido.id.slice(0, 8).toUpperCase();
+  const saldo = Math.max(0, Number(pedido.total ?? 0) - Number(pedido.anticipo ?? 0));
+  const pagado = pedidoPagado(pedido);
+  const fechaLiquidacion = pedido.saldo_cobrado_en
+    ? new Date(pedido.saldo_cobrado_en).toLocaleString("es-MX", {
+        day: "2-digit",
+        month: "2-digit",
+        year: "numeric",
+        hour: "2-digit",
+        minute: "2-digit",
+      })
+    : null;
   const nombre = emisor?.nombre_comercial || DATOS_EMPRESA.nombre;
   const razonSocial = emisor?.razon_social || DATOS_EMPRESA.nombre;
   const rfc = emisor?.rfc || DATOS_EMPRESA.rfc;
@@ -78,6 +90,8 @@ export function renderTicketHtml(
       ${emisor?.sitio_web ? `<div style="font-size:11px;color:#6b7280;">${esc(emisor.sitio_web)}</div>` : ""}
     </div>
 
+    <div style="text-align:center;font-weight:bold;font-size:13px;border:1px solid #111827;padding:4px;margin-bottom:12px;">${pagado ? "PAGADO" : "PENDIENTE"}</div>
+
     <table style="width:100%;font-size:12px;margin-bottom:12px;">
       <tr><td style="font-weight:bold;width:90px;">Ticket:</td><td>${esc(numeroTicket)}</td></tr>
       <tr><td style="font-weight:bold;">Fecha:</td><td>${esc(pedido.fecha_recepcion)} ${esc(pedido.hora_recepcion?.slice(0, 5))}</td></tr>
@@ -101,7 +115,11 @@ export function renderTicketHtml(
       <tr><td style="font-weight:bold;">Subtotal:</td><td style="text-align:right;">${money(pedido.subtotal)}</td></tr>
       <tr><td style="font-weight:bold;">Anticipo:</td><td style="text-align:right;">${money(pedido.anticipo)}</td></tr>
       <tr><td style="font-weight:bold;font-size:14px;">Total:</td><td style="text-align:right;font-weight:bold;font-size:14px;">${money(pedido.total)}</td></tr>
-      <tr><td style="font-weight:bold;">Pago:</td><td style="text-align:right;">${esc(pedido.metodo_pago)}</td></tr>
+      <tr><td style="font-weight:bold;">Estado de pago:</td><td style="text-align:right;">${pagado ? "Pagado" : "Pendiente"}</td></tr>
+      ${saldo > 0.01 ? `<tr><td style="font-weight:bold;">${pedido.saldo_cobrado ? "Saldo pagado:" : "Saldo pendiente:"}</td><td style="text-align:right;">${money(saldo)}</td></tr>` : ""}
+      ${pedido.saldo_cobrado && saldo > 0.01 && pedido.saldo_metodo_pago ? `<tr><td style="font-weight:bold;">Método saldo:</td><td style="text-align:right;">${esc(pedido.saldo_metodo_pago)}</td></tr>` : ""}
+      ${pedido.saldo_cobrado && saldo > 0.01 && fechaLiquidacion ? `<tr><td style="font-weight:bold;">Fecha de pago:</td><td style="text-align:right;">${esc(fechaLiquidacion)}</td></tr>` : ""}
+      ${pedido.anticipo > 0 ? `<tr><td style="font-weight:bold;">Pago:</td><td style="text-align:right;">${esc(pedido.metodo_pago)}</td></tr>` : ""}
     </table>
 
     <div style="border-top:1px dashed #9ca3af;margin-top:12px;padding-top:12px;text-align:center;">

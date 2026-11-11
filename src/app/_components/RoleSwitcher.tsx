@@ -1,24 +1,19 @@
 "use client";
 
-import { useState, useSyncExternalStore } from "react";
+import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/Button";
 import { useAuth } from "@/lib/hooks/useAuth";
+import { useRoleOverride } from "@/lib/hooks/useRoleOverride";
 import { facturacionHabilitada } from "@/lib/config/features";
-
-const ROLES_VER_COMO = [
-  { key: "mostrador", label: "Mostrador" },
-  { key: "diseno", label: "Diseño" },
-  { key: "impresion", label: "Impresión" },
-  { key: "laminado", label: "Laminado" },
-  { key: "montaje", label: "Montaje" },
-  { key: "books", label: "Books" },
-  { key: "bastidores", label: "Bastidores" },
-  { key: "marcos", label: "Marcos" },
-  { key: "taller", label: "Taller" },
-  { key: "corte", label: "Corte" },
-  { key: "contador", label: "Contador" },
-] as const;
+import {
+  ROLE_LABELS,
+  ROLES_SWITCH_ADMIN,
+  rolesSwitchDisponibles,
+  etiquetaVolver,
+  esAdminRol,
+  puedeVerRoleSwitcher,
+} from "@/lib/utils/roles";
 
 const MODULOS = [
   facturacionHabilitada()
@@ -29,36 +24,10 @@ const MODULOS = [
   { path: "/mostrador", label: "Mostrador" },
 ];
 
-const ROLE_LABELS: Record<string, string> = {
-  ...Object.fromEntries(ROLES_VER_COMO.map((r) => [r.key, r.label])),
-};
-
-function getRoleOverrideCookie(): string | null {
-  if (typeof document === "undefined") return null;
-  const match = document.cookie.match(/(?:^|;\s*)role_override=([^;]*)/);
-  return match ? decodeURIComponent(match[1]) : null;
-}
-
-function subscribeToCookie() {
-  return () => {};
-}
-
-function getCookieSnapshot() {
-  return getRoleOverrideCookie();
-}
-
-function getServerCookieSnapshot() {
-  return null;
-}
-
 export default function RoleSwitcher() {
   const router = useRouter();
   const { profile } = useAuth();
-  const roleOverride = useSyncExternalStore(
-    subscribeToCookie,
-    getCookieSnapshot,
-    getServerCookieSnapshot,
-  );
+  const roleOverride = useRoleOverride();
   const [cargando, setCargando] = useState(false);
 
   async function handleSwitchRole(role: string) {
@@ -71,7 +40,7 @@ export default function RoleSwitcher() {
       });
       const data = await res.json();
       if (data.redirectTo) {
-        router.push(data.redirectTo);
+        window.location.assign(data.redirectTo);
       }
     } catch {
       // ignore
@@ -86,7 +55,7 @@ export default function RoleSwitcher() {
       const res = await fetch("/api/role-override", { method: "DELETE" });
       const data = await res.json();
       if (data.redirectTo) {
-        router.push(data.redirectTo);
+        window.location.assign(data.redirectTo);
       }
     } catch {
       // ignore
@@ -104,18 +73,22 @@ export default function RoleSwitcher() {
     handleSwitchRole(valor);
   }
 
-  const esAdmin = profile?.rol === "admin" || profile?.rol === "superadmin";
+  const esAdmin = esAdminRol(profile?.rol);
+  const puedeVer = puedeVerRoleSwitcher(profile?.rol);
+  const permitidos = rolesSwitchDisponibles(profile?.rol);
+  const opciones = ROLES_SWITCH_ADMIN.filter((rol) =>
+    permitidos.includes(rol),
+  );
   const currentRole =
-    roleOverride && ROLE_LABELS[roleOverride] ? roleOverride : null;
+    roleOverride && permitidos.includes(roleOverride) ? roleOverride : null;
 
-  // Solo visible para Admin / Super Admin
-  if (!esAdmin) return null;
+  if (!puedeVer) return null;
 
   if (currentRole) {
     return (
       <div className="flex items-center gap-2">
         <span className="text-xs px-2 py-0.5 rounded-full bg-yellow-100 dark:bg-yellow-900/40 text-yellow-800 dark:text-yellow-300 font-medium whitespace-nowrap">
-          Viendo: {ROLE_LABELS[currentRole]}
+          Viendo: {ROLE_LABELS[currentRole] ?? currentRole}
         </span>
         <Button
           variant="ghost"
@@ -124,7 +97,7 @@ export default function RoleSwitcher() {
           disabled={cargando}
           className="text-xs"
         >
-          Volver a Admin
+          {etiquetaVolver(profile?.rol)}
         </Button>
       </div>
     );
@@ -142,19 +115,21 @@ export default function RoleSwitcher() {
         Cambiar rol ▾
       </option>
       <optgroup label="Ver como">
-        {ROLES_VER_COMO.map((r) => (
-          <option key={r.key} value={r.key}>
-            {r.label}
+        {opciones.map((rol) => (
+          <option key={rol} value={rol}>
+            {ROLE_LABELS[rol] ?? rol}
           </option>
         ))}
       </optgroup>
-      <optgroup label="Módulos">
-        {MODULOS.map((m) => (
-          <option key={m.path} value={`mod:${m.path}`}>
-            {m.label}
-          </option>
-        ))}
-      </optgroup>
+      {esAdmin && (
+        <optgroup label="Módulos">
+          {MODULOS.map((m) => (
+            <option key={m.path} value={`mod:${m.path}`}>
+              {m.label}
+            </option>
+          ))}
+        </optgroup>
+      )}
     </select>
   );
 }

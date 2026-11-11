@@ -22,6 +22,8 @@ import RoleSwitcher from "@/app/_components/RoleSwitcher";
 import { NotificationCenter } from "../_components/NotificationCenter";
 import { usePushNotifications } from "@/lib/hooks/usePushNotifications";
 import { useNotificaciones } from "@/lib/hooks/useNotificaciones";
+import { useRoleOverride } from "@/lib/hooks/useRoleOverride";
+import { resolverRolEfectivo } from "@/lib/utils/roles";
 import type { Pedido, PrioridadPedido, MetodoPago } from "@/lib/supabase/types";
 
 const ROLES_DEPARTAMENTO = [
@@ -87,7 +89,9 @@ export default function KanbanPage() {
   }, [session?.user?.id, showError]);
 
   const rolCargando = rol === undefined;
-  const areaFiltro = getDepartamentoFromRol(rol ?? null);
+  const roleOverride = useRoleOverride();
+  const rolVista = resolverRolEfectivo(rol ?? null, roleOverride);
+  const areaFiltro = getDepartamentoFromRol(rolVista);
   const usuarioId = session?.user?.id ?? null;
 
   const [areas, setAreas] = useState<{ id: string; nombre: string; color: string; orden: number }[]>([]);

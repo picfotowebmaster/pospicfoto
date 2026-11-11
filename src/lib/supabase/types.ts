@@ -182,9 +182,24 @@ export interface Profile {
   created_at: string;
 }
 
+export interface Cliente {
+  id: string;
+  nombre: string;
+  telefono: string | null;
+  email: string | null;
+  notas?: string | null;
+  rfc?: string | null;
+  last_order_at?: string | null;
+  pedidos_count?: number;
+  total_gastado?: number;
+  created_at?: string;
+  updated_at?: string;
+}
+
 export interface Pedido {
   id: string;
   cajero_id: string | null;
+  cliente_id?: string | null;
   cliente_nombre: string;
   cliente_telefono: string | null;
   fecha_recepcion: string;

@@ -8,6 +8,7 @@ import { PendientesTabla } from "./_components/PendientesTabla";
 import { TiempoProduccion } from "./_components/TiempoProduccion";
 import { KpisProduccion } from "./_components/KpisProduccion";
 import { fetchKpisProduccion, type KpisProduccion as Kpis } from "@/lib/services/kpis";
+import { construirResumenReporte, type PedidoReporte } from "@/lib/utils/reportes";
 import type { Pedido } from "@/lib/supabase/types";
 
 const VentasChart = dynamic(
@@ -60,7 +61,13 @@ export default function ReportesPage() {
   const [periodo, setPeriodo] = useState<string>("30d");
   const [cargando, setCargando] = useState(true);
   const [ventas, setVentas] = useState<VentaDia[]>([]);
+  const [cobrado, setCobrado] = useState<VentaDia[]>([]);
   const [metodosPago, setMetodosPago] = useState<MetodoPagoData[]>([]);
+  const [resumen, setResumen] = useState<{
+    totalVendido: number;
+    totalCobrado: number;
+    saldoPendiente: number;
+  } | null>(null);
   const [pendientes, setPendientes] = useState<Pedido[]>([]);
   const [tiempos, setTiempos] = useState<TiempoRow[]>([]);
   const [kpis, setKpis] = useState<Kpis | null>(null);
@@ -74,16 +81,16 @@ export default function ReportesPage() {
     async function cargar() {
       setCargando(true);
       try {
-        const [ventasRes, metodosRes, pendientesRes, tiemposRes, kpisData] = await Promise.all([
+        const [pagosRes, pendientesRes, tiemposRes, kpisData] = await Promise.all([
           supabase
             .from("pedidos")
-            .select("fecha_recepcion, total")
-            .gte("fecha_recepcion", start)
+            .select(
+              "fecha_recepcion, total, anticipo, metodo_pago, saldo_cobrado, saldo_metodo_pago, saldo_cobrado_en, estado",
+            )
+            .or(
+              `fecha_recepcion.gte.${start},saldo_cobrado_en.gte.${start}T00:00:00`,
+            )
             .order("fecha_recepcion"),
-          supabase
-            .from("pedidos")
-            .select("metodo_pago, total")
-            .gte("fecha_recepcion", start),
           supabase
             .from("pedidos")
             .select("*")
@@ -94,33 +101,18 @@ export default function ReportesPage() {
           fetchKpisProduccion(dias).catch(() => null),
         ]);
 
-        if (ventasRes.data) {
-          const agrupado: Record<string, { count: number; total: number }> = {};
-          for (const row of ventasRes.data as { fecha_recepcion: string; total: number }[]) {
-            const d = row.fecha_recepcion;
-            if (!agrupado[d]) agrupado[d] = { count: 0, total: 0 };
-            agrupado[d].count++;
-            agrupado[d].total += row.total ?? 0;
-          }
-          setVentas(
-            Object.entries(agrupado).map(([fecha, val]) => ({
-              fecha_recepcion: fecha,
-              count: val.count,
-              total: val.total,
-            })),
-          );
-        }
-
-        if (metodosRes.data) {
-          const agrupado: Record<string, MetodoPagoData> = {};
-          for (const row of metodosRes.data as { metodo_pago: string; total: number }[]) {
-            const m = row.metodo_pago;
-            if (!agrupado[m]) agrupado[m] = { metodo_pago: m, count: 0, total: 0 };
-            agrupado[m].count++;
-            agrupado[m].total += row.total ?? 0;
-          }
-          setMetodosPago(Object.values(agrupado));
-        }
+        const resumenPagos = construirResumenReporte(
+          (pagosRes.data ?? []) as PedidoReporte[],
+          start,
+        );
+        setVentas(resumenPagos.ventasPorDia as VentaDia[]);
+        setCobrado(resumenPagos.cobradoPorDia as VentaDia[]);
+        setMetodosPago(resumenPagos.cobradoPorMetodo as MetodoPagoData[]);
+        setResumen({
+          totalVendido: resumenPagos.totalVendido,
+          totalCobrado: resumenPagos.totalCobrado,
+          saldoPendiente: resumenPagos.saldoPendiente,
+        });
 
         if (pendientesRes.data) {
           setPendientes(pendientesRes.data as Pedido[]);
@@ -169,19 +161,62 @@ export default function ReportesPage() {
       {cargando ? (
         <div className="text-center text-gray-400 dark:text-gray-500 py-20">Cargando reportes...</div>
       ) : (
-        <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
-          {kpis && (
-            <div className="xl:col-span-2">
-              <KpisProduccion data={kpis} />
+        <div className="space-y-6">
+          {resumen && (
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+              <div className="bg-white dark:bg-gray-900 rounded-xl shadow p-4">
+                <p className="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wide">
+                  Vendido
+                </p>
+                <p className="text-2xl font-bold text-gray-900 dark:text-gray-100 mt-1">
+                  ${resumen.totalVendido.toFixed(2)}
+                </p>
+              </div>
+              <div className="bg-white dark:bg-gray-900 rounded-xl shadow p-4">
+                <p className="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wide">
+                  Cobrado
+                </p>
+                <p className="text-2xl font-bold text-emerald-600 mt-1">
+                  ${resumen.totalCobrado.toFixed(2)}
+                </p>
+              </div>
+              <div className="bg-white dark:bg-gray-900 rounded-xl shadow p-4">
+                <p className="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wide">
+                  Saldo pendiente
+                </p>
+                <p className="text-2xl font-bold text-amber-600 mt-1">
+                  ${resumen.saldoPendiente.toFixed(2)}
+                </p>
+              </div>
             </div>
           )}
-          <VentasChart data={ventas} />
-          <MetodoPagoChart data={metodosPago} />
-          <div className="xl:col-span-2">
-            <PendientesTabla pedidos={pendientes} />
-          </div>
-          <div className="xl:col-span-2">
-            <TiempoProduccion data={tiempos} />
+
+          <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
+            {kpis && (
+              <div className="xl:col-span-2">
+                <KpisProduccion data={kpis} />
+              </div>
+            )}
+            <VentasChart
+              data={ventas}
+              titulo="Vendido por día"
+              serieNombre="Vendido"
+            />
+            <VentasChart
+              data={cobrado}
+              titulo="Cobrado por día"
+              serieNombre="Cobrado"
+            />
+            <MetodoPagoChart
+              data={metodosPago}
+              titulo="Cobrado por método"
+            />
+            <div className="xl:col-span-2">
+              <PendientesTabla pedidos={pendientes} />
+            </div>
+            <div className="xl:col-span-2">
+              <TiempoProduccion data={tiempos} />
+            </div>
           </div>
         </div>
       )}

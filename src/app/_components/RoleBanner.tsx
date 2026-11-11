@@ -1,46 +1,17 @@
 "use client";
 
-import { useState, useSyncExternalStore } from "react";
-import { useRouter } from "next/navigation";
-
-const ROLE_LABELS: Record<string, string> = {
-  mostrador: "Mostrador",
-  diseno: "Diseño",
-  impresion: "Impresión",
-  laminado: "Laminado",
-  montaje: "Montaje",
-  books: "Books",
-  bastidores: "Bastidores",
-  marcos: "Marcos",
-  taller: "Taller",
-  corte: "Corte",
-};
-
-function getRoleOverrideCookie(): string | null {
-  if (typeof document === "undefined") return null;
-  const match = document.cookie.match(/(?:^|;\s*)role_override=([^;]*)/);
-  return match ? decodeURIComponent(match[1]) : null;
-}
-
-function subscribeToCookie() {
-  return () => {};
-}
-
-function getCookieSnapshot() {
-  return getRoleOverrideCookie();
-}
-
-function getServerCookieSnapshot() {
-  return null;
-}
+import { useState } from "react";
+import { useAuth } from "@/lib/hooks/useAuth";
+import { useRoleOverride } from "@/lib/hooks/useRoleOverride";
+import {
+  ROLE_LABELS,
+  rolesSwitchDisponibles,
+  etiquetaVolver,
+} from "@/lib/utils/roles";
 
 export default function RoleBanner() {
-  const router = useRouter();
-  const roleOverride = useSyncExternalStore(
-    subscribeToCookie,
-    getCookieSnapshot,
-    getServerCookieSnapshot,
-  );
+  const { profile } = useAuth();
+  const roleOverride = useRoleOverride();
   const [cargando, setCargando] = useState(false);
 
   async function handleClearOverride() {
@@ -49,7 +20,7 @@ export default function RoleBanner() {
       const res = await fetch("/api/role-override", { method: "DELETE" });
       const data = await res.json();
       if (data.redirectTo) {
-        router.push(data.redirectTo);
+        window.location.assign(data.redirectTo);
       }
     } catch {
       // ignore
@@ -58,9 +29,10 @@ export default function RoleBanner() {
     }
   }
 
-  if (!roleOverride) return null;
+  const permitidos = rolesSwitchDisponibles(profile?.rol);
+  if (!roleOverride || !permitidos.includes(roleOverride)) return null;
 
-  const label = ROLE_LABELS[roleOverride] || roleOverride;
+  const label = ROLE_LABELS[roleOverride] ?? roleOverride;
 
   return (
     <div className="bg-yellow-50 border-b border-yellow-200 px-4 py-2">
@@ -75,7 +47,7 @@ export default function RoleBanner() {
           disabled={cargando}
           className="text-sm font-medium text-yellow-800 hover:text-yellow-900 underline transition-colors"
         >
-          {cargando ? "Cargando..." : "Volver a Admin"}
+          {cargando ? "Cargando..." : etiquetaVolver(profile?.rol)}
         </button>
       </div>
     </div>

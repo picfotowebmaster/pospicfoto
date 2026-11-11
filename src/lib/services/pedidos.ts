@@ -2,6 +2,7 @@ import { supabase } from "../supabase/client";
 import type { PedidoDraft, Pedido, MetodoPago, RutaProduccion, LineaPedidoDraft, PrioridadPedido, DatosFiscalesPedido } from "../supabase/types";
 import { upsertHistorial } from "./historial";
 import { guardarClienteFiscal } from "./clientesFiscales";
+import { guardarCliente } from "./clientes";
 
 interface EntidadResuelta {
   marcaId: string;
@@ -149,6 +150,14 @@ export async function crearPedido(draft: PedidoDraft, cajeroId: string): Promise
     draft.lineas.map((l) => upsertHistorial(l.producto_nombre, l.atributos).catch(() => {})),
   );
 
+  await guardarCliente({
+    nombre: draft.cliente_nombre,
+    telefono: draft.cliente_telefono,
+    email: draft.cliente_email,
+    pedidoId: pedido.id,
+    total: draft.total,
+  }).catch(() => {});
+
   await guardarClienteFiscal({
     ...draft,
     email: draft.cliente_email,
@@ -256,6 +265,14 @@ async function insertarSubPedido(
   await Promise.all(
     lineas.map((l) => upsertHistorial(l.producto_nombre, l.atributos).catch(() => {})),
   );
+
+  await guardarCliente({
+    nombre: draft.cliente_nombre,
+    telefono: draft.cliente_telefono,
+    email: draft.cliente_email,
+    pedidoId: pedido.id,
+    total: draft.total,
+  }).catch(() => {});
 
   return pedido.numero_pedido;
 }
@@ -599,47 +616,11 @@ function aplicarFiltros(query: any, filtros: FiltrosPedidos) {
   return q;
 }
 
-export interface ClienteHistorial {
-  nombre: string;
-  telefono: string | null;
-  email: string | null;
-}
-
-export async function buscarClientes(termino: string): Promise<ClienteHistorial[]> {
-  const t = termino.trim();
-  if (t.length < 2) return [];
-
-  const { data, error } = await supabase
-    .from("pedidos")
-    .select("cliente_nombre, cliente_telefono, cliente_email")
-    .or(`cliente_telefono.ilike.%${t}%,cliente_nombre.ilike.%${t}%`)
-    .order("created_at", { ascending: false })
-    .limit(25);
-
-  if (error) throw error;
-
-  const seen = new Set<string>();
-  const result: ClienteHistorial[] = [];
-  for (const row of (data ?? []) as {
-    cliente_nombre: string;
-    cliente_telefono: string | null;
-    cliente_email: string | null;
-  }[]) {
-    const key = (row.cliente_telefono || row.cliente_nombre || "").toLowerCase();
-    if (!key || seen.has(key)) continue;
-    seen.add(key);
-    result.push({
-      nombre: row.cliente_nombre,
-      telefono: row.cliente_telefono,
-      email: row.cliente_email,
-    });
-    if (result.length >= 8) break;
-  }
-  return result;
-}
+export { buscarClientes } from "./clientes";
+export type { ClienteHistorial } from "./clientes";
 
 export async function liquidarSaldo(id: string, metodo: MetodoPago): Promise<void> {
-  const { error } = await supabase
+  const { data, error } = await supabase
     .from("pedidos")
     .update({
       saldo_cobrado: true,
@@ -647,9 +628,15 @@ export async function liquidarSaldo(id: string, metodo: MetodoPago): Promise<voi
       saldo_cobrado_en: new Date().toISOString(),
       fecha_pago_total: new Date().toISOString(),
     })
-    .eq("id", id);
+    .eq("id", id)
+    .eq("saldo_cobrado", false)
+    .select("id")
+    .maybeSingle();
 
   if (error) throw error;
+  if (!data) {
+    throw new Error("El saldo ya fue cobrado o el pedido no existe.");
+  }
 }
 
 export async function actualizarPrioridad(

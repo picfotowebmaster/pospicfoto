@@ -90,51 +90,59 @@ export function FormCliente({
   onUsoCfdiChange,
   onCpFiscalChange,
 }: FormClienteProps) {
-  const renderCliente = (c: ClienteHistorial) =>
-    c.telefono ? `${c.nombre} · ${c.telefono}` : c.nombre;
+  const renderCliente = (c: ClienteHistorial) => {
+    const base = c.telefono ? `${c.nombre} · ${c.telefono}` : c.nombre;
+    return c.pedidos_count ? `${base} · ${c.pedidos_count} pedido(s)` : base;
+  };
 
   const solicitudFiscalRef = useRef(0);
   const [fiscalCargado, setFiscalCargado] = useState(false);
 
-  const autocompletar = useAutocompletar<ClienteHistorial>({
-    fetchFn: buscarClientes,
-    onSelect: async (c) => {
-      onNombreChange(c.nombre);
-      onTelefonoChange(c.telefono ?? "");
-      onEmailChange(c.email ?? "");
+  const seleccionarCliente = async (c: ClienteHistorial) => {
+    onNombreChange(c.nombre);
+    onTelefonoChange(c.telefono ?? "");
+    onEmailChange(c.email ?? "");
 
-      if (!facturacionHabilitada()) {
+    if (!facturacionHabilitada()) {
+      setFiscalCargado(false);
+      return;
+    }
+
+    const solicitud = ++solicitudFiscalRef.current;
+    try {
+      const fiscal = await buscarClienteFiscal(
+        c.telefono ?? "",
+        c.email ?? "",
+      );
+      if (solicitud !== solicitudFiscalRef.current) return;
+
+      if (fiscal) {
+        onRequiereFacturaChange(true);
+        onRfcChange(fiscal.rfc);
+        onRazonSocialChange(fiscal.razon_social);
+        onRegimenFiscalChange(fiscal.regimen_fiscal ?? "");
+        onUsoCfdiChange(fiscal.uso_cfdi ?? "");
+        onCpFiscalChange(fiscal.cp_fiscal ?? "");
+        setFiscalCargado(true);
+      } else {
         setFiscalCargado(false);
-        return;
       }
+    } catch {
+      if (solicitud === solicitudFiscalRef.current) setFiscalCargado(false);
+    }
+  };
 
-      const solicitud = ++solicitudFiscalRef.current;
-      try {
-        const fiscal = await buscarClienteFiscal(
-          c.telefono ?? "",
-          c.email ?? "",
-        );
-        if (solicitud !== solicitudFiscalRef.current) return;
-
-        if (fiscal) {
-          onRequiereFacturaChange(true);
-          onRfcChange(fiscal.rfc);
-          onRazonSocialChange(fiscal.razon_social);
-          onRegimenFiscalChange(fiscal.regimen_fiscal ?? "");
-          onUsoCfdiChange(fiscal.uso_cfdi ?? "");
-          onCpFiscalChange(fiscal.cp_fiscal ?? "");
-          setFiscalCargado(true);
-        } else {
-          setFiscalCargado(false);
-        }
-      } catch {
-        if (solicitud === solicitudFiscalRef.current) setFiscalCargado(false);
-      }
-    },
+  const opcionesCliente = {
+    fetchFn: buscarClientes,
+    onSelect: seleccionarCliente,
     renderItem: renderCliente,
     minChars: 2,
-    idFromItem: (c) => `${c.telefono ?? ""}-${c.nombre}`,
-  });
+    idFromItem: (c: ClienteHistorial) => `${c.telefono ?? ""}-${c.nombre}`,
+  };
+
+  const autocompletarNombre = useAutocompletar<ClienteHistorial>(opcionesCliente);
+  const autocompletarTelefono =
+    useAutocompletar<ClienteHistorial>(opcionesCliente);
 
   useEffect(() => {
     const horaValida = /^(?:[01]\d|2[0-3]):[0-5]\d$/.test(horaEntrega);
@@ -152,15 +160,28 @@ export function FormCliente({
       <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
         <div>
           <label htmlFor="cliente-nombre" className="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1">
-            Nombre del Cliente *
+            Nombre del Cliente *{" "}
+            <span className="text-gray-400">(busca clientes existentes)</span>
           </label>
-          <input
+          <Autocompletar
             id="cliente-nombre"
-            type="text"
-            value={nombre}
-            onChange={(e) => onNombreChange(e.target.value)}
-            className="w-full border border-gray-300 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-100 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
             placeholder="Nombre completo"
+            valor={nombre}
+            onChange={(v) => {
+              autocompletarNombre.buscar(v);
+              onNombreChange(v);
+            }}
+            opciones={autocompletarNombre.opciones}
+            renderOpcion={renderCliente}
+            onSelect={autocompletarNombre.seleccionar}
+            abierto={autocompletarNombre.abierto}
+            cargando={autocompletarNombre.cargando}
+            indiceSeleccionado={autocompletarNombre.indiceSeleccionado}
+            onKeyDown={autocompletarNombre.tecla}
+            containerRef={autocompletarNombre.containerRef}
+            inputRef={autocompletarNombre.inputRef}
+            idFromItem={(c) => `${c.telefono ?? ""}-${c.nombre}`}
+            dark
           />
         </div>
         <div>
@@ -172,20 +193,21 @@ export function FormCliente({
             placeholder="55 1234 5678"
             valor={telefono}
             onChange={(v) => {
-              autocompletar.buscar(v);
+              autocompletarTelefono.buscar(v);
               onTelefonoChange(v);
               setFiscalCargado(false);
             }}
-            opciones={autocompletar.opciones}
+            opciones={autocompletarTelefono.opciones}
             renderOpcion={renderCliente}
-            onSelect={autocompletar.seleccionar}
-            abierto={autocompletar.abierto}
-            cargando={autocompletar.cargando}
-            indiceSeleccionado={autocompletar.indiceSeleccionado}
-            onKeyDown={autocompletar.tecla}
-            containerRef={autocompletar.containerRef}
-            inputRef={autocompletar.inputRef}
+            onSelect={autocompletarTelefono.seleccionar}
+            abierto={autocompletarTelefono.abierto}
+            cargando={autocompletarTelefono.cargando}
+            indiceSeleccionado={autocompletarTelefono.indiceSeleccionado}
+            onKeyDown={autocompletarTelefono.tecla}
+            containerRef={autocompletarTelefono.containerRef}
+            inputRef={autocompletarTelefono.inputRef}
             idFromItem={(c) => `${c.telefono ?? ""}-${c.nombre}`}
+            dark
           />
         </div>
         <div>

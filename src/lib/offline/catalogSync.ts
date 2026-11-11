@@ -1,6 +1,7 @@
 import { saveCatalogo, getCatalogo, catalogoStaleMs } from "./db";
 import { fetchAtributosConValores } from "@/lib/services/atributos";
 import { fetchCatalogo } from "@/lib/services/catalogo";
+import { sincronizarClientesCache } from "@/lib/services/clientes";
 import { supabase } from "@/lib/supabase/client";
 
 const CATALOG_KEYS = {
@@ -56,6 +57,8 @@ export async function syncCatalogFromServer(): Promise<void> {
   } catch {
     // silencioso
   }
+
+  await sincronizarClientesCache().catch(() => {});
 }
 
 export async function getCatalogFromCache() {
@@ -97,5 +100,6 @@ export async function refreshCatalog() {
   ]);
   await saveCatalogo(CATALOG_KEYS.ATRIBUTOS, atributos);
   await saveCatalogo(CATALOG_KEYS.CATALOGO, catalogo);
+  await sincronizarClientesCache().catch(() => {});
   return { atributos, catalogo };
 }

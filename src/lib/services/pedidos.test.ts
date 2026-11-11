@@ -291,26 +291,45 @@ describe("buscarClientes", () => {
     expect(result).toEqual([]);
   });
 
-  it("deduplica por teléfono y devuelve máximo 8", async () => {
-    const rows = [
-      { cliente_nombre: "Ana", cliente_telefono: "5551111111", cliente_email: null },
-      { cliente_nombre: "Ana Duplicada", cliente_telefono: "5551111111", cliente_email: "a@x.com" },
-      { cliente_nombre: "Luis", cliente_telefono: "5552222222", cliente_email: null },
-    ];
-    vi.mocked(supabase.from).mockReturnValue(
-      qb("limit", rows) as ReturnType<typeof supabase.from>,
-    );
+  it("consulta la RPC y mapea resultados", async () => {
+    vi.mocked(supabase.rpc).mockResolvedValue({
+      data: [
+        {
+          id: "c1",
+          nombre: "Ana",
+          telefono: "5551111111",
+          email: null,
+          last_order_at: null,
+          pedidos_count: 3,
+        },
+      ],
+      error: null,
+    } as never);
+
     const result = await buscarClientes("55");
-    expect(result).toHaveLength(2);
-    expect(result[0].nombre).toBe("Ana");
-    expect(result[1].nombre).toBe("Luis");
+    expect(supabase.rpc).toHaveBeenCalledWith("buscar_clientes", {
+      p_q: "55",
+      p_limit: 8,
+    });
+    expect(result).toEqual([
+      {
+        id: "c1",
+        nombre: "Ana",
+        telefono: "5551111111",
+        email: null,
+        last_order_at: null,
+        pedidos_count: 3,
+      },
+    ]);
   });
 
-  it("propaga error de supabase", async () => {
-    vi.mocked(supabase.from).mockReturnValue(
-      qb("limit", null, new Error("db")) as ReturnType<typeof supabase.from>,
-    );
-    await expect(buscarClientes("55")).rejects.toThrow("db");
+  it("usa la búsqueda local si la RPC falla", async () => {
+    vi.mocked(supabase.rpc).mockResolvedValue({
+      data: null,
+      error: new Error("db"),
+    } as never);
+    const result = await buscarClientes("55");
+    expect(result).toEqual([]);
   });
 });
 
@@ -318,13 +337,22 @@ describe("liquidarSaldo", () => {
   beforeEach(() => vi.clearAllMocks());
 
   it("marca el saldo como cobrado con método", async () => {
-    const b = qb("eq", null);
+    const b = qb("maybeSingle", { id: "p1" });
     vi.mocked(supabase.from).mockReturnValue(b as ReturnType<typeof supabase.from>);
     await liquidarSaldo("p1", "Tarjeta");
     expect(b.update).toHaveBeenCalledWith(
       expect.objectContaining({ saldo_cobrado: true, saldo_metodo_pago: "Tarjeta" }),
     );
     expect(b.eq).toHaveBeenCalledWith("id", "p1");
+    expect(b.eq).toHaveBeenCalledWith("saldo_cobrado", false);
+  });
+
+  it("rechaza una doble liquidación", async () => {
+    const b = qb("maybeSingle", null);
+    vi.mocked(supabase.from).mockReturnValue(b as ReturnType<typeof supabase.from>);
+    await expect(liquidarSaldo("p1", "Efectivo")).rejects.toThrow(
+      "El saldo ya fue cobrado o el pedido no existe.",
+    );
   });
 });
 

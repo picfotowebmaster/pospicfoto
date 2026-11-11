@@ -3,14 +3,19 @@
 import React, { useEffect, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { TicketTemplate } from "@/components/ui/TicketTemplate";
-import { fetchPedido } from "@/lib/services/pedidos";
+import { fetchPedido, liquidarSaldo } from "@/lib/services/pedidos";
 import { supabase } from "@/lib/supabase/client";
 import { Button } from "@/components/ui/Button";
 import { useToast } from "@/components/ui/Toast";
+import { LiquidarSaldoModal } from "@/app/mostrador/_components/LiquidarSaldoModal";
 import { pedidoPagado } from "@/lib/utils/fiscal";
 import { fetchEntidadesPorIds } from "@/lib/services/entidadesEmisoras";
 import { facturacionHabilitada } from "@/lib/config/features";
-import type { EntidadEmisora, Pedido } from "@/lib/supabase/types";
+import type {
+  EntidadEmisora,
+  MetodoPago,
+  Pedido,
+} from "@/lib/supabase/types";
 
 export default function TicketPage() {
   const { id } = useParams<{ id: string }>();
@@ -23,6 +28,7 @@ export default function TicketPage() {
   const [cargando, setCargando] = useState(true);
   const [facturando, setFacturando] = useState(false);
   const [enviandoTicket, setEnviandoTicket] = useState(false);
+  const [liquidando, setLiquidando] = useState(false);
   const [facturaInfo, setFacturaInfo] = useState<{
     uuid: string;
     pdfUrl: string | null;
@@ -142,6 +148,37 @@ export default function TicketPage() {
   const requiereFactura = Boolean(pedidoPrincipal?.requiere_factura);
   const tieneRfc = Boolean(pedidoPrincipal?.cliente_rfc);
   const enGlobal = Boolean(pedidoPrincipal?.factura_global_id);
+  const saldoPendiente = pedidoPrincipal
+    ? Math.max(0, pedidoPrincipal.total - pedidoPrincipal.anticipo)
+    : 0;
+  const puedeLiquidar =
+    pedidos.length === 1 &&
+    Boolean(pedidoPrincipal) &&
+    pedidoPrincipal?.estado !== "cancelado" &&
+    !pedidoPrincipal?.saldo_cobrado &&
+    saldoPendiente > 0.01;
+
+  async function handleLiquidar(metodo: MetodoPago) {
+    if (!pedidoPrincipal) return;
+    await liquidarSaldo(pedidoPrincipal.id, metodo);
+
+    const ahora = new Date().toISOString();
+    setPedidos((prev) =>
+      prev.map((pedido) =>
+        pedido.id === pedidoPrincipal.id
+          ? {
+              ...pedido,
+              saldo_cobrado: true,
+              saldo_metodo_pago: metodo,
+              saldo_cobrado_en: ahora,
+              fecha_pago_total: ahora,
+            }
+          : pedido,
+      ),
+    );
+    setLiquidando(false);
+    showSuccess("Saldo liquidado. Ticket actualizado.");
+  }
 
   if (cargando) {
     return (
@@ -170,6 +207,16 @@ export default function TicketPage() {
           <i className="fas fa-print mr-1" />
           Imprimir
         </Button>
+        {puedeLiquidar && (
+          <Button
+            size="sm"
+            variant="success"
+            onClick={() => setLiquidando(true)}
+          >
+            <i className="fas fa-hand-holding-dollar mr-1" />
+            Liquidar
+          </Button>
+        )}
         <Button
           size="sm"
           variant="ghost"
@@ -187,6 +234,23 @@ export default function TicketPage() {
           Regresar
         </Button>
       </div>
+
+      {pedidos.length === 1 &&
+        saldoPendiente > 0.01 &&
+        pedidoPrincipal?.estado !== "cancelado" && (
+          <div className="mb-4 w-full max-w-[72mm] no-print">
+            {pedidoPrincipal?.saldo_cobrado ? (
+              <p className="text-center text-sm font-semibold text-green-700 bg-green-50 border border-green-200 rounded-lg p-3">
+                <i className="fas fa-check-circle mr-1" />
+                Pagado. Puedes imprimir el ticket actualizado.
+              </p>
+            ) : (
+              <p className="text-center text-sm font-semibold text-amber-700 bg-amber-50 border border-amber-200 rounded-lg p-3">
+                Pendiente: ${saldoPendiente.toFixed(2)}
+              </p>
+            )}
+          </div>
+        )}
 
       {(facturacionHabilitada() || uuidActual) && (
       <div className="mb-4 w-full max-w-[72mm] no-print flex flex-col gap-2">
@@ -286,6 +350,16 @@ export default function TicketPage() {
           </div>
         )}
       </div>
+
+      {liquidando && pedidoPrincipal && (
+        <LiquidarSaldoModal
+          numeroPedido={pedidoPrincipal.numero_pedido}
+          clienteNombre={pedidoPrincipal.cliente_nombre}
+          saldo={saldoPendiente}
+          onConfirm={handleLiquidar}
+          onClose={() => setLiquidando(false)}
+        />
+      )}
     </div>
   );
 }

@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach } from "vitest";
+import { afterEach, beforeEach, describe, it, expect, vi } from "vitest";
 import { renderHook, act } from "@testing-library/react";
 import { useAutocompletar } from "./useAutocompletar";
 
@@ -13,8 +13,13 @@ describe("useAutocompletar", () => {
   let fetchFn: any;
 
   beforeEach(() => {
+    vi.useFakeTimers();
     vi.clearAllMocks();
     fetchFn = vi.fn().mockResolvedValue(mockItems);
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
   });
 
   function mkHook(onSelect = vi.fn()) {
@@ -24,16 +29,26 @@ describe("useAutocompletar", () => {
         onSelect,
         renderItem: (i: { nombre: string }) => i.nombre,
         minChars: 2,
-      })
+      }),
     );
+  }
+
+  async function buscar(
+    result: { current: { buscar: (termino: string) => void } },
+    termino: string,
+  ) {
+    act(() => {
+      result.current.buscar(termino);
+    });
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(250);
+    });
   }
 
   it("no busca si el termino es menor a minChars", async () => {
     const { result } = mkHook();
 
-    await act(async () => {
-      await result.current.buscar("a");
-    });
+    await buscar(result, "a");
 
     expect(fetchFn).not.toHaveBeenCalled();
     expect(result.current.opciones).toEqual([]);
@@ -43,9 +58,7 @@ describe("useAutocompletar", () => {
   it("busca y muestra opciones", async () => {
     const { result } = mkHook();
 
-    await act(async () => {
-      await result.current.buscar("Foto");
-    });
+    await buscar(result, "Foto");
 
     expect(fetchFn).toHaveBeenCalledWith("Foto");
     expect(result.current.opciones).toEqual(mockItems);
@@ -56,9 +69,7 @@ describe("useAutocompletar", () => {
     const onSelect = vi.fn();
     const { result } = mkHook(onSelect);
 
-    await act(async () => {
-      await result.current.buscar("Foto");
-    });
+    await buscar(result, "Foto");
 
     act(() => {
       result.current.seleccionar(mockItems[0]);
@@ -72,9 +83,7 @@ describe("useAutocompletar", () => {
   it("navega con ArrowDown", async () => {
     const { result } = mkHook();
 
-    await act(async () => {
-      await result.current.buscar("Foto");
-    });
+    await buscar(result, "Foto");
 
     act(() => {
       result.current.tecla({ key: "ArrowDown", preventDefault: vi.fn() } as unknown as React.KeyboardEvent);
@@ -86,9 +95,7 @@ describe("useAutocompletar", () => {
   it("navega con ArrowUp desde -1 va al ultimo", async () => {
     const { result } = mkHook();
 
-    await act(async () => {
-      await result.current.buscar("Foto");
-    });
+    await buscar(result, "Foto");
 
     act(() => {
       result.current.tecla({ key: "ArrowUp", preventDefault: vi.fn() } as unknown as React.KeyboardEvent);
@@ -101,9 +108,7 @@ describe("useAutocompletar", () => {
     const onSelect = vi.fn();
     const { result } = mkHook(onSelect);
 
-    await act(async () => {
-      await result.current.buscar("Foto");
-    });
+    await buscar(result, "Foto");
 
     act(() => {
       result.current.tecla({ key: "ArrowDown", preventDefault: vi.fn() } as unknown as React.KeyboardEvent);
@@ -119,9 +124,7 @@ describe("useAutocompletar", () => {
   it("cierra con Escape", async () => {
     const { result } = mkHook();
 
-    await act(async () => {
-      await result.current.buscar("Foto");
-    });
+    await buscar(result, "Foto");
     expect(result.current.abierto).toBe(true);
 
     act(() => {
@@ -131,7 +134,7 @@ describe("useAutocompletar", () => {
     expect(result.current.abierto).toBe(false);
   });
 
-  it("no hace nada con teclas si no esta abierto", async () => {
+  it("no hace nada con teclas si no esta abierto", () => {
     const { result } = mkHook();
 
     act(() => {

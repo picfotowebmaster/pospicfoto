@@ -47,6 +47,36 @@ describe("renderTicketHtml", () => {
     expect(html).toContain("&amp;");
   });
 
+  it("muestra PENDIENTE cuando hay saldo sin cobrar", () => {
+    const html = renderTicketHtml(pedido);
+    expect(html).toContain("PENDIENTE");
+    expect(html).toContain("Estado de pago:");
+    expect(html).toContain("Pendiente");
+    expect(html).toContain("Saldo pendiente:");
+  });
+
+  it("muestra PAGADO cuando el saldo fue cobrado", () => {
+    const html = renderTicketHtml({
+      ...pedido,
+      saldo_cobrado: true,
+      saldo_metodo_pago: "Tarjeta",
+      saldo_cobrado_en: "2026-07-05T14:00:00.000Z",
+    } as unknown as Pedido);
+    expect(html).toContain("PAGADO");
+    expect(html).toContain("Pagado");
+    expect(html).toContain("Saldo pagado:");
+    expect(html).toContain("Fecha de pago:");
+  });
+
+  it("muestra PAGADO cuando el anticipo cubre el total", () => {
+    const html = renderTicketHtml({
+      ...pedido,
+      anticipo: 100,
+    } as unknown as Pedido);
+    expect(html).toContain("PAGADO");
+    expect(html).not.toContain("Saldo pendiente:");
+  });
+
   it("usa las políticas configuradas", () => {
     const html = renderTicketHtml(pedido);
     expect(html).toContain("30 días");

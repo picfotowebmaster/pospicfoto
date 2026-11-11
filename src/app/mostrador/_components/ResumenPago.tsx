@@ -65,6 +65,12 @@ export function ResumenPago({
         <label className="block text-xs font-medium text-gray-500 mb-1">
           Método de Pago
         </label>
+        {porcentajeAnticipo === 0 ? (
+          <p className="text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2">
+            Sin cobro inicial. El método de pago se elige al cobrar el saldo en
+            la entrega.
+          </p>
+        ) : (
         <div className="flex gap-2">
           {METODOS_PAGO.map((m) => (
             <button
@@ -81,6 +87,7 @@ export function ResumenPago({
             </button>
           ))}
         </div>
+        )}
       </div>
     </div>
   );

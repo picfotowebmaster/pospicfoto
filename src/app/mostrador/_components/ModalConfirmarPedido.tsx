@@ -44,7 +44,15 @@ export function ModalConfirmarPedido({
 }: ModalConfirmarPedidoProps) {
   if (!open) return null;
 
-  const saldo = total - anticipo;
+  const saldo = Math.max(0, total - anticipo);
+  const porcentaje =
+    total > 0 ? Math.round((anticipo / total) * 100) : 0;
+  const etiquetaConfirmar =
+    porcentaje <= 0
+      ? "Confirmar pedido"
+      : porcentaje >= 100
+        ? "Confirmar y cobrar total"
+        : `Confirmar y cobrar ${porcentaje}%`;
   const fecha = fechaEntrega
     ? new Date(`${fechaEntrega}T${horaEntrega || "00:00"}`).toLocaleDateString("es-MX", {
         weekday: "long",
@@ -141,7 +149,9 @@ export function ModalConfirmarPedido({
               <span>${subtotal.toFixed(2)}</span>
             </div>
             <div className="flex justify-between text-gray-500 dark:text-gray-400">
-              <span>Anticipo ({metodoPago})</span>
+              <span>
+                Anticipo {anticipo > 0 ? `(${metodoPago})` : "(sin cobro inicial)"}
+              </span>
               <span>${anticipo.toFixed(2)}</span>
             </div>
             <div className="flex justify-between font-bold text-gray-900 dark:text-gray-100 border-t border-gray-200 dark:border-gray-700 pt-1.5">
@@ -169,7 +179,7 @@ export function ModalConfirmarPedido({
             ) : (
               <span className="inline-flex items-center gap-1">
                 <i className="fas fa-check-circle" />
-                Confirmar y cobrar
+                {etiquetaConfirmar}
               </span>
             )}
           </Button>

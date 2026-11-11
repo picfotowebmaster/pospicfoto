@@ -13,6 +13,8 @@ import {
 
 interface Props {
   data: { fecha_recepcion: string; count: number; total: number }[];
+  titulo?: string;
+  serieNombre?: string;
 }
 
 function formatearFecha(fecha: string): string {
@@ -26,12 +28,16 @@ function formatearMoneda(valor: number): string {
   return monedaFormatter.format(valor);
 }
 
-export function VentasChart({ data }: Props) {
+export function VentasChart({
+  data,
+  titulo = "Ventas por día",
+  serieNombre = "Ingresos",
+}: Props) {
   if (data.length === 0) {
     return (
       <div className="bg-white dark:bg-gray-900 rounded-xl shadow p-4">
         <h3 className="text-sm font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide mb-4">
-          Ventas
+          {titulo}
         </h3>
         <div className="text-center text-gray-400 dark:text-gray-500 py-10 text-sm">
           Sin datos en este período
@@ -48,7 +54,7 @@ export function VentasChart({ data }: Props) {
   return (
     <div className="bg-white dark:bg-gray-900 rounded-xl shadow p-4">
       <h3 className="text-sm font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide mb-4">
-        Ventas por día
+        {titulo}
       </h3>
       <ResponsiveContainer width="100%" height={280}>
         <BarChart data={formatted} margin={{ top: 5, right: 10, left: 0, bottom: 5 }}>
@@ -58,13 +64,13 @@ export function VentasChart({ data }: Props) {
           <YAxis yAxisId="right" orientation="right" tick={{ fontSize: 11 }} stroke="#9ca3af" />
           <Tooltip
             formatter={(value, name) => {
-              if (name === "Ingresos" && typeof value === "number") return formatearMoneda(value);
+              if (name === serieNombre && typeof value === "number") return formatearMoneda(value);
               return value;
             }}
           />
           <Legend />
           <Bar yAxisId="left" dataKey="count" name="Pedidos" fill="#3b82f6" radius={[4, 4, 0, 0]} />
-          <Bar yAxisId="right" dataKey="total" name="Ingresos" fill="#22c55e" radius={[4, 4, 0, 0]} />
+          <Bar yAxisId="right" dataKey="total" name={serieNombre} fill="#22c55e" radius={[4, 4, 0, 0]} />
         </BarChart>
       </ResponsiveContainer>
     </div>

@@ -23,32 +23,44 @@ export function useAutocompletar<T>({
   const [indiceSeleccionado, setIndiceSeleccionado] = useState(-1);
   const containerRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
+  const timeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const buscar = useCallback(
-    async (t: string) => {
+    (t: string) => {
       setTermino(t);
+      if (timeoutRef.current) clearTimeout(timeoutRef.current);
       if (t.length < minChars) {
         setOpciones([]);
         setAbierto(false);
+        setCargando(false);
         return;
       }
-      setCargando(true);
-      try {
-        const res = await fetchFn(t);
-        setOpciones(res);
-        setAbierto(res.length > 0);
-        setIndiceSeleccionado(-1);
-      } catch {
-        setOpciones([]);
-      } finally {
-        setCargando(false);
-      }
+      timeoutRef.current = setTimeout(async () => {
+        setCargando(true);
+        try {
+          const res = await fetchFn(t);
+          setOpciones(res);
+          setAbierto(res.length > 0);
+          setIndiceSeleccionado(-1);
+        } catch {
+          setOpciones([]);
+        } finally {
+          setCargando(false);
+        }
+      }, 250);
     },
     [fetchFn, minChars],
   );
 
+  useEffect(() => {
+    return () => {
+      if (timeoutRef.current) clearTimeout(timeoutRef.current);
+    };
+  }, []);
+
   const seleccionar = useCallback(
     (item: T) => {
+      if (timeoutRef.current) clearTimeout(timeoutRef.current);
       setTermino(renderItem(item));
       setAbierto(false);
       setOpciones([]);

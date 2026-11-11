@@ -144,6 +144,25 @@ describe("FormCliente", () => {
     expect(onRequiereFacturaChange).toHaveBeenCalledWith(true);
   });
 
+  it("autocompleta desde el nombre y precarga teléfono y correo", async () => {
+    const user = userEvent.setup();
+    const onNombreChange = vi.fn();
+    const onTelefonoChange = vi.fn();
+    const onEmailChange = vi.fn();
+
+    renderForm({ onNombreChange, onTelefonoChange, onEmailChange });
+
+    fireEvent.change(screen.getByLabelText(/Nombre del Cliente/i), {
+      target: { value: "Ana" },
+    });
+    const opcion = await screen.findByText("Ana López · 5551234567");
+    await user.click(opcion);
+
+    expect(onNombreChange).toHaveBeenCalledWith("Ana López");
+    expect(onTelefonoChange).toHaveBeenCalledWith("5551234567");
+    expect(onEmailChange).toHaveBeenCalledWith("ana@correo.com");
+  });
+
   it("autocompleta los datos fiscales al seleccionar un cliente", async () => {
     const user = userEvent.setup();
     const onRequiereFacturaChange = vi.fn();

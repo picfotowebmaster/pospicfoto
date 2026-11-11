@@ -15,6 +15,7 @@ import { BotonPagar } from "./_components/BotonPagar";
 import { ModalConfirmarPedido } from "./_components/ModalConfirmarPedido";
 import { Button } from "@/components/ui/Button";
 import { crearPedidoAgrupado } from "@/lib/services/pedidos";
+import { guardarClientesEnCache } from "@/lib/services/clientes";
 import { supabase } from "@/lib/supabase/client";
 import { Logo } from "@/components/ui/Logo";
 import { NOMBRE_EMPRESA } from "@/lib/utils/constantes";
@@ -47,6 +48,8 @@ function MostradorContent() {
   const { session, profile, signOut } = useAuth();
   const { showError, showSuccess } = useToast();
   const sucursalId = profile?.sucursal_id ?? "";
+  const puedeActualizarCatalogo =
+    profile?.rol === "admin" || profile?.rol === "superadmin";
   const [entidad, setEntidad] = useState<EntidadEmisora | null>(null);
   const entidadEmisoraId = profile?.entidad_emisora_id ?? entidad?.id ?? "";
   const pedido = usePedidoActual(
@@ -62,8 +65,6 @@ function MostradorContent() {
   const [editandoLinea, setEditandoLinea] = useState<LineaPedidoDraft | null>(null);
   const [pagarCargando, setPagarCargando] = useState(false);
   const [mensajeDescartado, setMensajeDescartado] = useState(false);
-  const [ticketBusqueda, setTicketBusqueda] = useState("");
-  const [buscandoTicket, setBuscandoTicket] = useState(false);
   const [sucursalNombre, setSucursalNombre] = useState("");
   const [ticketOffline, setTicketOffline] = useState<{
     pedido: TicketPedido;
@@ -329,6 +330,7 @@ function MostradorContent() {
           anticipo: draft.anticipo,
           total: draft.total,
           metodo_pago: draft.metodo_pago,
+          saldo_cobrado: false,
           detalle_pedidos: draft.lineas.map((linea, index) => ({
             id: `${queueId}-${index}`,
             producto_nombre: linea.producto_nombre,
@@ -337,6 +339,16 @@ function MostradorContent() {
             atributos: linea.atributos,
           })),
         };
+
+        void guardarClientesEnCache([
+          {
+            nombre: draft.cliente_nombre,
+            telefono: draft.cliente_telefono || null,
+            email: draft.cliente_email || null,
+            last_order_at: new Date().toISOString(),
+            pedidos_count: 1,
+          },
+        ]);
 
         setTicketOffline({ pedido: offlinePedido, emisor: entidad });
         pedido.limpiar();
@@ -367,30 +379,6 @@ function MostradorContent() {
     }
   }
 
-  async function handleBuscarTicket(e: React.FormEvent) {
-    e.preventDefault();
-    const query = ticketBusqueda.trim();
-    if (!query) return;
-    setBuscandoTicket(true);
-    try {
-      const { data } = await supabase
-        .from("pedidos")
-        .select("numero_pedido")
-        .ilike("numero_pedido", `%${query}%`)
-        .limit(2);
-      if (!data || data.length === 0) {
-        showError("No se encontró ningún pedido con ese ID.");
-      } else {
-        router.push(`/mostrador/ticket/${data[0].numero_pedido}`);
-      }
-    } catch (err) {
-      console.error("Error buscando ticket:", err);
-      showError("Error al buscar el ticket.");
-    } finally {
-      setBuscandoTicket(false);
-    }
-  }
-
   if (ticketOffline) {
     return (
       <OfflineTicket
@@ -411,34 +399,34 @@ function MostradorContent() {
             <p className="text-xs text-gray-500 dark:text-gray-400">Sistema de Punto de Venta</p>
           </div>
         </div>
-        <form onSubmit={handleBuscarTicket} className="flex items-center gap-1">
-          <input
-            type="text"
-            value={ticketBusqueda}
-            onChange={(e) => setTicketBusqueda(e.target.value)}
-            placeholder="Buscar pedido (ej. PIC-PAL-00001)..."
-            className="border border-gray-300 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-100 rounded-lg px-2.5 py-1.5 text-xs w-36 focus:outline-none focus:ring-2 focus:ring-blue-500 font-mono"
-          />
-          <Button type="submit" size="sm" variant="primary" disabled={buscandoTicket || !ticketBusqueda.trim()}>
-            {buscandoTicket ? "..." : "Ir"}
-          </Button>
-        </form>
         <div className="flex items-center gap-3">
           <Button
-            variant="ghost"
+            variant="primary"
             size="sm"
-            onClick={() => void refrescarCatalogo()}
-            disabled={refrescandoCatalogo}
+            onClick={() => router.push("/mostrador/pedidos")}
           >
-            <i
-              className={`fas ${
-                refrescandoCatalogo ? "fa-spinner fa-spin" : "fa-sync-alt"
-              } mr-1.5`}
-            />
-            <span className="hidden sm:inline">
-              {refrescandoCatalogo ? "Actualizando..." : "Actualizar catálogo"}
-            </span>
+            <i className="fas fa-receipt mr-1.5" />
+            Pedidos
           </Button>
+          {puedeActualizarCatalogo && (
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => void refrescarCatalogo()}
+              disabled={refrescandoCatalogo}
+            >
+              <i
+                className={`fas ${
+                  refrescandoCatalogo ? "fa-spinner fa-spin" : "fa-sync-alt"
+                } mr-1.5`}
+              />
+              <span className="hidden sm:inline">
+                {refrescandoCatalogo
+                  ? "Actualizando..."
+                  : "Actualizar catálogo"}
+              </span>
+            </Button>
+          )}
           <OfflineIndicator />
           <ThemeToggle />
           <RoleSwitcher />
@@ -633,7 +621,11 @@ function MostradorContent() {
         editData={editandoLinea ?? undefined}
         rutaDefault={pedido.rutaDefault}
         catalogo={catalogo ?? undefined}
-        onRefrescarCatalogo={() => void refrescarCatalogo()}
+        onRefrescarCatalogo={
+          puedeActualizarCatalogo
+            ? () => void refrescarCatalogo()
+            : undefined
+        }
       />
 
       <ModalConfirmarPedido
