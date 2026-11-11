@@ -4,8 +4,8 @@ import type { PedidoDraft } from "@/lib/supabase/types";
 
 let syncing = false;
 
-export async function queueOrder(draft: PedidoDraft): Promise<void> {
-  await enqueuePedido(draft as unknown as Record<string, unknown>);
+export async function queueOrder(draft: PedidoDraft): Promise<string> {
+  return enqueuePedido(draft as unknown as Record<string, unknown>);
 }
 
 export async function syncQueue(cajeroId: string): Promise<{ synced: number; failed: number }> {

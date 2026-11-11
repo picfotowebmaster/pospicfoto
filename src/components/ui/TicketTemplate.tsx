@@ -1,13 +1,38 @@
 import React from "react";
 import { DATOS_EMPRESA, POLITICAS } from "@/lib/utils/constantes";
-import type { EntidadEmisora, Pedido } from "@/lib/supabase/types";
+import type { EntidadEmisora } from "@/lib/supabase/types";
 
-interface TicketTemplateProps {
-  pedido: Pedido;
-  emisor?: EntidadEmisora | null;
+export interface TicketDetalle {
+  id: string;
+  producto_nombre: string;
+  cantidad: number;
+  importe_linea: number;
+  atributos?: Record<string, string> | null;
 }
 
-export function TicketTemplate({ pedido, emisor }: TicketTemplateProps) {
+export interface TicketPedido {
+  id: string;
+  numero_pedido?: string | null;
+  cliente_nombre: string;
+  cliente_telefono?: string | null;
+  fecha_recepcion: string;
+  hora_recepcion?: string | null;
+  fecha_entrega: string;
+  hora_entrega?: string | null;
+  subtotal: number;
+  anticipo: number;
+  total: number;
+  metodo_pago: string;
+  detalle_pedidos?: TicketDetalle[];
+}
+
+interface TicketTemplateProps {
+  pedido: TicketPedido;
+  emisor?: EntidadEmisora | null;
+  nota?: string;
+}
+
+export function TicketTemplate({ pedido, emisor, nota }: TicketTemplateProps) {
   const nombre = emisor?.nombre_comercial || DATOS_EMPRESA.nombre;
   const razonSocial = emisor?.razon_social || DATOS_EMPRESA.nombre;
   const rfc = emisor?.rfc || DATOS_EMPRESA.rfc;
@@ -40,6 +65,12 @@ export function TicketTemplate({ pedido, emisor }: TicketTemplateProps) {
         <div>Correo: {correo}</div>
         {emisor?.sitio_web && <div>{emisor.sitio_web}</div>}
       </div>
+
+      {nota && (
+        <div className="text-center text-[8px] font-bold border border-black px-1 py-0.5 mb-1">
+          {nota}
+        </div>
+      )}
 
       <div className="border-t border-b border-dashed border-gray-400 py-0.5 mb-1">
         <div>

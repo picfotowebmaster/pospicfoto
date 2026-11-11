@@ -30,6 +30,7 @@ import {
 } from "@/lib/services/entidadesEmisoras";
 import { facturacionHabilitada } from "@/lib/config/features";
 import OfflineIndicator from "../_components/OfflineIndicator";
+import { OfflineTicket } from "./_components/OfflineTicket";
 import RoleSwitcher from "@/app/_components/RoleSwitcher";
 import type {
   Atributo,
@@ -37,6 +38,7 @@ import type {
   EntidadEmisora,
   LineaPedidoDraft,
 } from "@/lib/supabase/types";
+import type { TicketPedido } from "@/components/ui/TicketTemplate";
 type AtributoConValores = Atributo & { valores: AtributoValor[] };
 
 function MostradorContent() {
@@ -63,6 +65,10 @@ function MostradorContent() {
   const [ticketBusqueda, setTicketBusqueda] = useState("");
   const [buscandoTicket, setBuscandoTicket] = useState(false);
   const [sucursalNombre, setSucursalNombre] = useState("");
+  const [ticketOffline, setTicketOffline] = useState<{
+    pedido: TicketPedido;
+    emisor: EntidadEmisora;
+  } | null>(null);
   const [marcas, setMarcas] = useState<{ id: string; nombre: string; codigo: string }[]>([]);
   const [queueCount, setQueueCount] = useState(0);
   const [confirmando, setConfirmando] = useState(false);
@@ -296,7 +302,43 @@ function MostradorContent() {
 
     if (!isOnline) {
       try {
-        await queueOrder(draft as unknown as Parameters<typeof queueOrder>[0]);
+        const queueId = await queueOrder(
+          draft as unknown as Parameters<typeof queueOrder>[0],
+        );
+
+        const ahora = new Date();
+        const pad = (n: number) => String(n).padStart(2, "0");
+        const fechaRecepcion = `${ahora.getFullYear()}-${pad(
+          ahora.getMonth() + 1,
+        )}-${pad(ahora.getDate())}`;
+        const horaRecepcion = `${pad(ahora.getHours())}:${pad(
+          ahora.getMinutes(),
+        )}`;
+        const sufijo = queueId.split("_").pop()?.toUpperCase() ?? "LOCAL";
+
+        const offlinePedido: TicketPedido = {
+          id: queueId,
+          numero_pedido: `OFF-${fechaRecepcion.replace(/-/g, "")}-${sufijo}`,
+          cliente_nombre: draft.cliente_nombre,
+          cliente_telefono: draft.cliente_telefono || null,
+          fecha_recepcion: fechaRecepcion,
+          hora_recepcion: horaRecepcion,
+          fecha_entrega: draft.fecha_entrega,
+          hora_entrega: draft.hora_entrega,
+          subtotal: draft.subtotal,
+          anticipo: draft.anticipo,
+          total: draft.total,
+          metodo_pago: draft.metodo_pago,
+          detalle_pedidos: draft.lineas.map((linea, index) => ({
+            id: `${queueId}-${index}`,
+            producto_nombre: linea.producto_nombre,
+            cantidad: linea.cantidad,
+            importe_linea: linea.cantidad * linea.precio_unitario,
+            atributos: linea.atributos,
+          })),
+        };
+
+        setTicketOffline({ pedido: offlinePedido, emisor: entidad });
         pedido.limpiar();
         showSuccess("Pedido guardado localmente. Se sincronizará al reconectar.");
         setQueueCount((c) => c + 1);
@@ -347,6 +389,16 @@ function MostradorContent() {
     } finally {
       setBuscandoTicket(false);
     }
+  }
+
+  if (ticketOffline) {
+    return (
+      <OfflineTicket
+        pedido={ticketOffline.pedido}
+        emisor={ticketOffline.emisor}
+        onClose={() => setTicketOffline(null)}
+      />
+    );
   }
 
   return (

@@ -1,13 +1,10 @@
 "use client";
 
-import React, { useEffect, useState, useCallback } from "react";
+import React, { useEffect, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
-import { useAuth } from "@/lib/hooks/useAuth";
 import { TicketTemplate } from "@/components/ui/TicketTemplate";
 import { fetchPedido } from "@/lib/services/pedidos";
 import { supabase } from "@/lib/supabase/client";
-import { useThermalPrinter } from "@/lib/hooks/useThermalPrinter";
-import { ThermalPrintButton } from "@/app/_components/ThermalPrintButton";
 import { Button } from "@/components/ui/Button";
 import { useToast } from "@/components/ui/Toast";
 import { pedidoPagado } from "@/lib/utils/fiscal";
@@ -18,7 +15,6 @@ import type { EntidadEmisora, Pedido } from "@/lib/supabase/types";
 export default function TicketPage() {
   const { id } = useParams<{ id: string }>();
   const router = useRouter();
-  const { signOut } = useAuth();
   const { showError, showSuccess } = useToast();
   const [pedidos, setPedidos] = useState<Pedido[]>([]);
   const [emisores, setEmisores] = useState<Map<string, EntidadEmisora>>(
@@ -32,8 +28,6 @@ export default function TicketPage() {
     pdfUrl: string | null;
     xmlUrl: string | null;
   } | null>(null);
-
-  const printer = useThermalPrinter();
 
   useEffect(() => {
     if (!id) return;
@@ -82,36 +76,6 @@ export default function TicketPage() {
       .then(setEmisores)
       .catch(() => {});
   }, [pedidos]);
-
-  const handleThermalPrint = useCallback(() => {
-    for (const pedido of pedidos) {
-      const lineas = (pedido.detalle_pedidos ?? []).map((d) => ({
-        nombre: d.producto_nombre,
-        cantidad: d.cantidad,
-        importe: d.importe_linea,
-        descuento: d.descuento_monto ?? undefined,
-        atributos: d.atributos as Record<string, string> | undefined,
-      }));
-
-      printer.print({
-        numeroPedido: pedido.numero_pedido || pedido.id.slice(0, 8).toUpperCase(),
-        cliente: pedido.cliente_nombre,
-        telefono: pedido.cliente_telefono || undefined,
-        fechaRecepcion: pedido.fecha_recepcion,
-        horaRecepcion: pedido.hora_recepcion || "00:00",
-        fechaEntrega: pedido.fecha_entrega,
-        horaEntrega: pedido.hora_entrega,
-        metodoPago: pedido.metodo_pago,
-        subtotal: pedido.subtotal,
-        anticipo: pedido.anticipo,
-        total: pedido.total,
-        lineas,
-        emisor: pedido.entidad_emisora_id
-          ? emisores.get(pedido.entidad_emisora_id) ?? null
-          : null,
-      });
-    }
-  }, [pedidos, printer, emisores]);
 
   async function handleEnviarTicket() {
     const pedido = pedidos[0];
@@ -197,21 +161,18 @@ export default function TicketPage() {
 
   return (
     <div className="ticket-page min-h-screen bg-gray-50 p-4 flex flex-col items-center">
-      <div className="mb-4 flex gap-2 no-print">
-        <ThermalPrintButton
-          status={printer.status}
-          error={printer.error}
-          deviceName={printer.deviceName}
-          bluetoothAvailable={printer.bluetoothAvailable}
-          onConnect={printer.connect}
-          onPrint={handleThermalPrint}
-          onDisconnect={printer.disconnect}
-          onRetry={printer.retry}
-          onBrowserPrint={() => window.print()}
-        />
+      <div className="mb-4 flex flex-wrap gap-2 no-print">
         <Button
           size="sm"
           variant="primary"
+          onClick={() => window.print()}
+        >
+          <i className="fas fa-print mr-1" />
+          Imprimir
+        </Button>
+        <Button
+          size="sm"
+          variant="ghost"
           onClick={handleEnviarTicket}
           disabled={enviandoTicket}
         >
@@ -222,14 +183,8 @@ export default function TicketPage() {
           variant="ghost"
           onClick={() => router.push("/mostrador")}
         >
-          Mostrador
-        </Button>
-        <Button
-          size="sm"
-          variant="ghost"
-          onClick={signOut}
-        >
-          Salir
+          <i className="fas fa-arrow-left mr-1" />
+          Regresar
         </Button>
       </div>
 

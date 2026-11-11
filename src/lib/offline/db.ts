@@ -70,7 +70,7 @@ export async function catalogoStaleMs(key: string): Promise<number | null> {
   return Date.now() - entry.updatedAt;
 }
 
-export async function enqueuePedido(draft: Record<string, unknown>): Promise<void> {
+export async function enqueuePedido(draft: Record<string, unknown>): Promise<string> {
   const db = await getDB();
   const id = `offline_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
   await db.put("pedidosQueue", {
@@ -79,6 +79,7 @@ export async function enqueuePedido(draft: Record<string, unknown>): Promise<voi
     createdAt: Date.now(),
     syncStatus: "pending",
   });
+  return id;
 }
 
 export async function getPendingPedidos(): Promise<PedidoEnCola[]> {
