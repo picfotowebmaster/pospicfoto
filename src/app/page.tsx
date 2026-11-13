@@ -6,12 +6,8 @@ import RoleSwitcher from "./_components/RoleSwitcher";
 import { Logo } from "@/components/ui/Logo";
 import { ThemeToggle } from "@/components/ui/ThemeToggle";
 import { AREAS_PRODUCCION_DATA, ESTADOS_PEDIDO, NOMBRE_EMPRESA } from "@/lib/utils/constantes";
+import { esAdminRol, esRolProduccion, puedeVerIngresos } from "@/lib/utils/roles";
 import Link from "next/link";
-
-const ROLES_PRODUCCION = [
-  "diseno", "impresion", "laminado", "montaje", "books", "bastidores", "marcos",
-  "taller", "corte", "admin", "superadmin",
-];
 
 const formatearMoneda = (monto: number) =>
   new Intl.NumberFormat("es-MX", { style: "currency", currency: "MXN" }).format(monto);
@@ -34,8 +30,13 @@ export default async function DashboardPage() {
     .single();
 
   const rol = (profile as { rol?: string } | null)?.rol ?? null;
-  const esProduccion = rol ? ROLES_PRODUCCION.includes(rol) : false;
-  const esAdmin = rol === "admin" || rol === "superadmin";
+  const esAdmin = esAdminRol(rol);
+  const esProduccion = esAdmin || esRolProduccion(rol);
+  const verIngresos = puedeVerIngresos(rol);
+
+  if (rol === "mostrador") {
+    redirect("/mostrador");
+  }
 
   if (rol === "contador") {
     redirect("/contabilidad");
@@ -43,14 +44,10 @@ export default async function DashboardPage() {
 
   const today = new Date().toISOString().split("T")[0];
 
-  const [pedidosHoyRes, ingresosHoyRes, pendientesRes, estadoRes] = await Promise.all([
+  const [pedidosHoyRes, pendientesRes, estadoRes] = await Promise.all([
     supabase
       .from("pedidos")
       .select("*", { count: "exact", head: true })
-      .eq("fecha_recepcion", today),
-    supabase
-      .from("pedidos")
-      .select("total")
       .eq("fecha_recepcion", today),
     supabase
       .from("pedidos")
@@ -63,10 +60,16 @@ export default async function DashboardPage() {
 
   const pedidosHoy = pedidosHoyRes.count ?? 0;
 
-  const ingresosHoy = (ingresosHoyRes.data ?? []).reduce(
-    (sum, row) => sum + (row.total ?? 0),
-    0,
-  );
+  const ingresosHoy = verIngresos
+    ? (
+        (
+          await supabase
+            .from("pedidos")
+            .select("total")
+            .eq("fecha_recepcion", today)
+        ).data ?? []
+      ).reduce((sum, row) => sum + (row.total ?? 0), 0)
+    : 0;
 
   const pendientesPorArea: Record<string, number> = {};
   for (const row of pendientesRes.data ?? []) {
@@ -128,9 +131,11 @@ export default async function DashboardPage() {
       </nav>
 
       <div className="max-w-5xl mx-auto p-4 space-y-6">
-        <div className="grid grid-cols-2 gap-4">
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
           <DashboardCard titulo="Pedidos de hoy" valor={pedidosHoy} color="bg-blue-500" />
-          <DashboardCard titulo="Ingresos de hoy" valor={formatearMoneda(ingresosHoy)} color="bg-green-500" />
+          {verIngresos && (
+            <DashboardCard titulo="Ingresos de hoy" valor={formatearMoneda(ingresosHoy)} color="bg-green-500" />
+          )}
         </div>
 
         <section>

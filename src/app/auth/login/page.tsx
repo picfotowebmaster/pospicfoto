@@ -6,10 +6,18 @@ import { useAuth } from "@/lib/hooks/useAuth";
 import { Button } from "@/components/ui/Button";
 import { Logo } from "@/components/ui/Logo";
 import { NOMBRE_EMPRESA } from "@/lib/utils/constantes";
+import { rutaInicioPorRol } from "@/lib/utils/roles";
 
 export default function LoginPage() {
   const router = useRouter();
-  const { session, cargando: cargandoSesion, signIn, resetPasswordForEmail } = useAuth();
+  const {
+    session,
+    profile,
+    cargando: cargandoSesion,
+    perfilCargando,
+    signIn,
+    resetPasswordForEmail,
+  } = useAuth();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
@@ -19,13 +27,12 @@ export default function LoginPage() {
 
   // Redirigir automáticamente si ya hay sesión activa
   useEffect(() => {
-    if (session?.user?.id) {
-      router.push("/mostrador");
-    }
-  }, [session, router]);
+    if (!session?.user?.id || perfilCargando) return;
+    router.push(rutaInicioPorRol(profile?.rol));
+  }, [session?.user?.id, profile, perfilCargando, router]);
 
   // Mostrar loader mientras se verifica la sesión inicial
-  if (cargandoSesion) {
+  if (cargandoSesion || (session?.user?.id && perfilCargando)) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-gray-50">
         <div className="bg-white p-8 rounded-2xl shadow-lg w-full max-w-sm text-center">

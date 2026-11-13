@@ -68,6 +68,7 @@ export interface FiltrosPedidos {
   estado?: string;
   metodoPago?: string;
   vendedorId?: string;
+  sucursalId?: string;
   fechaDesde?: string;
   fechaHasta?: string;
   requiereCorreccion?: string;
@@ -448,8 +449,9 @@ export async function actualizarEstadoPedido(
   estado: string,
 ): Promise<void> {
   if (estado === "cancelado") {
-    await cancelarPedido(id);
-    return;
+    throw new Error(
+      "Usa el flujo de cancelación de venta para cancelar un pedido.",
+    );
   }
 
   const { data: pedido, error: fetchErr } = await supabase
@@ -489,36 +491,53 @@ export async function actualizarEstadoPedido(
   }
 }
 
-export async function cancelarPedido(id: string): Promise<void> {
+export interface OpcionesCancelacionVenta {
+  motivo: string;
+  notas?: string | null;
+}
+
+export async function cancelarVenta(
+  id: string,
+  opciones: OpcionesCancelacionVenta,
+): Promise<{ cancelados: number }> {
+  const column = UUID_RE.test(id) ? "id" : "numero_pedido";
   const { data: pedido, error: fetchErr } = await supabase
     .from("pedidos")
-    .select("area_actual")
-    .eq("id", id)
+    .select("id")
+    .eq(column, id)
     .single();
 
   if (fetchErr || !pedido) throw new Error("Pedido no encontrado");
 
-  const oldArea = pedido.area_actual as string;
+  const { data, error } = await supabase.rpc("cancelar_venta", {
+    p_pedido_id: pedido.id,
+    p_motivo: opciones.motivo,
+    p_notas: opciones.notas ?? null,
+  });
 
-  const { error: updateErr } = await supabase
+  if (error) throw error;
+  return data as { cancelados: number };
+}
+
+export async function registrarReembolso(
+  id: string,
+  notas?: string | null,
+): Promise<void> {
+  const column = UUID_RE.test(id) ? "id" : "numero_pedido";
+  const { data: pedido, error: fetchErr } = await supabase
     .from("pedidos")
-    .update({ estado: "cancelado" })
-    .eq("id", id);
+    .select("id")
+    .eq(column, id)
+    .single();
 
-  if (updateErr) throw updateErr;
+  if (fetchErr || !pedido) throw new Error("Pedido no encontrado");
 
-  const idOperador = (await supabase.auth.getUser()).data.user?.id ?? null;
+  const { error } = await supabase.rpc("registrar_reembolso", {
+    p_pedido_id: pedido.id,
+    p_notas: notas ?? null,
+  });
 
-  const { error: movErr } = await supabase
-    .from("pedido_movimientos")
-    .insert({
-      pedido_id: id,
-      from_area: oldArea,
-      to_area: oldArea,
-      operador_id: idOperador,
-    });
-
-  if (movErr) throw movErr;
+  if (error) throw error;
 }
 
 export async function actualizarPedido(
@@ -617,6 +636,9 @@ function aplicarFiltros(query: any, filtros: FiltrosPedidos) {
     q = q.is("cajero_id", null);
   } else if (filtros.vendedorId) {
     q = q.eq("cajero_id", filtros.vendedorId);
+  }
+  if (filtros.sucursalId) {
+    q = q.eq("sucursal_id", filtros.sucursalId);
   }
   if (filtros.fechaDesde) {
     q = q.gte("fecha_entrega", filtros.fechaDesde);

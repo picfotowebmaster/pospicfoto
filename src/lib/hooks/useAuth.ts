@@ -35,22 +35,33 @@ export function useAuth() {
 
   useEffect(() => {
     if (!session?.user.id) return;
+    let ignore = false;
     const userId = session.user.id;
     supabase
       .from("profiles")
       .select("*")
       .eq("id", userId)
       .single()
-      .then(({ data }: { data: unknown }) =>
-        setProfileRecord({ userId, profile: data as Profile | null }),
-      )
-      .catch(() => setProfileRecord({ userId, profile: null }));
+      .then(({ data }: { data: unknown }) => {
+        if (!ignore) {
+          setProfileRecord({ userId, profile: data as Profile | null });
+        }
+      })
+      .catch(() => {
+        if (!ignore) setProfileRecord({ userId, profile: null });
+      });
+    return () => {
+      ignore = true;
+    };
   }, [session?.user.id]);
 
   const profile =
     profileRecord && profileRecord.userId === session?.user.id
       ? profileRecord.profile
       : null;
+
+  const perfilCargando =
+    !!session?.user.id && profileRecord?.userId !== session.user.id;
 
   const signIn = async (email: string, password: string) => {
     if (!supabase) return { error: new Error("Cliente de Supabase no inicializado.") };
@@ -84,5 +95,13 @@ export function useAuth() {
     return { error };
   };
 
-  return { session, profile, cargando, signIn, signOut, resetPasswordForEmail };
+  return {
+    session,
+    profile,
+    cargando,
+    perfilCargando,
+    signIn,
+    signOut,
+    resetPasswordForEmail,
+  };
 }

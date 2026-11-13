@@ -3,13 +3,15 @@
 import React, { useEffect, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { TicketTemplate } from "@/components/ui/TicketTemplate";
-import { fetchPedido, liquidarSaldo } from "@/lib/services/pedidos";
+import { cancelarVenta, fetchPedido, liquidarSaldo } from "@/lib/services/pedidos";
 import { supabase } from "@/lib/supabase/client";
 import { Button } from "@/components/ui/Button";
 import { useToast } from "@/components/ui/Toast";
 import { useAuth } from "@/lib/hooks/useAuth";
 import { LiquidarSaldoModal } from "@/app/mostrador/_components/LiquidarSaldoModal";
 import { ModalCompartirTicket } from "@/app/mostrador/_components/ModalCompartirTicket";
+import { ModalCancelarPedido } from "@/components/pedidos/ModalCancelarPedido";
+import { puedeCancelarPedido } from "@/lib/utils/cancelacion";
 import { pedidoPagado } from "@/lib/utils/fiscal";
 import { fetchEntidadesPorIds } from "@/lib/services/entidadesEmisoras";
 import { facturacionHabilitada } from "@/lib/config/features";
@@ -22,7 +24,7 @@ import type {
 export default function TicketPage() {
   const { id } = useParams<{ id: string }>();
   const router = useRouter();
-  const { session } = useAuth();
+  const { session, profile } = useAuth();
   const { showError, showSuccess } = useToast();
   const [pedidos, setPedidos] = useState<Pedido[]>([]);
   const [emisores, setEmisores] = useState<Map<string, EntidadEmisora>>(
@@ -33,6 +35,7 @@ export default function TicketPage() {
   const [enviandoTicket, setEnviandoTicket] = useState(false);
   const [compartiendo, setCompartiendo] = useState(false);
   const [liquidando, setLiquidando] = useState(false);
+  const [cancelando, setCancelando] = useState(false);
   const [facturaInfo, setFacturaInfo] = useState<{
     uuid: string;
     pdfUrl: string | null;
@@ -155,6 +158,14 @@ export default function TicketPage() {
   const saldoPendiente = pedidoPrincipal
     ? Math.max(0, pedidoPrincipal.total - pedidoPrincipal.anticipo)
     : 0;
+  const perfilCancelacion = {
+    rol: profile?.rol ?? null,
+    sucursal_id: profile?.sucursal_id ?? null,
+  };
+  const puedeCancelarVenta =
+    pedidos.length > 0 &&
+    pedidos.every((p) => puedeCancelarPedido(p, perfilCancelacion).permitido);
+
   const puedeLiquidar =
     pedidos.length === 1 &&
     Boolean(pedidoPrincipal) &&
@@ -238,6 +249,16 @@ export default function TicketPage() {
           >
             <i className="fas fa-share-nodes mr-1" />
             Compartir
+          </Button>
+        )}
+        {puedeCancelarVenta && (
+          <Button
+            size="sm"
+            variant="danger"
+            onClick={() => setCancelando(true)}
+          >
+            <i className="fas fa-times-circle mr-1" />
+            Cancelar venta
           </Button>
         )}
         <Button
@@ -372,6 +393,22 @@ export default function TicketPage() {
           numeroPedido={pedidoPrincipal.numero_pedido}
           clienteEmail={pedidoPrincipal.cliente_email}
           onClose={() => setCompartiendo(false)}
+        />
+      )}
+
+      {cancelando && pedidoPrincipal && (
+        <ModalCancelarPedido
+          pedido={pedidoPrincipal}
+          perfil={perfilCancelacion}
+          onClose={() => setCancelando(false)}
+          onConfirm={async ({ motivo, notas }) => {
+            await cancelarVenta(pedidoPrincipal.id, { motivo, notas });
+            setPedidos((prev) =>
+              prev.map((pedido) => ({ ...pedido, estado: "cancelado" as const })),
+            );
+            setCancelando(false);
+            showSuccess("Venta cancelada.");
+          }}
         />
       )}
 

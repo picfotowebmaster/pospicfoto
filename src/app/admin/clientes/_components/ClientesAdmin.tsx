@@ -180,7 +180,7 @@ export function ClientesAdmin() {
 
       <EditarClienteModal
         key={`editar-${clienteEditando?.id ?? "sin-cliente"}`}
-        cliente={clienteEditando}
+          cliente={clienteEditando}
         onClose={() => setClienteEditando(null)}
         onGuardado={() => {
           setClienteEditando(null);

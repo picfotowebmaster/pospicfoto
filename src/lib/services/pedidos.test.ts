@@ -4,7 +4,7 @@ import {
   crearPedido,
   fetchPedido,
   fetchPedidosPorEstado,
-  cancelarPedido,
+  cancelarVenta,
   listarPedidos,
   actualizarPedido,
   actualizarPrioridad,
@@ -209,17 +209,39 @@ describe("fetchPedidosPorEstado", () => {
   });
 });
 
-describe("cancelarPedido", () => {
-  it("cambia a cancelado con movimiento", async () => {
-    let fromCalls = 0;
-    mockFrom(() => {
-      fromCalls++;
-      if (fromCalls === 1) return qb("single", { area_actual: "mostrador" }) as ReturnType<typeof supabase.from>;
-      if (fromCalls === 2) return qb("eq", null) as ReturnType<typeof supabase.from>;
-      return qb(null, null) as ReturnType<typeof supabase.from>;
+describe("cancelarVenta", () => {
+  it("cancela la venta con motivo mediante RPC", async () => {
+    mockFrom(() =>
+      qb("single", { id: "p1" }) as ReturnType<typeof supabase.from>,
+    );
+    vi.mocked(supabase.rpc).mockResolvedValue({
+      data: { cancelados: 1 },
+      error: null,
     });
-    vi.mocked(supabase.auth.getUser).mockResolvedValue({ data: { user: { id: "user-1" } } } as never);
-    await expect(cancelarPedido("p1")).resolves.toBeUndefined();
+
+    await expect(
+      cancelarVenta("p1", { motivo: "cliente_cancela", notas: "Prueba" }),
+    ).resolves.toEqual({ cancelados: 1 });
+
+    expect(supabase.rpc).toHaveBeenCalledWith("cancelar_venta", {
+      p_pedido_id: "p1",
+      p_motivo: "cliente_cancela",
+      p_notas: "Prueba",
+    });
+  });
+
+  it("propaga errores del RPC", async () => {
+    mockFrom(() =>
+      qb("single", { id: "p1" }) as ReturnType<typeof supabase.from>,
+    );
+    vi.mocked(supabase.rpc).mockResolvedValue({
+      data: null,
+      error: new Error("La venta ya está cancelada"),
+    });
+
+    await expect(
+      cancelarVenta("p1", { motivo: "otro" }),
+    ).rejects.toThrow("La venta ya está cancelada");
   });
 });
 

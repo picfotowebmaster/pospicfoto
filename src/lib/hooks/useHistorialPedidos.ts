@@ -5,7 +5,15 @@ import { listarPedidos, contarPedidos, type FiltrosPedidos } from "@/lib/service
 import { listarVendedores, type Vendedor } from "@/lib/services/vendedores";
 import type { Pedido } from "@/lib/supabase/types";
 
-export function useHistorialPedidos() {
+interface OpcionesHistorialPedidos {
+  sucursalFijo?: string | null;
+  habilitado?: boolean;
+}
+
+export function useHistorialPedidos(
+  opciones: OpcionesHistorialPedidos = {},
+) {
+  const { sucursalFijo, habilitado = true } = opciones;
   const [pedidos, setPedidos] = useState<Pedido[]>([]);
   const [vendedores, setVendedores] = useState<Vendedor[]>([]);
   const [hasMore, setHasMore] = useState(false);
@@ -20,9 +28,10 @@ export function useHistorialPedidos() {
   const [trigger, setTrigger] = useState(0);
 
   useEffect(() => {
+    if (!habilitado) return;
     let ignore = false;
 
-    listarVendedores()
+    listarVendedores(sucursalFijo ?? undefined)
       .then((data) => {
         if (!ignore) setVendedores(data);
       })
@@ -31,14 +40,18 @@ export function useHistorialPedidos() {
     return () => {
       ignore = true;
     };
-  }, []);
+  }, [sucursalFijo, habilitado]);
 
   useEffect(() => {
+    if (!habilitado) return;
     let ignore = false;
+    const filtrosAplicados = sucursalFijo
+      ? { ...filtros, sucursalId: sucursalFijo }
+      : filtros;
 
     Promise.all([
-      listarPedidos({ ...filtros, pagina, porPagina }),
-      contarPedidos(filtros).catch(() => 0),
+      listarPedidos({ ...filtrosAplicados, pagina, porPagina }),
+      contarPedidos(filtrosAplicados).catch(() => 0),
     ])
       .then(([result, count]) => {
         if (!ignore) {
@@ -65,7 +78,7 @@ export function useHistorialPedidos() {
     return () => {
       ignore = true;
     };
-  }, [trigger, pagina, filtros, porPagina]);
+  }, [trigger, pagina, filtros, porPagina, sucursalFijo, habilitado]);
 
   const actualizarFiltros = useCallback(
     (nuevos: Partial<typeof filtros>) => {

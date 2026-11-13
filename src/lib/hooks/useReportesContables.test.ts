@@ -29,6 +29,7 @@ vi.mock("@/lib/services/vendedores", () => ({
 }));
 
 import { obtenerPedidosReporte } from "@/lib/services/reportesContables";
+import { listarVendedores } from "@/lib/services/vendedores";
 import { fechaNegocio } from "@/lib/utils/fechas";
 
 const pedido = {
@@ -53,8 +54,8 @@ const pedido = {
   factura_fecha: null,
 };
 
-describe("useReportesContables con vendedor fijo", () => {
-  it("filtra el reporte a las ventas del usuario", async () => {
+describe("useReportesContables por sucursal", () => {
+  it("consulta pedidos y vendedores de la sucursal fija", async () => {
     vi.mocked(obtenerPedidosReporte).mockResolvedValue([
       pedido,
       {
@@ -65,14 +66,54 @@ describe("useReportesContables con vendedor fijo", () => {
       },
     ]);
 
-    const { result } = renderHook(() => useReportesContables("v1"));
+    const { result } = renderHook(() =>
+      useReportesContables({ sucursalFijo: "suc-1", restringido: true }),
+    );
 
     await waitFor(() => {
       expect(result.current.cargando).toBe(false);
     });
 
+    expect(obtenerPedidosReporte).toHaveBeenCalledWith(
+      expect.objectContaining({ desde: expect.any(String) }),
+      "suc-1",
+    );
+    expect(listarVendedores).toHaveBeenCalledWith("suc-1");
+    expect(result.current.reporte.totalPedidos).toBe(2);
+    expect(result.current.reporte.movimientos).toHaveLength(2);
+  });
+
+  it("no filtra por sucursal cuando el rol ve todo", async () => {
+    vi.mocked(obtenerPedidosReporte).mockResolvedValue([pedido]);
+
+    const { result } = renderHook(() =>
+      useReportesContables({ restringido: false }),
+    );
+
+    await waitFor(() => {
+      expect(result.current.cargando).toBe(false);
+    });
+
+    expect(obtenerPedidosReporte).toHaveBeenCalledWith(
+      expect.objectContaining({ desde: expect.any(String) }),
+      undefined,
+    );
     expect(result.current.reporte.totalPedidos).toBe(1);
-    expect(result.current.reporte.movimientos).toHaveLength(1);
-    expect(result.current.reporte.movimientos[0].vendedorId).toBe("v1");
+  });
+
+  it("no consulta si el usuario restringido no tiene sucursal", async () => {
+    vi.mocked(obtenerPedidosReporte).mockClear();
+
+    const { result } = renderHook(() =>
+      useReportesContables({ restringido: true }),
+    );
+
+    await waitFor(() => {
+      expect(result.current.cargando).toBe(false);
+    });
+
+    expect(obtenerPedidosReporte).not.toHaveBeenCalled();
+    expect(result.current.sinSucursal).toBe(true);
+    expect(result.current.error).toMatch(/sucursal asignada/i);
   });
 });

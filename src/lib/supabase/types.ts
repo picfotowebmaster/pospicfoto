@@ -251,6 +251,14 @@ export interface Pedido {
   saldo_metodo_pago?: MetodoPago | null;
   saldo_cobrado_en?: string | null;
   saldo_cobrado_por?: string | null;
+  motivo_cancelacion?: string | null;
+  cancelacion_notas?: string | null;
+  cancelado_por?: string | null;
+  cancelado_en?: string | null;
+  reembolso_estado?: "no_aplica" | "pendiente" | "realizado" | null;
+  reembolso_monto?: number | null;
+  reembolso_realizado_por?: string | null;
+  reembolso_realizado_en?: string | null;
   created_at: string;
   updated_at: string;
   detalle_pedidos?: DetallePedido[];

@@ -24,6 +24,8 @@ import { usePushNotifications } from "@/lib/hooks/usePushNotifications";
 import { useNotificaciones } from "@/lib/hooks/useNotificaciones";
 import { useRoleOverride } from "@/lib/hooks/useRoleOverride";
 import { resolverRolEfectivo } from "@/lib/utils/roles";
+import { ModalCancelarPedido } from "@/components/pedidos/ModalCancelarPedido";
+import type { MotivoCancelacionPedido } from "@/lib/utils/cancelacion";
 import type { Pedido, PrioridadPedido, MetodoPago } from "@/lib/supabase/types";
 
 const ROLES_DEPARTAMENTO = [
@@ -31,9 +33,7 @@ const ROLES_DEPARTAMENTO = [
   "books", "bastidores", "marcos",
 ];
 
-const ROL_PERMITIDOS_CANCELAR = [
-  "mostrador", "taller", "corte", "admin", "superadmin",
-];
+const ROL_PERMITIDOS_CANCELAR = ["admin", "superadmin"];
 
 const ROL_PERMITIDOS_REGRESAR = [
   "admin", "superadmin", "mostrador", "taller", "corte",
@@ -72,6 +72,63 @@ const CHIP_BASE = "inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-
 const CHIP_ON = "bg-blue-600 text-white border-blue-600 shadow-sm";
 const CHIP_OFF = "bg-white dark:bg-gray-800 text-gray-600 dark:text-gray-300 border-gray-200 dark:border-gray-700 hover:border-blue-400 dark:hover:border-blue-500";
 
+function filtrarColumnas(
+  columnas: Record<string, Pedido[]>,
+  filtros: {
+    busqueda: string;
+    filtroCorreccion: string;
+    filtroRuta: string;
+    filtroSla: string;
+    soloMios: boolean;
+    soloAsignados: boolean;
+    usuarioId: string | null;
+    areaFiltro: string | undefined;
+  },
+): Record<string, Pedido[]> {
+  const { busqueda, filtroCorreccion, filtroRuta, filtroSla, soloMios, soloAsignados, usuarioId, areaFiltro } = filtros;
+  let result: Record<string, Pedido[]> = {};
+
+  for (const [area, pedidos] of Object.entries(columnas)) {
+    const filtrados = pedidos.filter((p) => {
+      if (busqueda) {
+        const term = busqueda.toLowerCase();
+        const matchCliente = p.cliente_nombre.toLowerCase().includes(term);
+        const matchPedido = p.numero_pedido?.toLowerCase().includes(term);
+        const matchTelefono = p.cliente_telefono?.toLowerCase().includes(term);
+        if (!matchCliente && !matchPedido && !matchTelefono) return false;
+      }
+      if (filtroCorreccion === "si" && !p.requiere_correccion) return false;
+      if (filtroCorreccion === "no" && p.requiere_correccion) return false;
+      if (filtroRuta && p.ruta !== filtroRuta) return false;
+      if (filtroSla) {
+        const sla = getSlaLevel(p.fecha_entrega, p.hora_entrega);
+        if (sla !== filtroSla) return false;
+      }
+      return true;
+    });
+    result[area] = filtrados;
+  }
+
+  if (soloMios && areaFiltro) {
+    const soloMias: Record<string, Pedido[]> = {};
+    for (const [area, pedidos] of Object.entries(result)) {
+      if (area === areaFiltro) soloMias[area] = pedidos;
+    }
+    result = soloMias;
+  }
+
+  if (soloAsignados && usuarioId) {
+    const soloAsignadosMap: Record<string, Pedido[]> = {};
+    for (const [area, pedidos] of Object.entries(result)) {
+      const filtrados = pedidos.filter((p) => p.asignado_a === usuarioId);
+      if (filtrados.length > 0) soloAsignadosMap[area] = filtrados;
+    }
+    result = soloAsignadosMap;
+  }
+
+  return result;
+}
+
 export default function KanbanPage() {
   const { session, signOut } = useAuth();
   const { showError, showSuccess } = useToast();
@@ -106,10 +163,18 @@ export default function KanbanPage() {
   const [metricsVisible, setMetricsVisible] = usePersistentState(`${LS_PREFIX}.metrics`, true);
   const [vistas, setVistas] = usePersistentState<VistaGuardada[]>(`${LS_PREFIX}.vistas`, []);
   const [pedidoDetalle, setPedidoDetalle] = useState<Pedido | null>(null);
+  const [pedidoCancelarId, setPedidoCancelarId] = useState<string | null>(null);
   const [collapsedColumns, setCollapsedColumns] = useState<Set<string>>(new Set());
 
   const pushNotifications = usePushNotifications(session?.user?.id ?? null);
   const notif = useNotificaciones(areaFiltro);
+
+  const handleSolicitarCancelar = useCallback(
+    (pedidoId: string) => {
+      setPedidoCancelarId(pedidoId);
+    },
+    [setPedidoCancelarId],
+  );
 
   const handleNuevoPedido = useCallback(
     (pedido: Pedido) => {
@@ -172,49 +237,16 @@ export default function KanbanPage() {
 
   const hayFiltrosActivos = busqueda !== "" || filtroCorreccion !== "" || filtroRuta !== "" || filtroSla !== "";
 
-  const columnasFiltradas = useMemo(() => {
-    let result: Record<string, Pedido[]> = {};
-
-    for (const [area, pedidos] of Object.entries(columnas)) {
-      const filtrados = pedidos.filter((p) => {
-        if (busqueda) {
-          const term = busqueda.toLowerCase();
-          const matchCliente = p.cliente_nombre.toLowerCase().includes(term);
-          const matchPedido = p.numero_pedido?.toLowerCase().includes(term);
-          const matchTelefono = p.cliente_telefono?.toLowerCase().includes(term);
-          if (!matchCliente && !matchPedido && !matchTelefono) return false;
-        }
-        if (filtroCorreccion === "si" && !p.requiere_correccion) return false;
-        if (filtroCorreccion === "no" && p.requiere_correccion) return false;
-        if (filtroRuta && p.ruta !== filtroRuta) return false;
-        if (filtroSla) {
-          const sla = getSlaLevel(p.fecha_entrega, p.hora_entrega);
-          if (sla !== filtroSla) return false;
-        }
-        return true;
-      });
-      result[area] = filtrados;
-    }
-
-    if (soloMios && areaFiltro) {
-      const soloMias: Record<string, Pedido[]> = {};
-      for (const [area, pedidos] of Object.entries(result)) {
-        if (area === areaFiltro) soloMias[area] = pedidos;
-      }
-      result = soloMias;
-    }
-
-    if (soloAsignados && usuarioId) {
-      const soloAsignadosMap: Record<string, Pedido[]> = {};
-      for (const [area, pedidos] of Object.entries(result)) {
-        const filtrados = pedidos.filter((p) => p.asignado_a === usuarioId);
-        if (filtrados.length > 0) soloAsignadosMap[area] = filtrados;
-      }
-      result = soloAsignadosMap;
-    }
-
-    return result;
-  }, [columnas, busqueda, filtroCorreccion, filtroRuta, filtroSla, soloMios, soloAsignados, usuarioId, areaFiltro]);
+  const columnasFiltradas = filtrarColumnas(columnas, {
+    busqueda,
+    filtroCorreccion,
+    filtroRuta,
+    filtroSla,
+    soloMios,
+    soloAsignados,
+    usuarioId,
+    areaFiltro,
+  });
 
   const metricas = useMemo(
     () => computeMetrics(columnasFiltradas, areas.filter((a) => a.id !== "entregado")),
@@ -621,7 +653,11 @@ export default function KanbanPage() {
             areas={areas}
             getNextForPedido={getNextForPedido}
             onAvanzarPedido={avanzarPedido}
-            onCancelarPedido={rol && ROL_PERMITIDOS_CANCELAR.includes(rol) ? cancelarPedido : undefined}
+            onCancelarPedido={
+              rolVista && ROL_PERMITIDOS_CANCELAR.includes(rolVista)
+                ? handleSolicitarCancelar
+                : undefined
+            }
             onRegresarPedido={rol && ROL_PERMITIDOS_REGRESAR.includes(rol) ? regresarPedido : undefined}
             getTiempoEnColumna={getTiempoEnColumna}
             getTiempoEnColumnaNivel={getTiempoEnColumnaNivel}
@@ -634,7 +670,11 @@ export default function KanbanPage() {
             areas={areas}
             getNextForPedido={getNextForPedido}
             onAvanzarPedido={avanzarPedido}
-            onCancelarPedido={rol && ROL_PERMITIDOS_CANCELAR.includes(rol) ? cancelarPedido : undefined}
+            onCancelarPedido={
+              rolVista && ROL_PERMITIDOS_CANCELAR.includes(rolVista)
+                ? handleSolicitarCancelar
+                : undefined
+            }
             onRegresarPedido={rol && ROL_PERMITIDOS_REGRESAR.includes(rol) ? regresarPedido : undefined}
             onBulkAvanzar={bulkAvanzar}
             getTiempoEnColumna={getTiempoEnColumna}
@@ -653,6 +693,17 @@ export default function KanbanPage() {
           />
         )}
       </div>
+
+      <ModalCancelarPedido
+        pedido={pedidos.find((p) => p.id === pedidoCancelarId) ?? null}
+        perfil={{ rol: rolVista }}
+        onClose={() => setPedidoCancelarId(null)}
+        onConfirm={async ({ motivo, notas }: { motivo: MotivoCancelacionPedido; notas: string }) => {
+          if (!pedidoCancelarId) return;
+          await cancelarPedido(pedidoCancelarId, { motivo, notas });
+          setPedidoCancelarId(null);
+        }}
+      />
 
       <PedidoDetailPanel
         pedido={pedidoDetalle}

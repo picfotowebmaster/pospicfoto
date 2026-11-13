@@ -6,12 +6,17 @@ export interface Vendedor {
   nombre: string;
   email: string | null;
   rol: Rol;
+  sucursal_id?: string | null;
 }
 
 const ROLES_VENDEDOR: Rol[] = ["mostrador", "admin", "superadmin"];
 
-export async function listarVendedores(): Promise<Vendedor[]> {
-  const { data, error } = await supabase.rpc("listar_vendedores");
+export async function listarVendedores(
+  sucursalId?: string | null,
+): Promise<Vendedor[]> {
+  const { data, error } = sucursalId
+    ? await supabase.rpc("listar_vendedores", { p_sucursal_id: sucursalId })
+    : await supabase.rpc("listar_vendedores");
 
   if (!error) {
     return (
@@ -20,29 +25,45 @@ export async function listarVendedores(): Promise<Vendedor[]> {
         nombre: string | null;
         email: string | null;
         rol: Rol;
+        sucursal_id?: string | null;
       }[]
     ).map((fila) => ({
       id: fila.id,
       nombre: (fila.nombre ?? "").trim() || "Sin nombre",
       email: fila.email ?? null,
       rol: fila.rol,
+      sucursal_id: fila.sucursal_id ?? null,
     }));
   }
 
-  const { data: perfiles, error: errorPerfiles } = await supabase
+  let consulta = supabase
     .from("profiles")
-    .select("id, nombre, rol")
-    .order("nombre", { ascending: true });
+    .select("id, nombre, rol, sucursal_id");
+
+  if (sucursalId) {
+    consulta = consulta.eq("sucursal_id", sucursalId);
+  }
+
+  const { data: perfiles, error: errorPerfiles } = await consulta.order(
+    "nombre",
+    { ascending: true },
+  );
 
   if (errorPerfiles) throw errorPerfiles;
 
   return (
-    (perfiles ?? []) as { id: string; nombre: string | null; rol: Rol }[]
+    (perfiles ?? []) as {
+      id: string;
+      nombre: string | null;
+      rol: Rol;
+      sucursal_id?: string | null;
+    }[]
   ).map((fila) => ({
     id: fila.id,
     nombre: (fila.nombre ?? "").trim() || "Sin nombre",
     email: null,
     rol: fila.rol,
+    sucursal_id: fila.sucursal_id ?? null,
   }));
 }
 

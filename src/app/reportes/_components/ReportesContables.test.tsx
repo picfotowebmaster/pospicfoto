@@ -62,7 +62,7 @@ beforeEach(() => {
 });
 
 describe("ReportesContables", () => {
-  it("muestra las ventas del usuario y oculta cifras globales a mostrador", () => {
+  it("muestra el reporte completo de la sucursal a mostrador", () => {
     const base = reporteVacio();
     base.reporte = {
       ...base.reporte,
@@ -97,23 +97,23 @@ describe("ReportesContables", () => {
       <ReportesContables
         rol="mostrador"
         puedeVerTodo={false}
-        usuarioId="u1"
-        usuarioNombre="Jesus"
+        sucursalId="suc-1"
+        sucursalNombre="Palma"
       />,
     );
 
-    expect(screen.getByText("Descargar reporte")).toBeInTheDocument();
-    expect(screen.getByText("Mis ventas")).toBeInTheDocument();
+    expect(screen.getByText("Reportes contables")).toBeInTheDocument();
+    expect(screen.getByText("Vendido")).toBeInTheDocument();
+    expect(screen.getByText("$999.00")).toBeInTheDocument();
+    expect(screen.getByText("$888.00")).toBeInTheDocument();
+    expect(screen.getByText("Ventas por vendedor")).toBeInTheDocument();
+    expect(screen.getByText("Movimientos del periodo")).toBeInTheDocument();
     expect(screen.getByText("PIC-CUB-00092")).toBeInTheDocument();
     expect(screen.getByText("$126.00")).toBeInTheDocument();
+    expect(screen.getByText(/Sucursal: Palma/i)).toBeInTheDocument();
     expect(screen.getByText(/Descargar movimientos CSV/i)).toBeInTheDocument();
     expect(screen.getByText(/Descargar resumen CSV/i)).toBeInTheDocument();
-    expect(screen.queryByText("Vendido")).not.toBeInTheDocument();
-    expect(screen.queryByText("$999.00")).not.toBeInTheDocument();
-    expect(screen.queryByText("$888.00")).not.toBeInTheDocument();
-    expect(
-      screen.queryByText(/El archivo incluye los movimientos/i),
-    ).not.toBeInTheDocument();
+    expect(screen.queryByText("Mis ventas")).not.toBeInTheDocument();
   });
 
   it("muestra tarjetas y movimientos a admin y contador", () => {
@@ -123,8 +123,8 @@ describe("ReportesContables", () => {
       <ReportesContables
         rol="admin"
         puedeVerTodo
-        usuarioId="u1"
-        usuarioNombre="Jesus"
+        sucursalId={null}
+        sucursalNombre={null}
       />,
     );
 

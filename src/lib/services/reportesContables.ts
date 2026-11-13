@@ -6,24 +6,30 @@ const CAMPOS =
 
 const TAMANO_LOTE = 1000;
 
-function construirConsulta(rango: RangoReporte) {
-  return supabase
+function construirConsulta(rango: RangoReporte, sucursalId?: string | null) {
+  let consulta = supabase
     .from("pedidos")
     .select(CAMPOS)
     .or(
       `and(fecha_recepcion.gte.${rango.desde},fecha_recepcion.lte.${rango.hasta}),and(saldo_cobrado_en.gte.${rango.desde}T00:00:00-06:00,saldo_cobrado_en.lte.${rango.hasta}T23:59:59.999-06:00)`,
-    )
-    .order("fecha_recepcion", { ascending: true });
+    );
+
+  if (sucursalId) {
+    consulta = consulta.eq("sucursal_id", sucursalId);
+  }
+
+  return consulta.order("fecha_recepcion", { ascending: true });
 }
 
 export async function obtenerPedidosReporte(
   rango: RangoReporte,
+  sucursalId?: string | null,
 ): Promise<PedidoReporteContable[]> {
   const pedidos: PedidoReporteContable[] = [];
   let offset = 0;
 
   while (true) {
-    const { data, error } = await construirConsulta(rango).range(
+    const { data, error } = await construirConsulta(rango, sucursalId).range(
       offset,
       offset + TAMANO_LOTE - 1,
     );

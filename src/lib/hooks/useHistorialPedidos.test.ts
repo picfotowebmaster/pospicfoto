@@ -8,7 +8,12 @@ vi.mock("@/lib/services/pedidos", () => ({
   contarPedidos: vi.fn().mockResolvedValue(0),
 }));
 
-import { listarPedidos } from "@/lib/services/pedidos";
+vi.mock("@/lib/services/vendedores", () => ({
+  listarVendedores: vi.fn().mockResolvedValue([]),
+}));
+
+import { listarPedidos, contarPedidos } from "@/lib/services/pedidos";
+import { listarVendedores } from "@/lib/services/vendedores";
 
 describe("useHistorialPedidos", () => {
   it("carga pedidos iniciales", async () => {
@@ -26,6 +31,34 @@ describe("useHistorialPedidos", () => {
     expect(result.current.pedidos).toHaveLength(1);
     expect(result.current.pedidos[0].cliente_nombre).toBe("Juan");
     expect(result.current.hasMore).toBe(false);
+  });
+
+  it("aplica la sucursal fija a pedidos, conteo y vendedores", async () => {
+    vi.mocked(listarPedidos).mockResolvedValue({ pedidos: [], hasMore: false });
+
+    const { result } = renderHook(() =>
+      useHistorialPedidos({ sucursalFijo: "suc-1" }),
+    );
+
+    await waitFor(() => expect(result.current.cargando).toBe(false));
+
+    expect(listarPedidos).toHaveBeenCalledWith(
+      expect.objectContaining({ sucursalId: "suc-1" }),
+    );
+    expect(contarPedidos).toHaveBeenCalledWith(
+      expect.objectContaining({ sucursalId: "suc-1" }),
+    );
+    expect(listarVendedores).toHaveBeenCalledWith("suc-1");
+  });
+
+  it("no consulta si está deshabilitado", async () => {
+    vi.mocked(listarPedidos).mockClear();
+
+    renderHook(() => useHistorialPedidos({ habilitado: false }));
+
+    await Promise.resolve();
+
+    expect(listarPedidos).not.toHaveBeenCalled();
   });
 
   it("maneja error de carga", async () => {

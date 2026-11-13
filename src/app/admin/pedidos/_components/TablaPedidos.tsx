@@ -6,7 +6,10 @@ import { Button } from "@/components/ui/Button";
 import { useToast } from "@/components/ui/Toast";
 import { ConfirmModal } from "@/components/ui/ConfirmModal";
 import { ESTADOS_PEDIDO, AREAS_PRODUCCION_DATA } from "@/lib/utils/constantes";
-import { actualizarEstadoPedido, cancelarPedido, actualizarPedido } from "@/lib/services/pedidos";
+import { actualizarEstadoPedido, cancelarVenta, actualizarPedido } from "@/lib/services/pedidos";
+import { useAuth } from "@/lib/hooks/useAuth";
+import { ModalCancelarPedido } from "@/components/pedidos/ModalCancelarPedido";
+import { puedeCancelarPedido, type MotivoCancelacionPedido } from "@/lib/utils/cancelacion";
 import { crearComentario } from "@/lib/services/comentarios";
 import { supabase } from "@/lib/supabase/client";
 import { pedidoPagado } from "@/lib/utils/fiscal";
@@ -39,6 +42,7 @@ interface TablaPedidosProps {
 
 export function TablaPedidos({ pedidos, vendedores, atributosPool, onEstadoCambiado }: TablaPedidosProps) {
   const { showError, showSuccess } = useToast();
+  const { profile } = useAuth();
   const nombresVendedores = useMemo(
     () => indexarVendedores(vendedores),
     [vendedores],
@@ -48,7 +52,7 @@ export function TablaPedidos({ pedidos, vendedores, atributosPool, onEstadoCambi
   const [cancelando, setCancelando] = useState<string | null>(null);
   const [facturando, setFacturando] = useState<string | null>(null);
   const [enviandoTicket, setEnviandoTicket] = useState<string | null>(null);
-  const [confirmCancel, setConfirmCancel] = useState<string | null>(null);
+  const [pedidoCancelar, setPedidoCancelar] = useState<Pedido | null>(null);
   const [override, setOverride] = useState<{
     pedidoId: string;
     nuevoEstado: string;
@@ -184,7 +188,32 @@ export function TablaPedidos({ pedidos, vendedores, atributosPool, onEstadoCambi
   }
 
   async function handleCancelar(pedidoId: string) {
-    setConfirmCancel(pedidoId);
+    const pedido = pedidos.find((p) => p.id === pedidoId);
+    if (pedido) setPedidoCancelar(pedido);
+  }
+
+  async function confirmarCancelacion({
+    motivo,
+    notas,
+  }: {
+    motivo: MotivoCancelacionPedido;
+    notas: string;
+  }) {
+    if (!pedidoCancelar) return;
+    setCancelando(pedidoCancelar.id);
+    try {
+      await cancelarVenta(pedidoCancelar.id, { motivo, notas });
+      showSuccess("Venta cancelada.");
+      setPedidoCancelar(null);
+      onEstadoCambiado();
+    } catch (err) {
+      const mensaje =
+        err instanceof Error ? err.message : "Error al cancelar la venta.";
+      showError(mensaje);
+      throw err;
+    } finally {
+      setCancelando(null);
+    }
   }
 
   async function handleFacturar(pedidoId: string) {
@@ -241,22 +270,6 @@ export function TablaPedidos({ pedidos, vendedores, atributosPool, onEstadoCambi
       showError("Error de conexión al enviar el ticket");
     } finally {
       setEnviandoTicket(null);
-    }
-  }
-
-  async function executeCancelar() {
-    const pedidoId = confirmCancel;
-    setConfirmCancel(null);
-    if (!pedidoId) return;
-    setCancelando(pedidoId);
-    try {
-      await cancelarPedido(pedidoId);
-      onEstadoCambiado();
-    } catch (err) {
-      console.error("Error al cancelar pedido:", err);
-      showError("Error al cancelar el pedido.");
-    } finally {
-      setCancelando(null);
     }
   }
 
@@ -381,6 +394,12 @@ export function TablaPedidos({ pedidos, vendedores, atributosPool, onEstadoCambi
               }}
               onCambiarEstado={(estado) => solicitarCambioEstado(p.id, estado, p.estado)}
               onCancelar={() => handleCancelar(p.id)}
+              puedeCancelar={
+                puedeCancelarPedido(p, {
+                  rol: profile?.rol ?? null,
+                  sucursal_id: profile?.sucursal_id ?? null,
+                }).permitido
+              }
               onFacturar={() => handleFacturar(p.id)}
               enviandoTicket={enviandoTicket === p.id}
               onEnviarTicket={() => handleEnviarTicket(p.id)}
@@ -469,15 +488,14 @@ export function TablaPedidos({ pedidos, vendedores, atributosPool, onEstadoCambi
         onCancel={() => setConfirmBulk(false)}
       />
 
-      <ConfirmModal
-        open={confirmCancel !== null}
-        title="Cancelar pedido"
-        message={confirmCancel ? `¿Estás seguro de cancelar el pedido ${pedidos.find((p) => p.id === confirmCancel)?.numero_pedido || ""}?` : ""}
-        confirmLabel="Sí, cancelar"
-        cancelLabel="No cancelar"
-        variant="danger"
-        onConfirm={executeCancelar}
-        onCancel={() => setConfirmCancel(null)}
+      <ModalCancelarPedido
+        pedido={pedidoCancelar}
+        perfil={{
+          rol: profile?.rol ?? null,
+          sucursal_id: profile?.sucursal_id ?? null,
+        }}
+        onClose={() => setPedidoCancelar(null)}
+        onConfirm={confirmarCancelacion}
       />
       <PedidoDetailModal
         pedido={pedidoModal}
@@ -496,6 +514,10 @@ export function TablaPedidos({ pedidos, vendedores, atributosPool, onEstadoCambi
         onFacturar={() => {
           if (pedidoModalId) handleFacturar(pedidoModalId);
         }}
+        puedeGestionarReembolso={
+          profile?.rol === "admin" || profile?.rol === "superadmin"
+        }
+        onReembolsado={onEstadoCambiado}
         onGuardarEdicion={(data) =>
           pedidoModal ? handleGuardarEdicion(pedidoModal.id, data) : Promise.resolve()
         }
@@ -515,6 +537,7 @@ function PedidoFila({
   onEditar,
   onCambiarEstado,
   onCancelar,
+  puedeCancelar,
   onFacturar,
   onEnviarTicket,
   seleccionado,
@@ -530,6 +553,7 @@ function PedidoFila({
   onEditar: () => void;
   onCambiarEstado: (estado: string) => void;
   onCancelar: () => void;
+  puedeCancelar: boolean;
   onFacturar: () => void;
   onEnviarTicket: () => void;
   seleccionado: boolean;
@@ -685,19 +709,19 @@ function PedidoFila({
             className="text-xs border border-gray-300 rounded px-1 py-0.5 bg-white text-gray-600 cursor-pointer"
             title="Cambiar estado"
           >
-            {ESTADOS_PEDIDO.map((e) => (
+            {ESTADOS_PEDIDO.filter((e) => e.value !== "cancelado").map((e) => (
               <option key={e.value} value={e.value}>
                 {e.label}
               </option>
             ))}
           </select>
-          {pedido.estado !== "cancelado" && pedido.estado !== "entregado" && (
+          {puedeCancelar && (
             <button
               type="button"
               onClick={onCancelar}
               disabled={cancelando}
               className="text-xs text-red-500 hover:text-red-700 hover:bg-red-50 rounded px-1.5 py-0.5 transition-colors cursor-pointer disabled:opacity-50"
-              title="Cancelar pedido"
+              title="Cancelar venta"
             >
               {cancelando ? "..." : "Cancelar"}
             </button>

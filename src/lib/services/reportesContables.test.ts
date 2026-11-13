@@ -51,6 +51,26 @@ describe("obtenerPedidosReporte", () => {
     expect(resultado).toEqual([pedido]);
   });
 
+  it("filtra por sucursal cuando se indica", async () => {
+    const builder = {
+      select: vi.fn().mockReturnThis(),
+      or: vi.fn().mockReturnThis(),
+      eq: vi.fn().mockReturnThis(),
+      order: vi.fn().mockReturnThis(),
+      range: vi.fn().mockResolvedValue({ data: [pedido], error: null }),
+    };
+    vi.mocked(supabase.from).mockReturnValue(
+      builder as unknown as ReturnType<typeof supabase.from>,
+    );
+
+    await obtenerPedidosReporte(
+      { desde: "2026-11-01", hasta: "2026-11-30" },
+      "suc-1",
+    );
+
+    expect(builder.eq).toHaveBeenCalledWith("sucursal_id", "suc-1");
+  });
+
   it("propaga errores de la consulta", async () => {
     const builder = {
       select: vi.fn().mockReturnThis(),

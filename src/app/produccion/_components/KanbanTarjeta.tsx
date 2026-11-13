@@ -39,7 +39,7 @@ interface KanbanTarjetaProps {
   pedido: Pedido;
   nextAreas: NextAreaInfo[];
   onAvanzarPedido: (pedidoId: string, destino?: string) => Promise<void>;
-  onCancelarPedido?: (pedidoId: string) => Promise<void>;
+  onCancelarPedido?: (pedidoId: string) => void;
   onRegresarPedido?: (pedidoId: string) => Promise<void>;
   tiempoEnColumna?: string | null;
   tiempoEnColumnaNivel?: SlaLevel | null;
@@ -70,12 +70,11 @@ export function KanbanTarjeta({
 }: KanbanTarjetaProps) {
   const [cambiando, setCambiando] = useState(false);
   const [destino, setDestino] = useState("");
-  const [cancelando, setCancelando] = useState(false);
   const [regresando, setRegresando] = useState(false);
   const [accionando, setAccionando] = useState(false);
   const [expanded, setExpanded] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
-  const [confirmOpen, setConfirmOpen] = useState<"cancelar" | "regresar" | "entregar" | null>(null);
+  const [confirmOpen, setConfirmOpen] = useState<"regresar" | "entregar" | null>(null);
   const cardRef = useRef<HTMLDivElement>(null);
   const menuRef = useRef<HTMLDivElement>(null);
   const coarsePointer = useCoarsePointer();
@@ -148,19 +147,6 @@ export function KanbanTarjeta({
     } finally {
       setCambiando(false);
       setDestino("");
-    }
-  }
-
-  async function executeCancelar() {
-    setConfirmOpen(null);
-    setMenuOpen(false);
-    setCancelando(true);
-    try {
-      await onCancelarPedido?.(pedido.id);
-    } catch {
-      /* el error ya se notifica en el hook */
-    } finally {
-      setCancelando(false);
     }
   }
 
@@ -525,11 +511,13 @@ export function KanbanTarjeta({
                         <button
                           type="button"
                           role="menuitem"
-                          disabled={cancelando}
-                          onClick={() => setConfirmOpen("cancelar")}
-                          className="w-full text-left px-3 py-2 hover:bg-red-50 dark:hover:bg-red-900/30 text-red-600 dark:text-red-400 cursor-pointer disabled:opacity-50 inline-flex items-center gap-2"
+                          onClick={() => {
+                            setMenuOpen(false);
+                            onCancelarPedido(pedido.id);
+                          }}
+                          className="w-full text-left px-3 py-2 hover:bg-red-50 dark:hover:bg-red-900/30 text-red-600 dark:text-red-400 cursor-pointer inline-flex items-center gap-2"
                         >
-                          <i className={`fas ${cancelando ? "fa-spinner animate-spin" : "fa-times-circle"} w-4`} />
+                          <i className="fas fa-times-circle w-4" />
                           Cancelar
                         </button>
                       )}
@@ -550,17 +538,6 @@ export function KanbanTarjeta({
         cancelLabel="Cancelar"
         variant="primary"
         onConfirm={executeAvanzar}
-        onCancel={() => setConfirmOpen(null)}
-      />
-
-      <ConfirmModal
-        open={confirmOpen === "cancelar"}
-        title="Cancelar pedido"
-        message={`¿Estás seguro de cancelar el pedido ${pedido.numero_pedido} de ${pedido.cliente_nombre}? Esta acción no se puede deshacer.`}
-        confirmLabel="Sí, cancelar"
-        cancelLabel="No cancelar"
-        variant="danger"
-        onConfirm={executeCancelar}
         onCancel={() => setConfirmOpen(null)}
       />
 

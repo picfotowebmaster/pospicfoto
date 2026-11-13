@@ -16,7 +16,7 @@ interface KanbanBoardProps {
   areas: { id: string; nombre: string; color: string; orden: number }[];
   getNextForPedido: (pedido: Pedido) => NextAreaInfo[];
   onAvanzarPedido: (pedidoId: string, destino?: string) => Promise<void>;
-  onCancelarPedido?: (pedidoId: string) => Promise<void>;
+  onCancelarPedido?: (pedidoId: string) => void;
   onRegresarPedido?: (pedidoId: string) => Promise<void>;
   onBulkAvanzar?: (ids: string[]) => Promise<void>;
   getTiempoEnColumna?: (pedidoId: string) => string | null;

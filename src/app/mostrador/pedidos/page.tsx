@@ -9,11 +9,17 @@ import { useToast } from "@/components/ui/Toast";
 import { FiltrosPedidos } from "@/app/admin/pedidos/_components/FiltrosPedidos";
 import { Paginador } from "@/app/admin/pedidos/_components/Paginador";
 import { LiquidarSaldoModal } from "@/app/mostrador/_components/LiquidarSaldoModal";
+import { ModalCancelarPedido } from "@/components/pedidos/ModalCancelarPedido";
 import { useHistorialPedidos } from "@/lib/hooks/useHistorialPedidos";
 import { useAuth } from "@/lib/hooks/useAuth";
 import { liquidarSaldo } from "@/lib/services/pedidos";
 import { vendedoresParaFiltro } from "@/lib/services/vendedores";
 import { ESTADOS_PEDIDO } from "@/lib/utils/constantes";
+import {
+  puedeCancelarPedido,
+  type MotivoCancelacionPedido,
+} from "@/lib/utils/cancelacion";
+import { cancelarVenta } from "@/lib/services/pedidos";
 import type { MetodoPago, Pedido } from "@/lib/supabase/types";
 
 function formatearFecha(fecha: string): string {
@@ -40,9 +46,15 @@ function EstadoBadge({ estado }: { estado: string }) {
 
 export default function PedidosMostradorPage() {
   const router = useRouter();
-  const { session } = useAuth();
+  const { session, profile, perfilCargando } = useAuth();
   const { showSuccess } = useToast();
+  const verTodos = profile?.rol === "admin" || profile?.rol === "superadmin";
+  const restringir = !verTodos;
+  const sinSucursal =
+    !perfilCargando && restringir && !profile?.sucursal_id;
+  const habilitado = !perfilCargando && !sinSucursal;
   const [liquidando, setLiquidando] = useState<Pedido | null>(null);
+  const [cancelando, setCancelando] = useState<Pedido | null>(null);
   const {
     pedidos,
     vendedores,
@@ -58,7 +70,10 @@ export default function PedidosMostradorPage() {
     actualizarFiltros,
     limpiarFiltros,
     recargar,
-  } = useHistorialPedidos();
+  } = useHistorialPedidos({
+    sucursalFijo: restringir ? profile?.sucursal_id : undefined,
+    habilitado,
+  });
 
   async function confirmarLiquidacion(metodo: MetodoPago) {
     if (!liquidando) return;
@@ -122,7 +137,12 @@ export default function PedidosMostradorPage() {
             </div>
           )}
 
-          {cargando ? (
+          {sinSucursal ? (
+            <div className="bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 text-amber-800 dark:text-amber-300 text-sm rounded-lg px-4 py-3">
+              No tienes una sucursal asignada. Contacta al administrador para
+              poder consultar los pedidos de tu sucursal.
+            </div>
+          ) : cargando ? (
             <div className="text-gray-400 dark:text-gray-500 text-sm text-center py-8">
               Cargando pedidos...
             </div>
@@ -222,6 +242,19 @@ export default function PedidosMostradorPage() {
                                   Liquidar
                                 </button>
                               )}
+                              {puedeCancelarPedido(p, {
+                                rol: profile?.rol ?? null,
+                                sucursal_id: profile?.sucursal_id ?? null,
+                              }).permitido && (
+                                <button
+                                  type="button"
+                                  onClick={() => setCancelando(p)}
+                                  className="text-xs rounded px-1.5 py-0.5 transition-colors cursor-pointer font-medium text-red-600 hover:text-red-800 hover:bg-red-50 dark:hover:bg-red-900/30"
+                                  title="Cancelar venta"
+                                >
+                                  Cancelar
+                                </button>
+                              )}
                               <a
                                 href={`/mostrador/ticket/${p.numero_pedido || p.id}`}
                                 className="text-xs text-blue-600 hover:text-blue-800 font-medium"
@@ -259,6 +292,25 @@ export default function PedidosMostradorPage() {
           )}
         </div>
       </div>
+
+      <ModalCancelarPedido
+        pedido={cancelando}
+        perfil={{ rol: profile?.rol ?? null, sucursal_id: profile?.sucursal_id ?? null }}
+        onClose={() => setCancelando(null)}
+        onConfirm={async ({
+          motivo,
+          notas,
+        }: {
+          motivo: MotivoCancelacionPedido;
+          notas: string;
+        }) => {
+          if (!cancelando) return;
+          await cancelarVenta(cancelando.id, { motivo, notas });
+          setCancelando(null);
+          showSuccess("Venta cancelada.");
+          recargar();
+        }}
+      />
 
       {liquidando && (
         <LiquidarSaldoModal

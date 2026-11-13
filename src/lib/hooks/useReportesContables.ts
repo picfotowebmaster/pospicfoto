@@ -17,7 +17,16 @@ import {
   type Vendedor,
 } from "@/lib/services/vendedores";
 
-export function useReportesContables(vendedorFijo?: string) {
+interface OpcionesReportesContables {
+  sucursalFijo?: string | null;
+  restringido?: boolean;
+}
+
+export function useReportesContables(
+  opciones: OpcionesReportesContables = {},
+) {
+  const { sucursalFijo, restringido = false } = opciones;
+  const sinSucursal = restringido && !sucursalFijo;
   const [periodo, setPeriodoState] = useState<PeriodoKey>("mes");
   const [desdeCustom, setDesdeCustomState] = useState("");
   const [hastaCustom, setHastaCustomState] = useState("");
@@ -30,9 +39,10 @@ export function useReportesContables(vendedorFijo?: string) {
   const [trigger, setTrigger] = useState(0);
 
   useEffect(() => {
+    if (sinSucursal) return;
     let ignore = false;
 
-    listarVendedores()
+    listarVendedores(sucursalFijo ?? undefined)
       .then((data) => {
         if (!ignore) setVendedores(data);
       })
@@ -41,7 +51,7 @@ export function useReportesContables(vendedorFijo?: string) {
     return () => {
       ignore = true;
     };
-  }, []);
+  }, [sucursalFijo, sinSucursal]);
 
   const rango = useMemo(
     () =>
@@ -57,10 +67,13 @@ export function useReportesContables(vendedorFijo?: string) {
     (desdeCustom !== "" && hastaCustom !== "" && desdeCustom <= hastaCustom);
 
   useEffect(() => {
-    if (!rangoValido) return;
+    if (!rangoValido || sinSucursal) return;
     let ignore = false;
 
-    obtenerPedidosReporte({ desde: rango.desde, hasta: rango.hasta })
+    obtenerPedidosReporte(
+      { desde: rango.desde, hasta: rango.hasta },
+      sucursalFijo ?? undefined,
+    )
       .then((data) => {
         if (ignore) return;
         setPedidos(data);
@@ -81,7 +94,7 @@ export function useReportesContables(vendedorFijo?: string) {
     return () => {
       ignore = true;
     };
-  }, [rango.desde, rango.hasta, rangoValido, trigger]);
+  }, [rango.desde, rango.hasta, rangoValido, trigger, sucursalFijo, sinSucursal]);
 
   const nombresVendedores = useMemo(
     () => indexarVendedores(vendedores),
@@ -91,17 +104,10 @@ export function useReportesContables(vendedorFijo?: string) {
   const reporte = useMemo(
     () =>
       construirReporteContable(pedidos, rango, metodoPago, {
-        vendedorId: vendedorFijo ?? vendedorId,
+        vendedorId,
         nombresVendedores,
       }),
-    [
-      pedidos,
-      rango,
-      metodoPago,
-      vendedorFijo,
-      vendedorId,
-      nombresVendedores,
-    ],
+    [pedidos, rango, metodoPago, vendedorId, nombresVendedores],
   );
 
   const setPeriodo = useCallback(
@@ -157,11 +163,11 @@ export function useReportesContables(vendedorFijo?: string) {
   }, []);
 
   const recargar = useCallback(() => {
-    if (!rangoValido) return;
+    if (!rangoValido || sinSucursal) return;
     setCargando(true);
     setError(null);
     setTrigger((valor) => valor + 1);
-  }, [rangoValido]);
+  }, [rangoValido, sinSucursal]);
 
   return {
     periodo,
@@ -178,8 +184,11 @@ export function useReportesContables(vendedorFijo?: string) {
     rango,
     rangoValido,
     reporte,
-    cargando,
-    error,
+    cargando: sinSucursal ? false : cargando,
+    error: sinSucursal
+      ? "No tienes una sucursal asignada. Contacta al administrador."
+      : error,
+    sinSucursal,
     recargar,
   };
 }

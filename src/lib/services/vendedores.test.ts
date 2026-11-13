@@ -36,14 +36,38 @@ describe("listarVendedores", () => {
         nombre: "Jessica Herrera",
         email: "jess@correo.com",
         rol: "mostrador",
+        sucursal_id: null,
       },
       {
         id: "u2",
         nombre: "Sin nombre",
         email: "admin@correo.com",
         rol: "admin",
+        sucursal_id: null,
       },
     ]);
+  });
+
+  it("filtra por sucursal cuando se indica", async () => {
+    vi.mocked(supabase.rpc).mockResolvedValue({
+      data: [
+        {
+          id: "u1",
+          nombre: "Jessica",
+          email: "jess@correo.com",
+          rol: "mostrador",
+          sucursal_id: "suc-1",
+        },
+      ],
+      error: null,
+    });
+
+    const vendedores = await listarVendedores("suc-1");
+
+    expect(supabase.rpc).toHaveBeenCalledWith("listar_vendedores", {
+      p_sucursal_id: "suc-1",
+    });
+    expect(vendedores[0].sucursal_id).toBe("suc-1");
   });
 
   it("propaga errores", async () => {
@@ -83,6 +107,7 @@ describe("listarVendedores", () => {
         nombre: "Jesus",
         email: null,
         rol: "mostrador",
+        sucursal_id: null,
       },
     ]);
   });

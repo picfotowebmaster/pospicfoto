@@ -3,6 +3,7 @@ import { createClient } from "@supabase/supabase-js";
 import { NextResponse, type NextRequest } from "next/server";
 import type { User } from "@supabase/supabase-js";
 import { facturacionHabilitada } from "@/lib/config/features";
+import { rutaInicioPorRol } from "@/lib/utils/roles";
 
 const ROLES_PRODUCCION = [
   "diseno", "impresion", "laminado", "montaje", "books", "bastidores", "marcos",
@@ -113,7 +114,16 @@ export async function middleware(request: NextRequest) {
   }
 
   if (user && pathname === "/auth/login") {
-    return NextResponse.redirect(new URL("/", request.url));
+    const rol = await getUserRol(user);
+    return NextResponse.redirect(new URL(rutaInicioPorRol(rol), request.url));
+  }
+
+  if (user && pathname === "/") {
+    const rol = await getUserRol(user);
+
+    if (rol === "mostrador") {
+      return NextResponse.redirect(new URL("/mostrador", request.url));
+    }
   }
 
   if (user && (pathname.startsWith("/produccion/taller") || pathname.startsWith("/produccion/corte") || pathname.startsWith("/produccion/kanban"))) {

@@ -16,6 +16,18 @@ export const ROLE_LABELS: Record<string, string> = {
   superadmin: "Superadmin",
 };
 
+export const ROLES_PRODUCCION = [
+  "diseno",
+  "impresion",
+  "laminado",
+  "montaje",
+  "books",
+  "bastidores",
+  "marcos",
+  "taller",
+  "corte",
+] as const;
+
 export const ROLES_PRODUCCION_SWITCH = [
   "diseno",
   "impresion",
@@ -50,6 +62,20 @@ export const ROLE_DESTINO: Record<string, string> = {
 
 export function esAdminRol(rol: string | null | undefined): boolean {
   return rol === "admin" || rol === "superadmin";
+}
+
+export function esRolProduccion(rol: string | null | undefined): boolean {
+  return !!rol && (ROLES_PRODUCCION as readonly string[]).includes(rol);
+}
+
+export function puedeVerIngresos(rol: string | null | undefined): boolean {
+  return esAdminRol(rol) || rol === "mostrador";
+}
+
+export function rutaInicioPorRol(rol: string | null | undefined): string {
+  if (esAdminRol(rol)) return "/admin";
+  if (!rol) return "/mostrador";
+  return ROLE_DESTINO[rol] ?? "/mostrador";
 }
 
 export function puedeVerReportesCompletos(

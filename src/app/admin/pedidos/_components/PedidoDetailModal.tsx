@@ -1,12 +1,15 @@
 "use client";
 
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import { Badge } from "@/components/ui/Badge";
 import { Button } from "@/components/ui/Button";
 import { ESTADOS_PEDIDO, AREAS_PRODUCCION_DATA } from "@/lib/utils/constantes";
 import { PedidoTimeline } from "@/components/pedidos/PedidoTimeline";
 import { pedidoPagado } from "@/lib/utils/fiscal";
 import { EditPedidoForm } from "./EditPedidoForm";
+import { etiquetaMotivoCancelacion } from "@/lib/utils/cancelacion";
+import { registrarReembolso } from "@/lib/services/pedidos";
+import { useToast } from "@/components/ui/Toast";
 import type { Pedido, Atributo, AtributoValor, MetodoPago, RutaProduccion, LineaPedidoDraft } from "@/lib/supabase/types";
 
 const COLOR_PAGO: Record<string, string> = {
@@ -33,6 +36,8 @@ interface PedidoDetailModalProps {
   onIniciarEdicion: () => void;
   onCancelarEdicion: () => void;
   onFacturar: () => void;
+  puedeGestionarReembolso?: boolean;
+  onReembolsado?: () => void;
   onGuardarEdicion: (data: {
     cliente_nombre: string;
     cliente_telefono: string;
@@ -61,8 +66,30 @@ export function PedidoDetailModal({
   onIniciarEdicion,
   onCancelarEdicion,
   onFacturar,
+  puedeGestionarReembolso = false,
+  onReembolsado,
   onGuardarEdicion,
 }: PedidoDetailModalProps) {
+  const { showError, showSuccess } = useToast();
+  const [reembolsando, setReembolsando] = useState(false);
+
+  async function handleRegistrarReembolso() {
+    if (!pedido) return;
+    setReembolsando(true);
+    try {
+      await registrarReembolso(pedido.id);
+      showSuccess("Reembolso registrado.");
+      onReembolsado?.();
+      onClose();
+    } catch (err) {
+      showError(
+        err instanceof Error ? err.message : "Error al registrar el reembolso.",
+      );
+    } finally {
+      setReembolsando(false);
+    }
+  }
+
   useEffect(() => {
     if (!open) return;
     const handleKey = (e: KeyboardEvent) => {
@@ -131,6 +158,9 @@ export function PedidoDetailModal({
               vendedorNombre={vendedorNombre}
               cobradoPorNombre={cobradoPorNombre}
               onFacturar={onFacturar}
+              puedeGestionarReembolso={puedeGestionarReembolso}
+              reembolsando={reembolsando}
+              onReembolsar={handleRegistrarReembolso}
             />
           )}
         </div>
@@ -145,12 +175,18 @@ function DetallePedido({
   vendedorNombre,
   cobradoPorNombre,
   onFacturar,
+  puedeGestionarReembolso,
+  reembolsando,
+  onReembolsar,
 }: {
   pedido: Pedido;
   facturando: boolean;
   vendedorNombre: string;
   cobradoPorNombre: string | null;
   onFacturar: () => void;
+  puedeGestionarReembolso: boolean;
+  reembolsando: boolean;
+  onReembolsar: () => void;
 }) {
   const lineas = pedido.detalle_pedidos ?? [];
   const pagado = pedidoPagado(pedido);
@@ -183,6 +219,59 @@ function DetallePedido({
           <p className="text-xs text-gray-700 dark:text-gray-200">
             <span className="font-semibold">Motivo de corrección:</span> {pedido.motivo_correccion}
           </p>
+        </div>
+      )}
+
+      {pedido.estado === "cancelado" && (
+        <div className="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg p-3 space-y-1.5">
+          <p className="text-sm font-semibold text-red-700 dark:text-red-300 flex items-center gap-1.5">
+            <i className="fas fa-times-circle" />
+            Venta cancelada
+          </p>
+          <p className="text-xs text-gray-700 dark:text-gray-200">
+            <span className="font-semibold">Motivo:</span>{" "}
+            {etiquetaMotivoCancelacion(pedido.motivo_cancelacion)}
+          </p>
+          {pedido.cancelado_en && (
+            <p className="text-xs text-gray-600 dark:text-gray-400">
+              <span className="font-semibold">Fecha:</span>{" "}
+              {new Date(pedido.cancelado_en).toLocaleString("es-MX")}
+            </p>
+          )}
+          {pedido.cancelacion_notas && (
+            <p className="text-xs text-gray-700 dark:text-gray-200 whitespace-pre-wrap">
+              <span className="font-semibold">Notas:</span>{" "}
+              {pedido.cancelacion_notas}
+            </p>
+          )}
+          {pedido.reembolso_estado === "pendiente" && (
+            <div className="pt-1 space-y-2">
+              <p className="text-xs font-medium text-amber-700 dark:text-amber-300">
+                Reembolso pendiente:{" "}
+                {new Intl.NumberFormat("es-MX", {
+                  style: "currency",
+                  currency: "MXN",
+                }).format(pedido.reembolso_monto ?? 0)}
+              </p>
+              {puedeGestionarReembolso && (
+                <Button
+                  size="sm"
+                  variant="success"
+                  onClick={onReembolsar}
+                  disabled={reembolsando}
+                >
+                  <i className="fas fa-hand-holding-dollar mr-1" />
+                  {reembolsando ? "Registrando..." : "Marcar reembolso realizado"}
+                </Button>
+              )}
+            </div>
+          )}
+          {pedido.reembolso_estado === "realizado" && (
+            <p className="text-xs font-medium text-green-700 dark:text-green-300">
+              <i className="fas fa-check-circle mr-1" />
+              Reembolso realizado
+            </p>
+          )}
         </div>
       )}
 

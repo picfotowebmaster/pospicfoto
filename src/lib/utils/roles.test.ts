@@ -6,6 +6,9 @@ import {
   etiquetaVolver,
   puedeVerRoleSwitcher,
   puedeVerReportesCompletos,
+  esRolProduccion,
+  puedeVerIngresos,
+  rutaInicioPorRol,
 } from "./roles";
 
 describe("rolesSwitchDisponibles", () => {
@@ -76,5 +79,53 @@ describe("puedeVerReportesCompletos", () => {
     expect(puedeVerReportesCompletos("mostrador")).toBe(false);
     expect(puedeVerReportesCompletos("diseno")).toBe(false);
     expect(puedeVerReportesCompletos(null)).toBe(false);
+  });
+});
+
+describe("esRolProduccion", () => {
+  it("identifica roles de producción y taller", () => {
+    expect(esRolProduccion("diseno")).toBe(true);
+    expect(esRolProduccion("impresion")).toBe(true);
+    expect(esRolProduccion("taller")).toBe(true);
+    expect(esRolProduccion("corte")).toBe(true);
+  });
+
+  it("excluye administración, mostrador y contador", () => {
+    expect(esRolProduccion("admin")).toBe(false);
+    expect(esRolProduccion("superadmin")).toBe(false);
+    expect(esRolProduccion("mostrador")).toBe(false);
+    expect(esRolProduccion("contador")).toBe(false);
+    expect(esRolProduccion(null)).toBe(false);
+  });
+});
+
+describe("puedeVerIngresos", () => {
+  it("solo admin, superadmin y mostrador ven ingresos", () => {
+    expect(puedeVerIngresos("admin")).toBe(true);
+    expect(puedeVerIngresos("superadmin")).toBe(true);
+    expect(puedeVerIngresos("mostrador")).toBe(true);
+  });
+
+  it("producción y contador no ven ingresos", () => {
+    expect(puedeVerIngresos("diseno")).toBe(false);
+    expect(puedeVerIngresos("taller")).toBe(false);
+    expect(puedeVerIngresos("contador")).toBe(false);
+    expect(puedeVerIngresos(null)).toBe(false);
+  });
+});
+
+describe("rutaInicioPorRol", () => {
+  it("envía cada rol a su módulo", () => {
+    expect(rutaInicioPorRol("admin")).toBe("/admin");
+    expect(rutaInicioPorRol("superadmin")).toBe("/admin");
+    expect(rutaInicioPorRol("mostrador")).toBe("/mostrador");
+    expect(rutaInicioPorRol("contador")).toBe("/contabilidad");
+    expect(rutaInicioPorRol("diseno")).toBe("/produccion/kanban");
+    expect(rutaInicioPorRol("taller")).toBe("/produccion/kanban");
+    expect(rutaInicioPorRol("corte")).toBe("/produccion/kanban");
+  });
+
+  it("sin rol cae en mostrador", () => {
+    expect(rutaInicioPorRol(null)).toBe("/mostrador");
   });
 });

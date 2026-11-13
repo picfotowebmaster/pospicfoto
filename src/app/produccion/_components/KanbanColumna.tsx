@@ -13,7 +13,7 @@ interface KanbanColumnaProps {
   pedidos: Pedido[];
   getNextForPedido: (pedido: Pedido) => NextAreaInfo[];
   onAvanzarPedido: (pedidoId: string, destino?: string) => Promise<void>;
-  onCancelarPedido?: (pedidoId: string) => Promise<void>;
+  onCancelarPedido?: (pedidoId: string) => void;
   onRegresarPedido?: (pedidoId: string) => Promise<void>;
   getTiempoEnColumna?: (pedidoId: string) => string | null;
   getTiempoEnColumnaNivel?: (pedidoId: string) => SlaLevel | null;

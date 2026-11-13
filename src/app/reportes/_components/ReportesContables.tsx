@@ -49,8 +49,8 @@ const MetodoPagoChart = dynamic(
 interface ReportesContablesProps {
   rol: string;
   puedeVerTodo: boolean;
-  usuarioId: string;
-  usuarioNombre: string;
+  sucursalId: string | null;
+  sucursalNombre: string | null;
 }
 
 const PERIODOS: PeriodoKey[] = ["hoy", "semana", "mes", "anio", "personalizado"];
@@ -79,8 +79,8 @@ function slug(texto: string): string {
 export function ReportesContables({
   rol,
   puedeVerTodo,
-  usuarioId,
-  usuarioNombre,
+  sucursalId,
+  sucursalNombre,
 }: ReportesContablesProps) {
   const { signOut } = useAuth();
   const {
@@ -101,7 +101,10 @@ export function ReportesContables({
     cargando,
     error,
     recargar,
-  } = useReportesContables(puedeVerTodo ? undefined : usuarioId);
+  } = useReportesContables({
+    sucursalFijo: puedeVerTodo ? undefined : sucursalId,
+    restringido: !puedeVerTodo,
+  });
 
   const datosVentas = useMemo(
     () =>
@@ -127,16 +130,15 @@ export function ReportesContables({
     desde: rango.desde,
     hasta: rango.hasta,
     metodoPago,
-    vendedor: puedeVerTodo
-      ? vendedorId === "sin_vendedor"
+    vendedor:
+      vendedorId === "sin_vendedor"
         ? "Sin vendedor"
         : (() => {
             const vendedor = vendedores.find(
               (item) => item.id === vendedorId,
             );
             return vendedor ? etiquetaVendedor(vendedor) : "Todos";
-          })()
-      : usuarioNombre || "Mis ventas",
+          })(),
   };
 
   function exportarResumen() {
@@ -187,12 +189,12 @@ export function ReportesContables({
           <div className="flex items-center justify-between flex-wrap gap-2">
             <div>
               <h2 className="font-semibold text-gray-700 dark:text-gray-300 text-sm uppercase">
-                {puedeVerTodo ? "Reportes contables" : "Descargar reporte"}
+                Reportes contables
               </h2>
               <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">
                 {puedeVerTodo
                   ? "Ventas, cobros y saldos del periodo seleccionado."
-                  : "Selecciona el periodo y descarga el archivo CSV."}
+                  : "Ventas, cobros y saldos de tu sucursal."}
               </p>
             </div>
             <Button variant="ghost" size="sm" onClick={recargar}>
@@ -240,7 +242,6 @@ export function ReportesContables({
               </select>
             </div>
 
-            {puedeVerTodo && (
               <div>
                 <label
                   htmlFor="reporte-vendedor"
@@ -263,7 +264,6 @@ export function ReportesContables({
                   <option value="sin_vendedor">Sin vendedor</option>
                 </select>
               </div>
-            )}
           </div>
 
           {periodo === "personalizado" && (
@@ -309,11 +309,12 @@ export function ReportesContables({
           <p className="text-xs text-gray-500 dark:text-gray-400">
             Periodo: {rango.desde} a {rango.hasta}
             {metodoPago ? ` · Método: ${metodoPago}` : ""}
-            {!puedeVerTodo && usuarioNombre
-              ? ` · Vendedor: ${usuarioNombre}`
-              : vendedorId && meta.vendedor !== "Todos"
-                ? ` · Vendedor: ${meta.vendedor}`
-                : ""}
+            {!puedeVerTodo && sucursalNombre
+              ? ` · Sucursal: ${sucursalNombre}`
+              : ""}
+            {vendedorId && meta.vendedor !== "Todos"
+              ? ` · Vendedor: ${meta.vendedor}`
+              : ""}
           </p>
 
           {error && (
@@ -332,7 +333,6 @@ export function ReportesContables({
             </div>
           ) : (
             <>
-              {puedeVerTodo && (
                 <div className="space-y-4">
                   <div className="grid grid-cols-2 lg:grid-cols-5 gap-3">
                     <div className="bg-gray-50 dark:bg-gray-800 rounded-xl p-3">
@@ -510,79 +510,15 @@ export function ReportesContables({
                     )}
                   </div>
                 </div>
-              )}
 
-              {!puedeVerTodo && (
-                <div>
-                  <h3 className="text-sm font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide mb-2">
-                    Mis ventas
-                  </h3>
-                  {reporte.movimientos.length === 0 ? (
-                    <div className="text-gray-400 dark:text-gray-500 text-sm text-center py-8">
-                      No tienes ventas en este periodo.
-                    </div>
-                  ) : (
-                    <div className="overflow-auto max-h-96 border border-gray-200 dark:border-gray-700 rounded-lg">
-                      <table className="min-w-full text-sm">
-                        <thead className="bg-gray-50 dark:bg-gray-800 sticky top-0">
-                          <tr className="text-left text-xs uppercase text-gray-500 dark:text-gray-400">
-                            <th className="px-3 py-2 font-medium">Pedido</th>
-                            <th className="px-3 py-2 font-medium">Fecha</th>
-                            <th className="px-3 py-2 font-medium">Cliente</th>
-                            <th className="px-3 py-2 font-medium">Tipo</th>
-                            <th className="px-3 py-2 font-medium">Método</th>
-                            <th className="px-3 py-2 font-medium text-right">
-                              Importe
-                            </th>
-                            <th className="px-3 py-2 font-medium">Estado</th>
-                          </tr>
-                        </thead>
-                        <tbody className="divide-y divide-gray-100 dark:divide-gray-800">
-                          {reporte.movimientos.map((movimiento, indice) => (
-                            <tr
-                              key={`${movimiento.pedidoId}-${movimiento.tipo}-${indice}`}
-                            >
-                              <td className="px-3 py-2 font-mono text-xs text-gray-700 dark:text-gray-300 whitespace-nowrap">
-                                {movimiento.numeroPedido ?? "—"}
-                              </td>
-                              <td className="px-3 py-2 text-gray-600 dark:text-gray-400 whitespace-nowrap">
-                                {movimiento.fechaCobro}
-                              </td>
-                              <td className="px-3 py-2 text-gray-700 dark:text-gray-300">
-                                {movimiento.clienteNombre}
-                              </td>
-                              <td className="px-3 py-2 text-gray-600 dark:text-gray-400">
-                                {movimiento.tipo}
-                              </td>
-                              <td className="px-3 py-2 text-gray-600 dark:text-gray-400">
-                                {movimiento.metodoPago}
-                              </td>
-                              <td className="px-3 py-2 text-right text-gray-900 dark:text-gray-100 whitespace-nowrap">
-                                {formatoMoneda.format(movimiento.importe)}
-                              </td>
-                              <td className="px-3 py-2 text-gray-600 dark:text-gray-400">
-                                {movimiento.estado}
-                              </td>
-                            </tr>
-                          ))}
-                        </tbody>
-                      </table>
-                    </div>
-                  )}
-                </div>
-              )}
 
               <div className="flex flex-wrap items-center justify-between gap-3 border-t border-gray-200 dark:border-gray-700 pt-4">
                 <p className="text-xs text-gray-500 dark:text-gray-400">
-                  {puedeVerTodo
-                    ? `${reporte.movimientos.length} movimiento${
-                        reporte.movimientos.length === 1 ? "" : "s"
-                      } · ${reporte.totalPedidos} pedido${
-                        reporte.totalPedidos === 1 ? "" : "s"
-                      }`
-                    : `${reporte.movimientos.length} venta${
-                        reporte.movimientos.length === 1 ? "" : "s"
-                      } en el periodo`}
+                  {`${reporte.movimientos.length} movimiento${
+                    reporte.movimientos.length === 1 ? "" : "s"
+                  } · ${reporte.totalPedidos} pedido${
+                    reporte.totalPedidos === 1 ? "" : "s"
+                  }`}
                 </p>
                 <div className="flex flex-wrap gap-2">
                   <Button

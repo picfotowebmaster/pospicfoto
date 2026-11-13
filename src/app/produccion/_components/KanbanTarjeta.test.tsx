@@ -160,17 +160,18 @@ describe("KanbanTarjeta", () => {
     expect(matches.length).toBeGreaterThanOrEqual(1);
   });
 
-  it("abre confirm modal al hacer clic en Cancelar", async () => {
+  it("solicita la cancelación al hacer clic en Cancelar", async () => {
+    const pedido = mockPedido();
     render(
       <KanbanTarjeta
-        pedido={mockPedido()}
+        pedido={pedido}
         nextAreas={[]}
         {...baseProps}
       />,
     );
     await userEvent.click(screen.getByLabelText("Más acciones"));
     await userEvent.click(screen.getByText("Cancelar"));
-    expect(screen.getByText("Cancelar pedido")).toBeInTheDocument();
+    expect(onCancelarPedido).toHaveBeenCalledWith(pedido.id);
   });
 
   it("abre confirm modal al hacer clic en Regresar", async () => {

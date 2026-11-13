@@ -10,7 +10,7 @@ import {
   regresarPedido as regresarPedidoService,
 } from "@/lib/services/workflow";
 import {
-  cancelarPedido as cancelarPedidoService,
+  cancelarVenta as cancelarVentaService,
   actualizarPrioridad as actualizarPrioridadService,
   asignarPedido as asignarPedidoService,
   actualizarNotas as actualizarNotasService,
@@ -223,13 +223,17 @@ export function usePedidosKanban(areaFiltro?: string, onNuevoPedido?: (pedido: P
   );
 
   const cancelarPedido = useCallback(
-    async (pedidoId: string) => {
+    async (
+      pedidoId: string,
+      opciones: { motivo: string; notas?: string | null },
+    ) => {
       try {
-        await cancelarPedidoService(pedidoId);
-        showSuccess("Pedido cancelado");
+        await cancelarVentaService(pedidoId, opciones);
+        showSuccess("Venta cancelada");
         cargar();
       } catch (err) {
-        const message = err instanceof Error ? err.message : "Error al cancelar pedido";
+        const message =
+          err instanceof Error ? err.message : "Error al cancelar la venta";
         showError(message);
         throw err;
       }

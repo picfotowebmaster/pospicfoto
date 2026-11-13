@@ -28,7 +28,7 @@ interface KanbanListViewProps {
   areas: { id: string; nombre: string; color: string; orden: number }[];
   getNextForPedido: (pedido: Pedido) => NextAreaInfo[];
   onAvanzarPedido: (pedidoId: string, destino?: string) => Promise<void>;
-  onCancelarPedido?: (pedidoId: string) => Promise<void>;
+  onCancelarPedido?: (pedidoId: string) => void;
   onRegresarPedido?: (pedidoId: string) => Promise<void>;
   getTiempoEnColumna?: (pedidoId: string) => string | null;
   getTiempoEnColumnaNivel?: (pedidoId: string) => SlaLevel | null;
@@ -70,7 +70,7 @@ export function KanbanListView({
   const [procesandoId, setProcesandoId] = useState<string | null>(null);
   const [destinos, setDestinos] = useState<Record<string, string>>({});
   const [orden, setOrden] = useState<OrdenKey>("entrega");
-  const [confirmar, setConfirmar] = useState<{ tipo: "entregar" | "cancelar" | "regresar"; pedido: Pedido } | null>(null);
+  const [confirmar, setConfirmar] = useState<{ tipo: "entregar" | "regresar"; pedido: Pedido } | null>(null);
 
   const areasFiltradas = areas.filter((a) => {
     if (a.id === "entregado") return false;
@@ -126,11 +126,9 @@ export function KanbanListView({
     setConfirmar(null);
     setProcesandoId(pedido.id);
     const accion =
-      tipo === "cancelar"
-        ? onCancelarPedido?.(pedido.id)
-        : tipo === "regresar"
-          ? onRegresarPedido?.(pedido.id)
-          : onAvanzarPedido(pedido.id);
+      tipo === "regresar"
+        ? onRegresarPedido?.(pedido.id)
+        : onAvanzarPedido(pedido.id);
     Promise.resolve(accion)
       .catch(() => {})
       .finally(() => setProcesandoId(null));
@@ -284,7 +282,7 @@ export function KanbanListView({
                     title="Cancelar pedido"
                     aria-label={`Cancelar el pedido ${pedido.numero_pedido || pedido.cliente_nombre}`}
                     disabled={procesando}
-                    onClick={() => setConfirmar({ tipo: "cancelar", pedido })}
+                    onClick={() => onCancelarPedido(pedido.id)}
                     className="shrink-0 text-red-500 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/30 rounded p-1.5 cursor-pointer disabled:opacity-50"
                   >
                     <i className="fas fa-times-circle" />
@@ -317,16 +315,6 @@ export function KanbanListView({
         confirmLabel="Sí, regresar"
         cancelLabel="Cancelar"
         variant="warning"
-        onConfirm={ejecutarConfirmado}
-        onCancel={() => setConfirmar(null)}
-      />
-      <ConfirmModal
-        open={confirmar?.tipo === "cancelar"}
-        title="Cancelar pedido"
-        message={`¿Estás seguro de cancelar el pedido ${confirmar?.pedido.numero_pedido} de ${confirmar?.pedido.cliente_nombre}? Esta acción no se puede deshacer.`}
-        confirmLabel="Sí, cancelar"
-        cancelLabel="No cancelar"
-        variant="danger"
         onConfirm={ejecutarConfirmado}
         onCancel={() => setConfirmar(null)}
       />
