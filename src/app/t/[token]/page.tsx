@@ -1,3 +1,4 @@
+import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import { TicketTemplate } from "@/components/ui/TicketTemplate";
 import { createAdminClient } from "@/lib/supabase/admin";
@@ -9,6 +10,39 @@ import type { EntidadEmisora, Pedido } from "@/lib/supabase/types";
 import { BotonImprimir } from "./BotonImprimir";
 
 export const dynamic = "force-dynamic";
+
+const BASE_URL =
+  process.env.NEXT_PUBLIC_APP_URL?.trim() || "https://pos.picfoto.mx";
+
+const TITULO = "Ticket PIC FOTO";
+const DESCRIPCION = "Consulta tu ticket en línea de PIC FOTO.";
+
+export const metadata: Metadata = {
+  metadataBase: new URL(BASE_URL),
+  title: TITULO,
+  description: DESCRIPCION,
+  openGraph: {
+    type: "website",
+    siteName: "PIC FOTO",
+    locale: "es_MX",
+    title: TITULO,
+    description: DESCRIPCION,
+    images: [
+      {
+        url: "/icons/icon-512.png",
+        width: 512,
+        height: 512,
+        alt: "PIC FOTO",
+      },
+    ],
+  },
+  twitter: {
+    card: "summary",
+    title: TITULO,
+    description: DESCRIPCION,
+    images: ["/icons/icon-512.png"],
+  },
+};
 
 export default async function TicketPublicoPage({
   params,
