@@ -5,6 +5,7 @@ import {
   resolverRolEfectivo,
   etiquetaVolver,
   puedeVerRoleSwitcher,
+  puedeVerReportesCompletos,
 } from "./roles";
 
 describe("rolesSwitchDisponibles", () => {
@@ -64,5 +65,16 @@ describe("etiquetaVolver", () => {
   it("usa el rol real para la etiqueta", () => {
     expect(etiquetaVolver("taller")).toBe("Volver a Taller");
     expect(etiquetaVolver("admin")).toBe("Volver a Admin");
+  });
+});
+
+describe("puedeVerReportesCompletos", () => {
+  it("solo admin, superadmin y contador ven el reporte completo", () => {
+    expect(puedeVerReportesCompletos("admin")).toBe(true);
+    expect(puedeVerReportesCompletos("superadmin")).toBe(true);
+    expect(puedeVerReportesCompletos("contador")).toBe(true);
+    expect(puedeVerReportesCompletos("mostrador")).toBe(false);
+    expect(puedeVerReportesCompletos("diseno")).toBe(false);
+    expect(puedeVerReportesCompletos(null)).toBe(false);
   });
 });

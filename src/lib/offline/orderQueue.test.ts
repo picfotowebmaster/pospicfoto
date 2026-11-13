@@ -23,9 +23,12 @@ const mockDraft = {
 };
 
 describe("queueOrder", () => {
-  it("encola un pedido offline", async () => {
-    await queueOrder(mockDraft);
-    expect(enqueuePedido).toHaveBeenCalled();
+  it("encola un pedido offline con su vendedor", async () => {
+    await queueOrder(mockDraft, "vendedor-1");
+    expect(enqueuePedido).toHaveBeenCalledWith(
+      expect.objectContaining({ cliente_nombre: "Test" }),
+      "vendedor-1",
+    );
   });
 });
 
@@ -42,23 +45,45 @@ describe("syncQueue", () => {
 
   it("sincroniza pedidos pendientes exitosamente", async () => {
     vi.mocked(getPendingPedidos).mockResolvedValue([
-      { id: "off_1", draft: mockDraft, createdAt: Date.now(), syncStatus: "pending" },
-      { id: "off_2", draft: mockDraft, createdAt: Date.now(), syncStatus: "pending" },
+      { id: "off_1", draft: mockDraft, cajeroId: "vendedor-1", createdAt: Date.now(), syncStatus: "pending" },
+      { id: "off_2", draft: mockDraft, cajeroId: "vendedor-1", createdAt: Date.now(), syncStatus: "pending" },
     ]);
     vi.mocked(crearPedido).mockResolvedValue("PIC-PAL-00001");
 
     const result = await syncQueue("cajero-1");
 
     expect(crearPedido).toHaveBeenCalledTimes(2);
+    expect(crearPedido).toHaveBeenNthCalledWith(1, expect.anything(), "vendedor-1");
+    expect(crearPedido).toHaveBeenNthCalledWith(2, expect.anything(), "vendedor-1");
     expect(updatePedidoSyncStatus).toHaveBeenCalledWith("off_1", "syncing");
     expect(removeSyncedPedido).toHaveBeenCalledWith("off_1");
     expect(result).toEqual({ synced: 2, failed: 0 });
   });
 
+  it("conserva el vendedor original sobre el usuario que sincroniza", async () => {
+    vi.mocked(getPendingPedidos).mockResolvedValue([
+      {
+        id: "off_1",
+        draft: mockDraft,
+        cajeroId: "vendedor-original",
+        createdAt: Date.now(),
+        syncStatus: "pending",
+      },
+    ]);
+    vi.mocked(crearPedido).mockResolvedValue("PIC-PAL-00001");
+
+    await syncQueue("usuario-que-sincroniza");
+
+    expect(crearPedido).toHaveBeenCalledWith(
+      expect.anything(),
+      "vendedor-original",
+    );
+  });
+
   it("maneja fallos individuales sin detener", async () => {
     vi.mocked(getPendingPedidos).mockResolvedValue([
-      { id: "off_1", draft: mockDraft, createdAt: Date.now(), syncStatus: "pending" },
-      { id: "off_2", draft: mockDraft, createdAt: Date.now(), syncStatus: "pending" },
+      { id: "off_1", draft: mockDraft, cajeroId: "vendedor-1", createdAt: Date.now(), syncStatus: "pending" },
+      { id: "off_2", draft: mockDraft, cajeroId: "vendedor-1", createdAt: Date.now(), syncStatus: "pending" },
     ]);
     vi.mocked(crearPedido)
       .mockRejectedValueOnce(new Error("Network error"))
@@ -75,8 +100,8 @@ describe("syncQueue", () => {
 describe("getQueueCount", () => {
   it("retorna cantidad de pendientes", async () => {
     vi.mocked(getPendingPedidos).mockResolvedValue([
-      { id: "off_1", draft: {}, createdAt: Date.now(), syncStatus: "pending" },
-      { id: "off_2", draft: {}, createdAt: Date.now(), syncStatus: "pending" },
+      { id: "off_1", draft: {}, cajeroId: null, createdAt: Date.now(), syncStatus: "pending" },
+      { id: "off_2", draft: {}, cajeroId: null, createdAt: Date.now(), syncStatus: "pending" },
     ]);
     expect(await getQueueCount()).toBe(2);
   });

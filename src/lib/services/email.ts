@@ -1,7 +1,10 @@
 import { Resend } from "resend";
+import { createAdminClient } from "@/lib/supabase/admin";
 import { NOMBRE_EMPRESA } from "@/lib/utils/constantes";
 import { renderTicketHtml } from "@/lib/utils/ticketEmailHtml";
 import type { EntidadEmisora, Pedido } from "@/lib/supabase/types";
+
+export type TipoEnvioCorreo = "ticket" | "factura" | "factura_global" | "otro";
 
 export interface AdjuntoCorreo {
   filename: string;
@@ -14,6 +17,8 @@ interface EnviarCorreoParams {
   subject: string;
   html: string;
   adjuntos?: AdjuntoCorreo[];
+  tipo?: TipoEnvioCorreo;
+  referenciaId?: string | null;
 }
 
 interface EnviarFacturaParams {
@@ -32,6 +37,7 @@ interface EnviarTicketParams {
   pedido: Pedido;
   emisor?: EntidadEmisora | null;
   baseUrl?: string;
+  urlTicket?: string | null;
 }
 
 interface EnviarFacturaGlobalParams {
@@ -47,7 +53,48 @@ interface EnviarFacturaGlobalParams {
   adjuntos?: AdjuntoCorreo[];
 }
 
-async function enviarCorreo({ to, subject, html, adjuntos = [] }: EnviarCorreoParams): Promise<void> {
+interface RegistrarEnvioParams {
+  resendEmailId: string;
+  tipo: TipoEnvioCorreo;
+  referenciaId?: string | null;
+  destinatario: string;
+  asunto: string;
+}
+
+async function registrarEnvio({
+  resendEmailId,
+  tipo,
+  referenciaId,
+  destinatario,
+  asunto,
+}: RegistrarEnvioParams): Promise<void> {
+  try {
+    const admin = createAdminClient();
+    const { error } = await admin.from("email_envios").insert({
+      resend_email_id: resendEmailId,
+      tipo,
+      referencia_id: referenciaId ?? null,
+      destinatario,
+      asunto,
+    });
+
+    if (error) {
+      console.warn("No se pudo registrar el envío de correo:", error.message);
+    }
+  } catch (err) {
+    const detalle = err instanceof Error ? err.message : String(err);
+    console.warn("No se pudo registrar el envío de correo:", detalle);
+  }
+}
+
+async function enviarCorreo({
+  to,
+  subject,
+  html,
+  adjuntos = [],
+  tipo = "otro",
+  referenciaId = null,
+}: EnviarCorreoParams): Promise<string | null> {
   const apiKey = process.env.RESEND_API_KEY;
   const from = process.env.RESEND_FROM_EMAIL;
 
@@ -57,7 +104,7 @@ async function enviarCorreo({ to, subject, html, adjuntos = [] }: EnviarCorreoPa
 
   const resend = new Resend(apiKey);
 
-  const { error } = await resend.emails.send({
+  const { data, error } = await resend.emails.send({
     from,
     to: [to],
     subject,
@@ -77,6 +124,19 @@ async function enviarCorreo({ to, subject, html, adjuntos = [] }: EnviarCorreoPa
       `Error al enviar correo (${error.statusCode ?? "?"}): ${error.message || error.name}`,
     );
   }
+
+  const resendEmailId = data?.id ?? null;
+  if (resendEmailId) {
+    await registrarEnvio({
+      resendEmailId,
+      tipo,
+      referenciaId,
+      destinatario: to,
+      asunto: subject,
+    });
+  }
+
+  return resendEmailId;
 }
 
 export async function enviarFacturaPorCorreo({
@@ -88,7 +148,7 @@ export async function enviarFacturaPorCorreo({
   xmlUrl,
   emisorNombre,
   adjuntos = [],
-}: EnviarFacturaParams): Promise<void> {
+}: EnviarFacturaParams): Promise<string | null> {
   const enlaces = [
     pdfUrl ? `<a href="${pdfUrl}">Descargar PDF</a>` : "",
     xmlUrl ? `<a href="${xmlUrl}">Ver XML</a>` : "",
@@ -110,11 +170,13 @@ export async function enviarFacturaPorCorreo({
     </div>
   `;
 
-  await enviarCorreo({
+  return enviarCorreo({
     to,
     subject: `Tu factura ${numeroPedido} - ${emisorNombre || NOMBRE_EMPRESA}`,
     html,
     adjuntos,
+    tipo: "factura",
+    referenciaId: uuid,
   });
 }
 
@@ -129,7 +191,7 @@ export async function enviarFacturaGlobalPorCorreo({
   xmlUrl,
   emisorNombre,
   adjuntos = [],
-}: EnviarFacturaGlobalParams): Promise<void> {
+}: EnviarFacturaGlobalParams): Promise<string | null> {
   const enlaces = [
     pdfUrl ? `<a href="${pdfUrl}">Descargar PDF</a>` : "",
     xmlUrl ? `<a href="${xmlUrl}">Ver XML</a>` : "",
@@ -154,11 +216,13 @@ export async function enviarFacturaGlobalPorCorreo({
     </div>
   `;
 
-  await enviarCorreo({
+  return enviarCorreo({
     to,
     subject: `Factura global ${periodo} - ${emisorNombre || NOMBRE_EMPRESA}`,
     html,
     adjuntos,
+    tipo: "factura_global",
+    referenciaId: folio,
   });
 }
 
@@ -167,13 +231,16 @@ export async function enviarTicketPorCorreo({
   pedido,
   emisor,
   baseUrl,
-}: EnviarTicketParams): Promise<void> {
+  urlTicket,
+}: EnviarTicketParams): Promise<string | null> {
   const numeroTicket = pedido.numero_pedido || pedido.id.slice(0, 8).toUpperCase();
   const nombreEmisor = emisor?.nombre_comercial || NOMBRE_EMPRESA;
 
-  await enviarCorreo({
+  return enviarCorreo({
     to,
     subject: `Tu ticket ${numeroTicket} - ${nombreEmisor}`,
-    html: renderTicketHtml(pedido, emisor, baseUrl),
+    html: renderTicketHtml(pedido, emisor, baseUrl, urlTicket),
+    tipo: "ticket",
+    referenciaId: pedido.id,
   });
 }

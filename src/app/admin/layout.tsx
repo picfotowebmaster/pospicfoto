@@ -40,7 +40,9 @@ export default function AdminLayout({
     { href: "/admin/precios", label: "Precios" },
     { href: "/admin/descuentos", label: "Descuentos" },
     { href: "/admin/pedidos", label: "Pedidos" },
+    { href: "/admin/clientes", label: "Clientes" },
     { href: "/admin/reportes", label: "Reportes" },
+    { href: "/reportes", label: "Contables" },
     ...(rol === "superadmin"
       ? [
           { href: "/admin/entidades", label: "Datos fiscales" },

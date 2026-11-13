@@ -10,6 +10,11 @@ import { actualizarEstadoPedido, cancelarPedido, actualizarPedido } from "@/lib/
 import { crearComentario } from "@/lib/services/comentarios";
 import { supabase } from "@/lib/supabase/client";
 import { pedidoPagado } from "@/lib/utils/fiscal";
+import {
+  indexarVendedores,
+  nombreVendedor,
+  type Vendedor,
+} from "@/lib/services/vendedores";
 import { PedidoDetailModal } from "./PedidoDetailModal";
 import type { Pedido, Atributo, AtributoValor, MetodoPago, RutaProduccion, LineaPedidoDraft } from "@/lib/supabase/types";
 
@@ -17,6 +22,7 @@ const COLOR_PAGO: Record<string, string> = {
   Efectivo: "bg-emerald-500",
   Tarjeta: "bg-blue-500",
   Transferencia: "bg-purple-500",
+  Depósito: "bg-amber-500",
 };
 
 function formatearFecha(fecha: string): string {
@@ -26,12 +32,17 @@ function formatearFecha(fecha: string): string {
 
 interface TablaPedidosProps {
   pedidos: Pedido[];
+  vendedores: Vendedor[];
   atributosPool: (Atributo & { valores: AtributoValor[] })[];
   onEstadoCambiado: () => void;
 }
 
-export function TablaPedidos({ pedidos, atributosPool, onEstadoCambiado }: TablaPedidosProps) {
+export function TablaPedidos({ pedidos, vendedores, atributosPool, onEstadoCambiado }: TablaPedidosProps) {
   const { showError, showSuccess } = useToast();
+  const nombresVendedores = useMemo(
+    () => indexarVendedores(vendedores),
+    [vendedores],
+  );
   const [pedidoModalId, setPedidoModalId] = useState<string | null>(null);
   const [editando, setEditando] = useState<string | null>(null);
   const [cancelando, setCancelando] = useState<string | null>(null);
@@ -272,6 +283,13 @@ export function TablaPedidos({ pedidos, atributosPool, onEstadoCambiado }: Tabla
   }
 
   const pedidoModal = pedidos.find((p) => p.id === pedidoModalId) ?? null;
+  const vendedorModal = pedidoModal
+    ? nombreVendedor(pedidoModal.cajero_id, nombresVendedores)
+    : "Sin vendedor";
+  const cobradoPorModal =
+    pedidoModal?.saldo_cobrado
+      ? nombreVendedor(pedidoModal.saldo_cobrado_por, nombresVendedores)
+      : null;
 
   return (
     <div className="overflow-x-auto">
@@ -320,6 +338,9 @@ export function TablaPedidos({ pedidos, atributosPool, onEstadoCambiado }: Tabla
             <th className="py-2 px-3 font-medium text-gray-500 hidden md:table-cell">
               Teléfono
             </th>
+            <th className="py-2 px-3 font-medium text-gray-500 hidden lg:table-cell">
+              Vendedor
+            </th>
             <th className="py-2 px-3 font-medium text-gray-500">
               <button type="button" onClick={() => toggleOrden("fecha_entrega")} className="inline-flex items-center gap-1 cursor-pointer hover:text-gray-700 dark:hover:text-gray-200">
                 Entrega {indicador("fecha_entrega")}
@@ -346,6 +367,7 @@ export function TablaPedidos({ pedidos, atributosPool, onEstadoCambiado }: Tabla
             <PedidoFila
               key={p.id}
               pedido={p}
+              vendedorNombre={nombreVendedor(p.cajero_id, nombresVendedores)}
               cambiando={aplicandoOverride && override?.pedidoId === p.id}
               cancelando={cancelando === p.id}
               facturando={facturando === p.id}
@@ -368,7 +390,7 @@ export function TablaPedidos({ pedidos, atributosPool, onEstadoCambiado }: Tabla
           ))}
           {pedidos.length === 0 && (
             <tr>
-              <td colSpan={11} className="py-8 text-center text-gray-400 dark:text-gray-500">
+              <td colSpan={12} className="py-8 text-center text-gray-400 dark:text-gray-500">
                 No se encontraron pedidos.
               </td>
             </tr>
@@ -382,7 +404,7 @@ export function TablaPedidos({ pedidos, atributosPool, onEstadoCambiado }: Tabla
               </td>
               <td className="py-2 px-3">${totales.total.toFixed(2)}</td>
               <td className="py-2 px-3 hidden sm:table-cell">${totales.anticipo.toFixed(2)}</td>
-              <td colSpan={4} />
+              <td colSpan={5} />
             </tr>
           </tfoot>
         )}
@@ -462,6 +484,8 @@ export function TablaPedidos({ pedidos, atributosPool, onEstadoCambiado }: Tabla
         open={pedidoModal !== null}
         editando={editando === pedidoModalId}
         facturando={pedidoModalId !== null && facturando === pedidoModalId}
+        vendedorNombre={vendedorModal}
+        cobradoPorNombre={cobradoPorModal}
         atributosPool={atributosPool}
         onClose={() => {
           setPedidoModalId(null);
@@ -482,6 +506,7 @@ export function TablaPedidos({ pedidos, atributosPool, onEstadoCambiado }: Tabla
 
 function PedidoFila({
   pedido,
+  vendedorNombre,
   cambiando,
   cancelando,
   facturando,
@@ -496,6 +521,7 @@ function PedidoFila({
   onToggleSeleccion,
 }: {
   pedido: Pedido;
+  vendedorNombre: string;
   cambiando: boolean;
   cancelando: boolean;
   facturando: boolean;
@@ -540,6 +566,9 @@ function PedidoFila({
       </td>
       <td className="py-2 px-3 text-gray-500 hidden md:table-cell dark:text-gray-400">
         {pedido.cliente_telefono || "\u2014"}
+      </td>
+      <td className="py-2 px-3 text-gray-600 hidden lg:table-cell dark:text-gray-400">
+        {vendedorNombre}
       </td>
       <td className="py-2 px-3 text-gray-700 dark:text-gray-300 text-xs">
         <div>{formatearFecha(pedido.fecha_entrega)}</div>

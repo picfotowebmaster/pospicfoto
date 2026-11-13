@@ -102,7 +102,13 @@ export async function middleware(request: NextRequest) {
 
   const { pathname } = request.nextUrl;
 
-  if (!user && pathname !== "/auth/login" && pathname !== "/auth/reset-password") {
+  const rutaPublica =
+    pathname === "/auth/login" ||
+    pathname === "/auth/reset-password" ||
+    pathname.startsWith("/t/") ||
+    pathname.startsWith("/api/webhooks/");
+
+  if (!user && !rutaPublica) {
     return NextResponse.redirect(new URL("/auth/login", request.url));
   }
 

@@ -28,6 +28,7 @@ export function renderTicketHtml(
   pedido: Pedido,
   emisor?: EntidadEmisora | null,
   baseUrl?: string,
+  urlTicket?: string | null,
 ): string {
   const numeroTicket = pedido.numero_pedido || pedido.id.slice(0, 8).toUpperCase();
   const saldo = Math.max(0, Number(pedido.total ?? 0) - Number(pedido.anticipo ?? 0));
@@ -91,6 +92,8 @@ export function renderTicketHtml(
     </div>
 
     <div style="text-align:center;font-weight:bold;font-size:13px;border:1px solid #111827;padding:4px;margin-bottom:12px;">${pagado ? "PAGADO" : "PENDIENTE"}</div>
+
+    ${urlTicket ? `<div style="text-align:center;margin-bottom:12px;"><a href="${esc(urlTicket)}" style="display:inline-block;background:#2563eb;color:#ffffff;text-decoration:none;font-weight:bold;font-size:13px;padding:10px 18px;border-radius:8px;">Ver ticket en línea</a></div>` : ""}
 
     <table style="width:100%;font-size:12px;margin-bottom:12px;">
       <tr><td style="font-weight:bold;width:90px;">Ticket:</td><td>${esc(numeroTicket)}</td></tr>

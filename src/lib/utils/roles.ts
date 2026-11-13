@@ -52,6 +52,12 @@ export function esAdminRol(rol: string | null | undefined): boolean {
   return rol === "admin" || rol === "superadmin";
 }
 
+export function puedeVerReportesCompletos(
+  rol: string | null | undefined,
+): boolean {
+  return esAdminRol(rol) || rol === "contador";
+}
+
 export function puedeVerRoleSwitcher(rol: string | null | undefined): boolean {
   return esAdminRol(rol) || rol === "taller";
 }

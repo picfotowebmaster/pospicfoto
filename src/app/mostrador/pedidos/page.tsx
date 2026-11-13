@@ -10,7 +10,9 @@ import { FiltrosPedidos } from "@/app/admin/pedidos/_components/FiltrosPedidos";
 import { Paginador } from "@/app/admin/pedidos/_components/Paginador";
 import { LiquidarSaldoModal } from "@/app/mostrador/_components/LiquidarSaldoModal";
 import { useHistorialPedidos } from "@/lib/hooks/useHistorialPedidos";
+import { useAuth } from "@/lib/hooks/useAuth";
 import { liquidarSaldo } from "@/lib/services/pedidos";
+import { vendedoresParaFiltro } from "@/lib/services/vendedores";
 import { ESTADOS_PEDIDO } from "@/lib/utils/constantes";
 import type { MetodoPago, Pedido } from "@/lib/supabase/types";
 
@@ -38,10 +40,12 @@ function EstadoBadge({ estado }: { estado: string }) {
 
 export default function PedidosMostradorPage() {
   const router = useRouter();
+  const { session } = useAuth();
   const { showSuccess } = useToast();
   const [liquidando, setLiquidando] = useState<Pedido | null>(null);
   const {
     pedidos,
+    vendedores,
     cargando,
     error,
     pagina,
@@ -59,7 +63,7 @@ export default function PedidosMostradorPage() {
   async function confirmarLiquidacion(metodo: MetodoPago) {
     if (!liquidando) return;
     const numero = liquidando.numero_pedido || liquidando.id;
-    await liquidarSaldo(liquidando.id, metodo);
+    await liquidarSaldo(liquidando.id, metodo, session?.user.id ?? null);
     setLiquidando(null);
     showSuccess("Saldo liquidado. Ticket actualizado.");
     router.push(`/mostrador/ticket/${numero}`);
@@ -102,6 +106,8 @@ export default function PedidosMostradorPage() {
             numeroPedido={filtros.numeroPedido ?? ""}
             estado={filtros.estado ?? ""}
             metodoPago={filtros.metodoPago ?? ""}
+            vendedorId={filtros.vendedorId ?? ""}
+            vendedores={vendedoresParaFiltro(vendedores)}
             fechaDesde={filtros.fechaDesde ?? ""}
             fechaHasta={filtros.fechaHasta ?? ""}
             requiereCorreccion={filtros.requiereCorreccion ?? ""}

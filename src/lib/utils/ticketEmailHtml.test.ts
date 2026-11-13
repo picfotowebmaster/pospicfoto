@@ -47,6 +47,21 @@ describe("renderTicketHtml", () => {
     expect(html).toContain("&amp;");
   });
 
+  it("incluye el botón al ticket en línea cuando se pasa la URL", () => {
+    const html = renderTicketHtml(
+      pedido,
+      null,
+      undefined,
+      "https://pos.test/t/abc123",
+    );
+    expect(html).toContain("Ver ticket en línea");
+    expect(html).toContain("https://pos.test/t/abc123");
+  });
+
+  it("omite el botón cuando no hay URL", () => {
+    expect(renderTicketHtml(pedido)).not.toContain("Ver ticket en línea");
+  });
+
   it("muestra PENDIENTE cuando hay saldo sin cobrar", () => {
     const html = renderTicketHtml(pedido);
     expect(html).toContain("PENDIENTE");

@@ -3,6 +3,7 @@ import type { PedidoDraft, Pedido, MetodoPago, RutaProduccion, LineaPedidoDraft,
 import { upsertHistorial } from "./historial";
 import { guardarClienteFiscal } from "./clientesFiscales";
 import { guardarCliente } from "./clientes";
+import { fechaNegocio, horaNegocio } from "../utils/fechas";
 
 interface EntidadResuelta {
   marcaId: string;
@@ -66,6 +67,7 @@ export interface FiltrosPedidos {
   numeroPedido?: string;
   estado?: string;
   metodoPago?: string;
+  vendedorId?: string;
   fechaDesde?: string;
   fechaHasta?: string;
   requiereCorreccion?: string;
@@ -96,6 +98,8 @@ export async function crearPedido(draft: PedidoDraft, cajeroId: string): Promise
       cliente_regimen_fiscal: draft.cliente_regimen_fiscal || null,
       cliente_uso_cfdi: draft.cliente_uso_cfdi || null,
       cliente_cp_fiscal: draft.cliente_cp_fiscal || null,
+      fecha_recepcion: draft.fecha_recepcion ?? fechaNegocio(),
+      hora_recepcion: draft.hora_recepcion ?? horaNegocio(),
       fecha_pago_total:
         draft.total > 0 && draft.anticipo >= draft.total
           ? new Date().toISOString()
@@ -175,6 +179,8 @@ async function insertarSubPedido(
     cliente_nombre: string;
     cliente_telefono: string;
     cliente_email?: string;
+    fecha_recepcion?: string;
+    hora_recepcion?: string;
     fecha_entrega: string;
     hora_entrega: string;
     requiere_correccion: boolean;
@@ -211,6 +217,8 @@ async function insertarSubPedido(
       cliente_regimen_fiscal: draft.cliente_regimen_fiscal || null,
       cliente_uso_cfdi: draft.cliente_uso_cfdi || null,
       cliente_cp_fiscal: draft.cliente_cp_fiscal || null,
+      fecha_recepcion: draft.fecha_recepcion ?? fechaNegocio(),
+      hora_recepcion: draft.hora_recepcion ?? horaNegocio(),
       fecha_pago_total:
         draft.total > 0 && draft.anticipo >= draft.total
           ? new Date().toISOString()
@@ -281,6 +289,8 @@ export interface DraftAgrupado extends DatosFiscalesPedido {
   cliente_nombre: string;
   cliente_telefono: string;
   cliente_email?: string;
+  fecha_recepcion?: string;
+  hora_recepcion?: string;
   fecha_entrega: string;
   hora_entrega: string;
   requiere_correccion: boolean;
@@ -312,6 +322,8 @@ export async function crearPedidoAgrupado(draft: DraftAgrupado, cajeroId: string
         cliente_nombre: draft.cliente_nombre,
         cliente_telefono: draft.cliente_telefono,
         cliente_email: draft.cliente_email,
+        fecha_recepcion: draft.fecha_recepcion,
+        hora_recepcion: draft.hora_recepcion,
         requiere_factura: draft.requiere_factura,
         cliente_rfc: draft.cliente_rfc,
         cliente_razon_social: draft.cliente_razon_social,
@@ -359,6 +371,8 @@ export async function crearPedidoAgrupado(draft: DraftAgrupado, cajeroId: string
         cliente_nombre: draft.cliente_nombre,
         cliente_telefono: draft.cliente_telefono,
         cliente_email: draft.cliente_email,
+        fecha_recepcion: draft.fecha_recepcion,
+        hora_recepcion: draft.hora_recepcion,
         requiere_factura: draft.requiere_factura,
         cliente_rfc: draft.cliente_rfc,
         cliente_razon_social: draft.cliente_razon_social,
@@ -599,6 +613,11 @@ function aplicarFiltros(query: any, filtros: FiltrosPedidos) {
   if (filtros.metodoPago) {
     q = q.eq("metodo_pago", filtros.metodoPago);
   }
+  if (filtros.vendedorId === "sin_vendedor") {
+    q = q.is("cajero_id", null);
+  } else if (filtros.vendedorId) {
+    q = q.eq("cajero_id", filtros.vendedorId);
+  }
   if (filtros.fechaDesde) {
     q = q.gte("fecha_entrega", filtros.fechaDesde);
   }
@@ -619,13 +638,18 @@ function aplicarFiltros(query: any, filtros: FiltrosPedidos) {
 export { buscarClientes } from "./clientes";
 export type { ClienteHistorial } from "./clientes";
 
-export async function liquidarSaldo(id: string, metodo: MetodoPago): Promise<void> {
+export async function liquidarSaldo(
+  id: string,
+  metodo: MetodoPago,
+  cobradoPorId: string | null,
+): Promise<void> {
   const { data, error } = await supabase
     .from("pedidos")
     .update({
       saldo_cobrado: true,
       saldo_metodo_pago: metodo,
       saldo_cobrado_en: new Date().toISOString(),
+      saldo_cobrado_por: cobradoPorId,
       fecha_pago_total: new Date().toISOString(),
     })
     .eq("id", id)

@@ -19,6 +19,7 @@ import { guardarClientesEnCache } from "@/lib/services/clientes";
 import { supabase } from "@/lib/supabase/client";
 import { Logo } from "@/components/ui/Logo";
 import { NOMBRE_EMPRESA } from "@/lib/utils/constantes";
+import { fechaNegocio, horaNegocio } from "@/lib/utils/fechas";
 import type { Catalogo } from "@/lib/services/catalogo";
 import { useOffline } from "@/lib/offline/useOffline";
 import { useOfflineSync } from "@/lib/offline/useOfflineSync";
@@ -269,10 +270,15 @@ function MostradorContent() {
         (l.atributos["Corrección de Color"] || "").trim().toLowerCase() === "si",
     );
 
+    const fechaRecepcion = fechaNegocio();
+    const horaRecepcion = horaNegocio();
+
     const draft = {
       cliente_nombre: pedido.cliente.nombre,
       cliente_telefono: pedido.cliente.telefono,
       cliente_email: pedido.cliente.email,
+      fecha_recepcion: fechaRecepcion,
+      hora_recepcion: horaRecepcion,
       requiere_factura:
         facturacionHabilitada() && pedido.cliente.requiereFactura,
       cliente_rfc: facturacionHabilitada() ? pedido.cliente.rfc : "",
@@ -305,16 +311,9 @@ function MostradorContent() {
       try {
         const queueId = await queueOrder(
           draft as unknown as Parameters<typeof queueOrder>[0],
+          session?.user.id ?? null,
         );
 
-        const ahora = new Date();
-        const pad = (n: number) => String(n).padStart(2, "0");
-        const fechaRecepcion = `${ahora.getFullYear()}-${pad(
-          ahora.getMonth() + 1,
-        )}-${pad(ahora.getDate())}`;
-        const horaRecepcion = `${pad(ahora.getHours())}:${pad(
-          ahora.getMinutes(),
-        )}`;
         const sufijo = queueId.split("_").pop()?.toUpperCase() ?? "LOCAL";
 
         const offlinePedido: TicketPedido = {
@@ -401,6 +400,14 @@ function MostradorContent() {
         </div>
         <div className="flex items-center gap-3">
           <Button
+            variant="ghost"
+            size="sm"
+            onClick={() => router.push("/reportes")}
+          >
+            <i className="fas fa-chart-column mr-1.5" />
+            Reportes
+          </Button>
+          <Button
             variant="primary"
             size="sm"
             onClick={() => router.push("/mostrador/pedidos")}
@@ -469,39 +476,27 @@ function MostradorContent() {
           regimenFiscal={pedido.cliente.regimenFiscal}
           usoCfdi={pedido.cliente.usoCfdi}
           cpFiscal={pedido.cliente.cpFiscal}
-          onNombreChange={(v) =>
-            pedido.setCliente({ ...pedido.cliente, nombre: v })
-          }
-          onTelefonoChange={(v) =>
-            pedido.setCliente({ ...pedido.cliente, telefono: v })
-          }
-          onEmailChange={(v) =>
-            pedido.setCliente({ ...pedido.cliente, email: v })
-          }
+          onNombreChange={(v) => pedido.actualizarCliente({ nombre: v })}
+          onTelefonoChange={(v) => pedido.actualizarCliente({ telefono: v })}
+          onEmailChange={(v) => pedido.actualizarCliente({ email: v })}
           onFechaEntregaChange={(v) =>
-            pedido.setCliente({ ...pedido.cliente, fechaEntrega: v })
+            pedido.actualizarCliente({ fechaEntrega: v })
           }
           onHoraEntregaChange={(v) =>
-            pedido.setCliente({ ...pedido.cliente, horaEntrega: v })
+            pedido.actualizarCliente({ horaEntrega: v })
           }
           onRequiereFacturaChange={(v) =>
-            pedido.setCliente({ ...pedido.cliente, requiereFactura: v })
+            pedido.actualizarCliente({ requiereFactura: v })
           }
-          onRfcChange={(v) =>
-            pedido.setCliente({ ...pedido.cliente, rfc: v })
-          }
+          onRfcChange={(v) => pedido.actualizarCliente({ rfc: v })}
           onRazonSocialChange={(v) =>
-            pedido.setCliente({ ...pedido.cliente, razonSocial: v })
+            pedido.actualizarCliente({ razonSocial: v })
           }
           onRegimenFiscalChange={(v) =>
-            pedido.setCliente({ ...pedido.cliente, regimenFiscal: v })
+            pedido.actualizarCliente({ regimenFiscal: v })
           }
-          onUsoCfdiChange={(v) =>
-            pedido.setCliente({ ...pedido.cliente, usoCfdi: v })
-          }
-          onCpFiscalChange={(v) =>
-            pedido.setCliente({ ...pedido.cliente, cpFiscal: v })
-          }
+          onUsoCfdiChange={(v) => pedido.actualizarCliente({ usoCfdi: v })}
+          onCpFiscalChange={(v) => pedido.actualizarCliente({ cpFiscal: v })}
         />
 
         <div className="bg-white rounded-xl shadow p-4">

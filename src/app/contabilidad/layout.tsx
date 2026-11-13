@@ -22,7 +22,7 @@ export default function ContabilidadLayout({
     ...(facturacionHabilitada()
       ? [{ href: "/contabilidad/pedidos", label: "Facturas" }]
       : []),
-    { href: "/contabilidad/reportes", label: "Reportes" },
+    { href: "/reportes", label: "Reportes contables" },
   ];
 
   return (

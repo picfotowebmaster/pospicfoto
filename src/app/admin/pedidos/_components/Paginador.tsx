@@ -7,6 +7,7 @@ interface PaginadorProps {
   porPagina?: number;
   onChange: (pagina: number) => void;
   onPorPaginaChange?: (n: number) => void;
+  etiqueta?: string;
 }
 
 const OPCIONES_POR_PAGINA = [10, 20, 50, 100];
@@ -18,6 +19,7 @@ export function Paginador({
   porPagina = 20,
   onChange,
   onPorPaginaChange,
+  etiqueta = "pedido",
 }: PaginadorProps) {
   const totalPaginas = total && total > 0 ? Math.max(1, Math.ceil(total / porPagina)) : null;
 
@@ -27,7 +29,7 @@ export function Paginador({
   return (
     <div className="flex items-center justify-between gap-3 pt-2 flex-wrap">
       <div className="text-xs text-gray-500 dark:text-gray-400">
-        {typeof total === "number" ? `${total} pedido${total === 1 ? "" : "s"}` : ""}
+        {typeof total === "number" ? `${total} ${etiqueta}${total === 1 ? "" : "s"}` : ""}
       </div>
 
       <div className="flex items-center gap-2">

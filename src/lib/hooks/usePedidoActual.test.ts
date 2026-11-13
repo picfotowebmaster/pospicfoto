@@ -268,4 +268,18 @@ describe("usePedidoActual", () => {
     expect(savePedidoDraft).toHaveBeenCalled();
     vi.useRealTimers();
   });
+
+  it("conserva todos los campos al actualizar el cliente en varias llamadas", () => {
+    const { result } = renderHook(() => usePedidoActual("suc-1", "ent-1"));
+
+    act(() => {
+      result.current.actualizarCliente({ nombre: "Jessica Herrera León" });
+      result.current.actualizarCliente({ telefono: "5512345678" });
+      result.current.actualizarCliente({ email: "jessica@correo.com" });
+    });
+
+    expect(result.current.cliente.nombre).toBe("Jessica Herrera León");
+    expect(result.current.cliente.telefono).toBe("5512345678");
+    expect(result.current.cliente.email).toBe("jessica@correo.com");
+  });
 });

@@ -12,6 +12,7 @@ export interface CatalogoCache {
 export interface PedidoEnCola {
   id: string;
   draft: Record<string, unknown>;
+  cajeroId: string | null;
   createdAt: number;
   syncStatus: "pending" | "syncing" | "failed";
   errorMessage?: string;
@@ -70,12 +71,16 @@ export async function catalogoStaleMs(key: string): Promise<number | null> {
   return Date.now() - entry.updatedAt;
 }
 
-export async function enqueuePedido(draft: Record<string, unknown>): Promise<string> {
+export async function enqueuePedido(
+  draft: Record<string, unknown>,
+  cajeroId: string | null,
+): Promise<string> {
   const db = await getDB();
   const id = `offline_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
   await db.put("pedidosQueue", {
     id,
     draft,
+    cajeroId,
     createdAt: Date.now(),
     syncStatus: "pending",
   });

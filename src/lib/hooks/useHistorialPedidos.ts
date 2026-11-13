@@ -2,10 +2,12 @@
 
 import { useState, useEffect, useCallback } from "react";
 import { listarPedidos, contarPedidos, type FiltrosPedidos } from "@/lib/services/pedidos";
+import { listarVendedores, type Vendedor } from "@/lib/services/vendedores";
 import type { Pedido } from "@/lib/supabase/types";
 
 export function useHistorialPedidos() {
   const [pedidos, setPedidos] = useState<Pedido[]>([]);
+  const [vendedores, setVendedores] = useState<Vendedor[]>([]);
   const [hasMore, setHasMore] = useState(false);
   const [total, setTotal] = useState(0);
   const [cargando, setCargando] = useState(true);
@@ -16,6 +18,20 @@ export function useHistorialPedidos() {
     Omit<FiltrosPedidos, "pagina" | "porPagina">
   >({ numeroPedido: "" });
   const [trigger, setTrigger] = useState(0);
+
+  useEffect(() => {
+    let ignore = false;
+
+    listarVendedores()
+      .then((data) => {
+        if (!ignore) setVendedores(data);
+      })
+      .catch(() => {});
+
+    return () => {
+      ignore = true;
+    };
+  }, []);
 
   useEffect(() => {
     let ignore = false;
@@ -84,6 +100,7 @@ export function useHistorialPedidos() {
 
   return {
     pedidos,
+    vendedores,
     cargando,
     error,
     pagina,

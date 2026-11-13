@@ -7,7 +7,9 @@ import { fetchPedido, liquidarSaldo } from "@/lib/services/pedidos";
 import { supabase } from "@/lib/supabase/client";
 import { Button } from "@/components/ui/Button";
 import { useToast } from "@/components/ui/Toast";
+import { useAuth } from "@/lib/hooks/useAuth";
 import { LiquidarSaldoModal } from "@/app/mostrador/_components/LiquidarSaldoModal";
+import { ModalCompartirTicket } from "@/app/mostrador/_components/ModalCompartirTicket";
 import { pedidoPagado } from "@/lib/utils/fiscal";
 import { fetchEntidadesPorIds } from "@/lib/services/entidadesEmisoras";
 import { facturacionHabilitada } from "@/lib/config/features";
@@ -20,6 +22,7 @@ import type {
 export default function TicketPage() {
   const { id } = useParams<{ id: string }>();
   const router = useRouter();
+  const { session } = useAuth();
   const { showError, showSuccess } = useToast();
   const [pedidos, setPedidos] = useState<Pedido[]>([]);
   const [emisores, setEmisores] = useState<Map<string, EntidadEmisora>>(
@@ -28,6 +31,7 @@ export default function TicketPage() {
   const [cargando, setCargando] = useState(true);
   const [facturando, setFacturando] = useState(false);
   const [enviandoTicket, setEnviandoTicket] = useState(false);
+  const [compartiendo, setCompartiendo] = useState(false);
   const [liquidando, setLiquidando] = useState(false);
   const [facturaInfo, setFacturaInfo] = useState<{
     uuid: string;
@@ -160,7 +164,7 @@ export default function TicketPage() {
 
   async function handleLiquidar(metodo: MetodoPago) {
     if (!pedidoPrincipal) return;
-    await liquidarSaldo(pedidoPrincipal.id, metodo);
+    await liquidarSaldo(pedidoPrincipal.id, metodo, session?.user.id ?? null);
 
     const ahora = new Date().toISOString();
     setPedidos((prev) =>
@@ -171,6 +175,7 @@ export default function TicketPage() {
               saldo_cobrado: true,
               saldo_metodo_pago: metodo,
               saldo_cobrado_en: ahora,
+              saldo_cobrado_por: session?.user.id ?? null,
               fecha_pago_total: ahora,
             }
           : pedido,
@@ -225,6 +230,16 @@ export default function TicketPage() {
         >
           {enviandoTicket ? "Enviando..." : "Enviar Ticket"}
         </Button>
+        {pedidoPrincipal && (
+          <Button
+            size="sm"
+            variant="ghost"
+            onClick={() => setCompartiendo(true)}
+          >
+            <i className="fas fa-share-nodes mr-1" />
+            Compartir
+          </Button>
+        )}
         <Button
           size="sm"
           variant="ghost"
@@ -350,6 +365,15 @@ export default function TicketPage() {
           </div>
         )}
       </div>
+
+      {compartiendo && pedidoPrincipal && (
+        <ModalCompartirTicket
+          pedidoId={pedidoPrincipal.id}
+          numeroPedido={pedidoPrincipal.numero_pedido}
+          clienteEmail={pedidoPrincipal.cliente_email}
+          onClose={() => setCompartiendo(false)}
+        />
+      )}
 
       {liquidando && pedidoPrincipal && (
         <LiquidarSaldoModal

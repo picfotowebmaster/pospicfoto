@@ -4,8 +4,14 @@ import type { PedidoDraft } from "@/lib/supabase/types";
 
 let syncing = false;
 
-export async function queueOrder(draft: PedidoDraft): Promise<string> {
-  return enqueuePedido(draft as unknown as Record<string, unknown>);
+export async function queueOrder(
+  draft: PedidoDraft,
+  cajeroId: string | null,
+): Promise<string> {
+  return enqueuePedido(
+    draft as unknown as Record<string, unknown>,
+    cajeroId,
+  );
 }
 
 export async function syncQueue(cajeroId: string): Promise<{ synced: number; failed: number }> {
@@ -20,7 +26,10 @@ export async function syncQueue(cajeroId: string): Promise<{ synced: number; fai
     for (const item of pending) {
       try {
         await updatePedidoSyncStatus(item.id, "syncing");
-        await crearPedido(item.draft as unknown as PedidoDraft, cajeroId);
+        await crearPedido(
+          item.draft as unknown as PedidoDraft,
+          item.cajeroId ?? cajeroId,
+        );
         await removeSyncedPedido(item.id);
         synced++;
       } catch (err) {

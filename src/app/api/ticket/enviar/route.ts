@@ -3,11 +3,14 @@ import { cookies } from "next/headers";
 import { NextRequest, NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { enviarTicketPorCorreo } from "@/lib/services/email";
+import { crearOReutilizarEnlace } from "@/lib/services/enlacesCompartidos";
+import { resolverBaseUrl, urlTicketCompartido } from "@/lib/utils/baseUrl";
 import type { Pedido } from "@/lib/supabase/types";
 
 const ROLES_PERMITIDOS = ["mostrador", "admin", "superadmin", "contador"];
 const UUID_RE =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
 export async function POST(request: NextRequest) {
   const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
@@ -49,7 +52,7 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: "No autorizado" }, { status: 403 });
   }
 
-  let body: { id?: string };
+  let body: { id?: string; email?: string; incluirEnlace?: boolean };
   try {
     body = await request.json();
   } catch {
@@ -86,10 +89,20 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: "Pedido no encontrado" }, { status: 404 });
   }
 
-  const email = pedido.cliente_email;
+  const emailOverride =
+    typeof body.email === "string" ? body.email.trim() : "";
+  const email = emailOverride || pedido.cliente_email;
+
   if (!email) {
     return NextResponse.json(
       { error: "El pedido no tiene correo del cliente" },
+      { status: 400 },
+    );
+  }
+
+  if (emailOverride && !EMAIL_RE.test(emailOverride)) {
+    return NextResponse.json(
+      { error: "Correo electrónico inválido" },
       { status: 400 },
     );
   }
@@ -105,11 +118,19 @@ export async function POST(request: NextRequest) {
   }
 
   try {
+    const baseUrl = resolverBaseUrl(request.nextUrl.origin);
+    let urlTicket: string | null = null;
+    if (body.incluirEnlace) {
+      const enlace = await crearOReutilizarEnlace(pedido.id, user.id);
+      urlTicket = urlTicketCompartido(request.nextUrl.origin, enlace.token);
+    }
+
     await enviarTicketPorCorreo({
       to: email,
       pedido,
       emisor,
-      baseUrl: request.nextUrl.origin,
+      baseUrl,
+      urlTicket,
     });
   } catch (err) {
     const detalle = err instanceof Error ? err.message : "Error desconocido";

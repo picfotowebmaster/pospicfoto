@@ -1,4 +1,4 @@
-export type MetodoPago = "Efectivo" | "Tarjeta" | "Transferencia";
+export type MetodoPago = "Efectivo" | "Tarjeta" | "Transferencia" | "Depósito";
 
 export type EstadoPedido =
   | "pendiente"
@@ -250,6 +250,7 @@ export interface Pedido {
   saldo_cobrado?: boolean | null;
   saldo_metodo_pago?: MetodoPago | null;
   saldo_cobrado_en?: string | null;
+  saldo_cobrado_por?: string | null;
   created_at: string;
   updated_at: string;
   detalle_pedidos?: DetallePedido[];
@@ -352,6 +353,8 @@ export interface PedidoDraft extends DatosFiscalesPedido {
   cliente_nombre: string;
   cliente_telefono: string;
   cliente_email?: string;
+  fecha_recepcion?: string;
+  hora_recepcion?: string;
   fecha_entrega: string;
   hora_entrega: string;
   requiere_correccion: boolean;

@@ -42,6 +42,10 @@ export function usePedidoActual(
   marcaEntidadId = "",
 ) {
   const [cliente, setCliente] = useState<ClienteData>({ ...CLIENTE_VACIO });
+
+  const actualizarCliente = useCallback((cambios: Partial<ClienteData>) => {
+    setCliente((prev) => ({ ...prev, ...cambios }));
+  }, []);
   const [lineas, setLineas] = useState<LineaPedidoDraft[]>([]);
   const [porcentajeAnticipo, setPorcentajeAnticipo] = useState(ANTICIPO_POR_DEFECTO);
   const [metodoPago, setMetodoPago] = useState<MetodoPago>("Efectivo");
@@ -214,6 +218,7 @@ export function usePedidoActual(
   return {
     cliente,
     setCliente,
+    actualizarCliente,
     lineas,
     agregarLinea,
     eliminarLinea,

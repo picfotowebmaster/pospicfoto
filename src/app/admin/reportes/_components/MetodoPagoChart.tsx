@@ -6,6 +6,7 @@ const COLORES_PAGO: Record<string, string> = {
   Efectivo: "#10b981",
   Tarjeta: "#3b82f6",
   Transferencia: "#8b5cf6",
+  Depósito: "#f59e0b",
 };
 
 const COLOR_DEFAULT = "#9ca3af";

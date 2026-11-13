@@ -25,7 +25,7 @@ const UUID_RE =
 
 function mapearFormaPago(metodoPago: string | null | undefined): string {
   if (metodoPago === "Tarjeta") return "04";
-  if (metodoPago === "Transferencia") return "03";
+  if (metodoPago === "Transferencia" || metodoPago === "Depósito") return "03";
   return "01";
 }
 

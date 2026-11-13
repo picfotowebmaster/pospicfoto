@@ -14,8 +14,43 @@ const supabase = createClient(url, serviceKey, {
   auth: { persistSession: false },
 });
 
-const CANTIDAD_PEDIDOS = 20;
+const CANTIDAD_PEDIDOS = 50;
 const UUID_CERO = "00000000-0000-0000-0000-000000000000";
+
+const CAJEROS_EMAILS = ["firefoxlyly@gmail.com", "jesus@picfoto.mx"];
+
+const CLIENTES = [
+  {
+    nombre: "Jessica Herrera León",
+    telefono: "525666653146",
+    email: "jessgreen.hleon@gmail.com",
+  },
+  {
+    nombre: "Liliana Esquivel Rivera",
+    telefono: "524494531729",
+    email: "firefoxlyly@gmail.com",
+  },
+  {
+    nombre: "Baldemar Menchaca",
+    telefono: "5545204518",
+    email: "bmgconstruccionesei@gmail.com",
+  },
+  {
+    nombre: "Raul Contreras",
+    telefono: "525521503391",
+    email: "contreras.mandujano@gmail.com",
+  },
+  {
+    nombre: "Jesús López Velázquez",
+    telefono: "525568032061",
+    email: "jesuslv2412@hotmail.com",
+  },
+  {
+    nombre: "Angélica Jardinez Maldonado",
+    telefono: "525624452007",
+    email: "angelica.ajm64@gmail.com",
+  },
+];
 
 const pick = (arr) => arr[Math.floor(Math.random() * arr.length)];
 const randInt = (min, max) =>
@@ -23,12 +58,14 @@ const randInt = (min, max) =>
 const money = (n) => Math.round(n * 100) / 100;
 const pad = (n) => String(n).padStart(2, "0");
 const fechaISO = (d) =>
-  `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+  new Intl.DateTimeFormat("en-CA", {
+    timeZone: "America/Mexico_City",
+  }).format(d);
 const horaISO = (h, m) => `${pad(h)}:${pad(m)}:00`;
 
 function fechaConOffset(dias) {
-  const d = new Date();
-  d.setHours(12, 0, 0, 0);
+  const hoyMexico = fechaISO(new Date());
+  const d = new Date(`${hoyMexico}T12:00:00-06:00`);
   d.setDate(d.getDate() + dias);
   return d;
 }
@@ -53,39 +90,50 @@ async function main() {
 
   if (errorPedidos) throw errorPedidos;
 
+  const { data: clientesActuales, error: errorClientesActuales } = await supabase
+    .from("clientes")
+    .select("*");
+
+  if (errorClientesActuales) throw errorClientesActuales;
+
   const backupDir = join(process.cwd(), "..", "pospicfoto-backups");
   mkdirSync(backupDir, { recursive: true });
   const backupPath = join(
     backupDir,
-    `pedidos-${new Date().toISOString().replace(/[:.]/g, "-")}.json`,
+    `pedidos-clientes-${new Date().toISOString().replace(/[:.]/g, "-")}.json`,
   );
   writeFileSync(
     backupPath,
     JSON.stringify(
-      { generadoEn: new Date().toISOString(), pedidos: pedidosActuales ?? [] },
+      {
+        generadoEn: new Date().toISOString(),
+        pedidos: pedidosActuales ?? [],
+        clientes: clientesActuales ?? [],
+      },
       null,
       2,
     ),
   );
   console.log(`Respaldo guardado en: ${backupPath}`);
+  console.log(
+    `Pedidos: ${pedidosActuales?.length ?? 0} · Clientes: ${clientesActuales?.length ?? 0}`,
+  );
 
-  const clientesMap = new Map();
-  for (const pedido of pedidosActuales ?? []) {
-    if (!pedido.cliente_nombre?.trim()) continue;
-    const clave = [
-      pedido.cliente_nombre.trim(),
-      (pedido.cliente_telefono || "").trim(),
-      (pedido.cliente_email || "").trim(),
-    ].join("|");
-    clientesMap.set(clave, {
-      nombre: pedido.cliente_nombre.trim(),
-      telefono: (pedido.cliente_telefono || "").trim(),
-      email: (pedido.cliente_email || "").trim(),
-    });
-  }
+  const { data: authData, error: authError } =
+    await supabase.auth.admin.listUsers({ page: 1, perPage: 500 });
 
-  const clientes = [...clientesMap.values()];
-  console.log(`Clientes recuperados de pedidos: ${clientes.length}`);
+  if (authError) throw authError;
+
+  const cajeros = CAJEROS_EMAILS.map((email) => {
+    const usuario = (authData?.users ?? []).find((u) => u.email === email);
+    if (!usuario) throw new Error(`No existe el usuario ${email}`);
+    return { id: usuario.id, email };
+  });
+
+  console.log(
+    "Cajeros asignados:",
+    cajeros.map((c) => c.email).join(" · "),
+  );
 
   const [
     { data: entidades, error: errorEntidades },
@@ -102,11 +150,13 @@ async function main() {
       .from("productos")
       .select("id, nombre, ruta, categoria_id")
       .eq("activo", true),
-    supabase.from("profiles").select("id, rol").in("rol", [
-      "mostrador",
-      "admin",
-      "superadmin",
-    ]),
+    supabase
+      .from("profiles")
+      .select("id, rol")
+      .in(
+        "id",
+        cajeros.map((c) => c.id),
+      ),
     supabase.from("atributos").select("id, nombre").eq("activo", true),
     supabase.from("atributo_valores").select("atributo_id, valor"),
   ]);
@@ -119,6 +169,13 @@ async function main() {
     ["atributo_valores", errorValores],
   ]) {
     if (error) throw new Error(`${nombre}: ${error.message}`);
+  }
+
+  const perfilesPorId = new Map((perfiles ?? []).map((p) => [p.id, p]));
+  for (const cajero of cajeros) {
+    if (!perfilesPorId.has(cajero.id)) {
+      throw new Error(`No se encontró el perfil de ${cajero.email}`);
+    }
   }
 
   if (!entidades?.length) throw new Error("No hay entidades emisoras activas.");
@@ -135,23 +192,39 @@ async function main() {
     valoresPorAtributo.get(a.id)?.length,
   );
 
-  const clientesFallback = [
-    { nombre: "Cliente Mostrador", telefono: "5512345678", email: "" },
-    { nombre: "Cliente Frecuente", telefono: "5523456789", email: "" },
-    { nombre: "Cliente Nuevo", telefono: "5534567890", email: "" },
-  ];
-  const poolClientes = clientes.length ? clientes : clientesFallback;
-  const poolBarajado = [...poolClientes].sort(() => Math.random() - 0.5);
-
-  console.log("Eliminando pedidos existentes...");
-  const { error: errorDelete } = await supabase
+  console.log("Eliminando pedidos y clientes existentes...");
+  const { error: errorDeletePedidos } = await supabase
     .from("pedidos")
     .delete()
     .neq("id", UUID_CERO);
-  if (errorDelete) {
-    throw new Error(`Error al eliminar pedidos: ${errorDelete.message}`);
+  if (errorDeletePedidos) {
+    throw new Error(
+      `Error al eliminar pedidos: ${errorDeletePedidos.message}`,
+    );
   }
   console.log("  pedidos: limpio (detalle, movimientos y comentarios en cascada)");
+
+  const { error: errorDeleteClientes } = await supabase
+    .from("clientes")
+    .delete()
+    .neq("id", UUID_CERO);
+  if (errorDeleteClientes) {
+    throw new Error(
+      `Error al eliminar clientes: ${errorDeleteClientes.message}`,
+    );
+  }
+  console.log("  clientes: limpio");
+
+  const { data: clientesCreados, error: errorClientes } = await supabase
+    .from("clientes")
+    .insert(CLIENTES)
+    .select("id, nombre, telefono, email");
+  if (errorClientes) {
+    throw new Error(`Error al crear clientes: ${errorClientes.message}`);
+  }
+  console.log(`  clientes creados: ${clientesCreados.length}`);
+
+  const poolBarajado = [...clientesCreados].sort(() => Math.random() - 0.5);
 
   const estados = [
     "pendiente",
@@ -266,12 +339,13 @@ async function main() {
     const metodoPago = pick(["Efectivo", "Tarjeta", "Transferencia"]);
     const requiereCorreccion = Math.random() < 0.12;
     const prioridad = Math.random() < 0.15 ? "urgente" : "normal";
-    const cajeroId = perfiles?.length ? pick(perfiles).id : null;
+    const cajeroId = cajeros[i % cajeros.length].id;
     const areaActual =
       areaPorEstado[estado] || pick(areasTaller);
     const fechaPagoTotal = pagado
       ? isoConOffsetHoras(fechaRecepcion, randInt(1, 48))
       : null;
+    const creadoEn = `${fechaRecepcion}T${horaRecepcion}-06:00`;
 
     const { data: numeroPedido, error: errorNumero } = await supabase.rpc(
       "generar_numero_pedido",
@@ -287,6 +361,7 @@ async function main() {
       .insert({
         numero_pedido: numeroPedido,
         cajero_id: cajeroId,
+        cliente_id: cliente.id,
         cliente_nombre: cliente.nombre,
         cliente_telefono: cliente.telefono || null,
         cliente_email: cliente.email || null,
@@ -310,8 +385,9 @@ async function main() {
         saldo_cobrado: pagado,
         saldo_metodo_pago: pagado ? metodoPago : null,
         saldo_cobrado_en: fechaPagoTotal,
+        saldo_cobrado_por: pagado ? cajeroId : null,
         fecha_pago_total: fechaPagoTotal,
-        created_at: `${fechaRecepcion}T${horaRecepcion}-06:00`,
+        created_at: creadoEn,
         updated_at: new Date().toISOString(),
       })
       .select("id, numero_pedido")
@@ -339,17 +415,74 @@ async function main() {
     insertados.push({
       numero: pedido.numero_pedido,
       cliente: cliente.nombre,
+      clienteId: cliente.id,
       entidad: entidad.nombre_comercial,
       estado,
       subtotal,
       anticipo,
+      total,
       metodoPago,
+      creadoEn,
       lineas: seleccionados.length,
     });
   }
 
+  const statsPorCliente = new Map();
+  for (const pedido of insertados) {
+    const actual = statsPorCliente.get(pedido.clienteId) ?? {
+      pedidos: 0,
+      total: 0,
+      ultimo: pedido.creadoEn,
+    };
+    actual.pedidos += 1;
+    if (pedido.estado !== "cancelado") actual.total += pedido.total;
+    if (pedido.creadoEn > actual.ultimo) actual.ultimo = pedido.creadoEn;
+    statsPorCliente.set(pedido.clienteId, actual);
+  }
+
+  for (const [clienteId, stats] of statsPorCliente) {
+    const { error: errorStats } = await supabase
+      .from("clientes")
+      .update({
+        pedidos_count: stats.pedidos,
+        total_gastado: money(stats.total),
+        last_order_at: stats.ultimo,
+      })
+      .eq("id", clienteId);
+    if (errorStats) {
+      throw new Error(
+        `Error al actualizar estadísticas del cliente: ${errorStats.message}`,
+      );
+    }
+  }
+
   console.log(`\nPedidos creados: ${insertados.length}`);
-  console.table(insertados);
+  console.table(
+    insertados.map((pedido) => ({
+      numero: pedido.numero,
+      cliente: pedido.cliente,
+      entidad: pedido.entidad,
+      estado: pedido.estado,
+      subtotal: pedido.subtotal,
+      anticipo: pedido.anticipo,
+      metodoPago: pedido.metodoPago,
+      lineas: pedido.lineas,
+    })),
+  );
+
+  console.log("\nClientes:");
+  console.table(
+    clientesCreados.map((cliente) => {
+      const stats = statsPorCliente.get(cliente.id);
+      return {
+        nombre: cliente.nombre,
+        telefono: cliente.telefono,
+        email: cliente.email,
+        pedidos: stats?.pedidos ?? 0,
+        total_gastado: money(stats?.total ?? 0),
+      };
+    }),
+  );
 }
 
 main().catch((err) => {

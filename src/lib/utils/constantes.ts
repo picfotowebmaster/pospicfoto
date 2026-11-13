@@ -28,6 +28,7 @@ export const METODOS_PAGO = [
   { label: "Efectivo", value: "Efectivo" as const },
   { label: "Tarjeta", value: "Tarjeta" as const },
   { label: "Transferencia", value: "Transferencia" as const },
+  { label: "Depósito", value: "Depósito" as const },
 ];
 
 export { REGIMENES_FISCALES, USOS_CFDI } from "./fiscalCatalogos";

@@ -39,7 +39,7 @@ const mockDraft: PedidoDraft = {
 
 function qb(terminalMethod: string | null = null, data: unknown = null, error: Error | null = null) {
   const builder: Record<string, ReturnType<typeof vi.fn>> = {};
-  const methods = ["select", "insert", "update", "delete", "eq", "neq", "gt", "gte", "lt", "lte", "ilike", "in", "or", "order", "limit", "range", "single", "maybeSingle"];
+  const methods = ["select", "insert", "update", "delete", "eq", "neq", "gt", "gte", "lt", "lte", "ilike", "in", "is", "or", "order", "limit", "range", "single", "maybeSingle"];
   for (const m of methods) {
     builder[m] = terminalMethod === m
       ? vi.fn().mockResolvedValue(error ? { data, error } : { data, error: null })
@@ -69,6 +69,37 @@ describe("crearPedido", () => {
 
     const result = await crearPedido(mockDraft, "cajero-1");
     expect(result).toBe("PIC-PAL-00042");
+  });
+
+  it("usa la fecha y hora de recepción del draft", async () => {
+    const pedidoBuilders: ReturnType<typeof qb>[] = [];
+    mockFrom((table: string) => {
+      if (table === "marcas") return qb("single", { codigo: "PIC" }) as ReturnType<typeof supabase.from>;
+      if (table === "sucursales") return qb("single", { codigo: "PAL" }) as ReturnType<typeof supabase.from>;
+      if (table === "pedidos") {
+        const builder = qb("single", { id: "p1", numero_pedido: "PIC-PAL-00042" });
+        pedidoBuilders.push(builder);
+        return builder as ReturnType<typeof supabase.from>;
+      }
+      return qb(null, null) as ReturnType<typeof supabase.from>;
+    });
+    vi.mocked(supabase.rpc).mockResolvedValue({ data: "PIC-PAL-00042", error: null });
+
+    await crearPedido(
+      {
+        ...mockDraft,
+        fecha_recepcion: "2026-11-12",
+        hora_recepcion: "18:59:00",
+      },
+      "cajero-1",
+    );
+
+    expect(pedidoBuilders[0]?.insert).toHaveBeenCalledWith(
+      expect.objectContaining({
+        fecha_recepcion: "2026-11-12",
+        hora_recepcion: "18:59:00",
+      }),
+    );
   });
 
   it("lanza error si marca no encontrada", async () => {
@@ -212,6 +243,26 @@ describe("listarPedidos", () => {
     expect(result.pedidos).toHaveLength(5);
     expect(result.hasMore).toBe(false);
   });
+
+  it("filtra por vendedor", async () => {
+    const b = qb();
+    b.order = vi.fn().mockReturnValue({ order: vi.fn().mockReturnValue({ range: vi.fn().mockResolvedValue({ data: [], error: null }) }) });
+    vi.mocked(supabase.from).mockReturnValue(b as ReturnType<typeof supabase.from>);
+
+    await listarPedidos({ pagina: 1, porPagina: 20, vendedorId: "v1" });
+
+    expect(b.eq).toHaveBeenCalledWith("cajero_id", "v1");
+  });
+
+  it("filtra pedidos sin vendedor", async () => {
+    const b = qb();
+    b.order = vi.fn().mockReturnValue({ order: vi.fn().mockReturnValue({ range: vi.fn().mockResolvedValue({ data: [], error: null }) }) });
+    vi.mocked(supabase.from).mockReturnValue(b as ReturnType<typeof supabase.from>);
+
+    await listarPedidos({ pagina: 1, porPagina: 20, vendedorId: "sin_vendedor" });
+
+    expect(b.is).toHaveBeenCalledWith("cajero_id", null);
+  });
 });
 
 describe("actualizarPedido", () => {
@@ -336,12 +387,16 @@ describe("buscarClientes", () => {
 describe("liquidarSaldo", () => {
   beforeEach(() => vi.clearAllMocks());
 
-  it("marca el saldo como cobrado con método", async () => {
+  it("marca el saldo como cobrado con método y cobrador", async () => {
     const b = qb("maybeSingle", { id: "p1" });
     vi.mocked(supabase.from).mockReturnValue(b as ReturnType<typeof supabase.from>);
-    await liquidarSaldo("p1", "Tarjeta");
+    await liquidarSaldo("p1", "Tarjeta", "usuario-1");
     expect(b.update).toHaveBeenCalledWith(
-      expect.objectContaining({ saldo_cobrado: true, saldo_metodo_pago: "Tarjeta" }),
+      expect.objectContaining({
+        saldo_cobrado: true,
+        saldo_metodo_pago: "Tarjeta",
+        saldo_cobrado_por: "usuario-1",
+      }),
     );
     expect(b.eq).toHaveBeenCalledWith("id", "p1");
     expect(b.eq).toHaveBeenCalledWith("saldo_cobrado", false);
@@ -350,7 +405,7 @@ describe("liquidarSaldo", () => {
   it("rechaza una doble liquidación", async () => {
     const b = qb("maybeSingle", null);
     vi.mocked(supabase.from).mockReturnValue(b as ReturnType<typeof supabase.from>);
-    await expect(liquidarSaldo("p1", "Efectivo")).rejects.toThrow(
+    await expect(liquidarSaldo("p1", "Efectivo", null)).rejects.toThrow(
       "El saldo ya fue cobrado o el pedido no existe.",
     );
   });

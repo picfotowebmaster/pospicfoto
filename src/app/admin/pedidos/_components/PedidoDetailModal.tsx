@@ -13,6 +13,7 @@ const COLOR_PAGO: Record<string, string> = {
   Efectivo: "bg-emerald-500",
   Tarjeta: "bg-blue-500",
   Transferencia: "bg-purple-500",
+  Depósito: "bg-amber-500",
 };
 
 function formatearFecha(fecha: string): string {
@@ -25,6 +26,8 @@ interface PedidoDetailModalProps {
   open: boolean;
   editando: boolean;
   facturando: boolean;
+  vendedorNombre: string;
+  cobradoPorNombre: string | null;
   atributosPool: (Atributo & { valores: AtributoValor[] })[];
   onClose: () => void;
   onIniciarEdicion: () => void;
@@ -51,6 +54,8 @@ export function PedidoDetailModal({
   open,
   editando,
   facturando,
+  vendedorNombre,
+  cobradoPorNombre,
   atributosPool,
   onClose,
   onIniciarEdicion,
@@ -120,7 +125,13 @@ export function PedidoDetailModal({
               onCancel={onCancelarEdicion}
             />
           ) : (
-            <DetallePedido pedido={pedido} facturando={facturando} onFacturar={onFacturar} />
+            <DetallePedido
+              pedido={pedido}
+              facturando={facturando}
+              vendedorNombre={vendedorNombre}
+              cobradoPorNombre={cobradoPorNombre}
+              onFacturar={onFacturar}
+            />
           )}
         </div>
       </div>
@@ -131,10 +142,14 @@ export function PedidoDetailModal({
 function DetallePedido({
   pedido,
   facturando,
+  vendedorNombre,
+  cobradoPorNombre,
   onFacturar,
 }: {
   pedido: Pedido;
   facturando: boolean;
+  vendedorNombre: string;
+  cobradoPorNombre: string | null;
   onFacturar: () => void;
 }) {
   const lineas = pedido.detalle_pedidos ?? [];
@@ -246,6 +261,8 @@ function DetallePedido({
       <div className="grid grid-cols-2 gap-3 text-xs">
         <Campo label="Recibido" value={`${formatearFecha(pedido.fecha_recepcion)} ${pedido.hora_recepcion?.slice(0, 5)}`} />
         <Campo label="Entrega" value={`${formatearFecha(pedido.fecha_entrega)} ${pedido.hora_entrega.slice(0, 5)}`} />
+        <Campo label="Vendedor" value={vendedorNombre} />
+        {cobradoPorNombre && <Campo label="Cobrado por" value={cobradoPorNombre} />}
         <Campo label="Subtotal" value={`$${pedido.subtotal.toFixed(2)}`} />
         <Campo label="Anticipo" value={`$${pedido.anticipo.toFixed(2)}`} />
         <Campo label="Resta" value={`$${(pedido.total - pedido.anticipo).toFixed(2)}`} />

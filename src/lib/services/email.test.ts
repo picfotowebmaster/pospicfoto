@@ -1,10 +1,19 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 
-const sendMock = vi.fn();
+const { sendMock, insertMock } = vi.hoisted(() => ({
+  sendMock: vi.fn(),
+  insertMock: vi.fn(),
+}));
 
 vi.mock("resend", () => ({
   Resend: vi.fn(function () {
     return { emails: { send: sendMock } };
+  }),
+}));
+
+vi.mock("@/lib/supabase/admin", () => ({
+  createAdminClient: vi.fn(function () {
+    return { from: () => ({ insert: insertMock }) };
   }),
 }));
 
@@ -43,6 +52,7 @@ describe("enviarFacturaPorCorreo", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     sendMock.mockResolvedValue({ data: { id: "email-1" }, error: null, headers: null });
+    insertMock.mockResolvedValue({ error: null });
     process.env.RESEND_API_KEY = "test-key";
     process.env.RESEND_FROM_EMAIL = "facturacion@picfoto.com";
   });
@@ -59,8 +69,9 @@ describe("enviarFacturaPorCorreo", () => {
   });
 
   it("envía el correo con remitente, destinatario y asunto", async () => {
-    await enviarFacturaPorCorreo(baseParams);
+    const id = await enviarFacturaPorCorreo(baseParams);
 
+    expect(id).toBe("email-1");
     expect(Resend).toHaveBeenCalledWith("test-key");
     expect(sendMock).toHaveBeenCalledTimes(1);
     const payload = sendMock.mock.calls[0][0];
@@ -69,6 +80,25 @@ describe("enviarFacturaPorCorreo", () => {
     expect(payload.subject).toContain("PED-001");
     expect(payload.html).toContain("uuid-123");
     expect(payload.attachments).toBeUndefined();
+  });
+
+  it("registra el envío con el id de Resend", async () => {
+    await enviarFacturaPorCorreo(baseParams);
+
+    const payload = sendMock.mock.calls[0][0];
+    expect(insertMock).toHaveBeenCalledWith({
+      resend_email_id: "email-1",
+      tipo: "factura",
+      referencia_id: "uuid-123",
+      destinatario: "cliente@correo.com",
+      asunto: payload.subject,
+    });
+  });
+
+  it("no falla si el registro del envío falla", async () => {
+    insertMock.mockRejectedValue(new Error("db caída"));
+
+    await expect(enviarFacturaPorCorreo(baseParams)).resolves.toBe("email-1");
   });
 
   it("mapea adjuntos al formato contentType del SDK", async () => {
@@ -102,6 +132,7 @@ describe("enviarTicketPorCorreo", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     sendMock.mockResolvedValue({ data: { id: "email-2" }, error: null, headers: null });
+    insertMock.mockResolvedValue({ error: null });
     process.env.RESEND_API_KEY = "test-key";
     process.env.RESEND_FROM_EMAIL = "remitente@example.com";
   });
@@ -122,6 +153,25 @@ describe("enviarTicketPorCorreo", () => {
     expect(payload.html).toContain("Foto 4x6");
     expect(payload.html).not.toContain("<script>");
     expect(payload.attachments).toBeUndefined();
+    expect(insertMock).toHaveBeenCalledWith({
+      resend_email_id: "email-2",
+      tipo: "ticket",
+      referencia_id: "pedido-id-12345678",
+      destinatario: "ana@correo.com",
+      asunto: payload.subject,
+    });
+  });
+
+  it("incluye el link al ticket cuando se proporciona", async () => {
+    await enviarTicketPorCorreo({
+      to: "ana@correo.com",
+      pedido: pedidoBase,
+      urlTicket: "https://pos.test/t/abc123",
+    });
+
+    const payload = sendMock.mock.calls[0][0];
+    expect(payload.html).toContain("Ver ticket en línea");
+    expect(payload.html).toContain("https://pos.test/t/abc123");
   });
 
   it("propaga el error del SDK", async () => {

@@ -287,10 +287,12 @@ export default function KanbanPage() {
   }
 
   async function pLiquidarSaldo(id: string, metodo: MetodoPago) {
-    await liquidarSaldo(id, metodo);
+    const cobradoPorId = session?.user.id ?? null;
+    await liquidarSaldo(id, metodo, cobradoPorId);
     patchDetalle(id, {
       saldo_cobrado: true,
       saldo_metodo_pago: metodo,
+      saldo_cobrado_por: cobradoPorId,
       fecha_pago_total: new Date().toISOString(),
     });
   }

@@ -1,12 +1,16 @@
 "use client";
 
 import { ESTADOS_PEDIDO, METODOS_PAGO, AREAS_PRODUCCION_DATA } from "@/lib/utils/constantes";
+import type { Vendedor } from "@/lib/services/vendedores";
+import { etiquetaVendedor } from "@/lib/services/vendedores";
 
 interface FiltrosPedidosProps {
   busqueda: string;
   numeroPedido: string;
   estado: string;
   metodoPago: string;
+  vendedorId: string;
+  vendedores?: Vendedor[];
   fechaDesde: string;
   fechaHasta: string;
   requiereCorreccion: string;
@@ -16,6 +20,7 @@ interface FiltrosPedidosProps {
     numeroPedido?: string;
     estado?: string;
     metodoPago?: string;
+    vendedorId?: string;
     fechaDesde?: string;
     fechaHasta?: string;
     requiereCorreccion?: string;
@@ -29,6 +34,8 @@ export function FiltrosPedidos({
   numeroPedido,
   estado,
   metodoPago,
+  vendedorId,
+  vendedores = [],
   fechaDesde,
   fechaHasta,
   requiereCorreccion,
@@ -37,7 +44,7 @@ export function FiltrosPedidos({
   onLimpiar,
 }: FiltrosPedidosProps) {
   const activos =
-    busqueda || numeroPedido || estado || metodoPago || fechaDesde || fechaHasta || requiereCorreccion || areaActual;
+    busqueda || numeroPedido || estado || metodoPago || vendedorId || fechaDesde || fechaHasta || requiereCorreccion || areaActual;
 
   return (
     <div className="flex flex-wrap items-end gap-3">
@@ -92,6 +99,23 @@ export function FiltrosPedidos({
               {m.label}
             </option>
           ))}
+        </select>
+      </div>
+
+      <div className="flex flex-col gap-1 min-w-[160px]">
+        <label className="text-xs font-medium text-gray-500 dark:text-gray-400">Vendedor</label>
+        <select
+          value={vendedorId}
+          onChange={(e) => onCambiar({ vendedorId: e.target.value })}
+          className="border border-gray-300 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-100 rounded-lg px-2.5 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+        >
+          <option value="">Todos</option>
+          {vendedores.map((vendedor) => (
+            <option key={vendedor.id} value={vendedor.id}>
+              {etiquetaVendedor(vendedor)}
+            </option>
+          ))}
+          <option value="sin_vendedor">Sin vendedor</option>
         </select>
       </div>
 

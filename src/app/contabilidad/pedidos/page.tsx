@@ -1,6 +1,7 @@
 "use client";
 
 import { useHistorialPedidos } from "@/lib/hooks/useHistorialPedidos";
+import { vendedoresParaFiltro } from "@/lib/services/vendedores";
 import { FiltrosPedidos } from "@/app/admin/pedidos/_components/FiltrosPedidos";
 import { Paginador } from "@/app/admin/pedidos/_components/Paginador";
 import { Button } from "@/components/ui/Button";
@@ -10,6 +11,7 @@ import { FacturaGlobalPanel } from "./_components/FacturaGlobalPanel";
 export default function FacturasPage() {
   const {
     pedidos,
+    vendedores,
     cargando,
     error,
     pagina,
@@ -43,6 +45,8 @@ export default function FacturasPage() {
           numeroPedido={filtros.numeroPedido ?? ""}
           estado={filtros.estado ?? ""}
           metodoPago={filtros.metodoPago ?? ""}
+          vendedorId={filtros.vendedorId ?? ""}
+          vendedores={vendedoresParaFiltro(vendedores)}
           fechaDesde={filtros.fechaDesde ?? ""}
           fechaHasta={filtros.fechaHasta ?? ""}
           requiereCorreccion={filtros.requiereCorreccion ?? ""}

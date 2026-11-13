@@ -8,6 +8,11 @@ import { Paginador } from "./Paginador";
 import { Button } from "@/components/ui/Button";
 import { fetchAtributosConValores } from "@/lib/services/atributos";
 import { descargarCSV } from "@/lib/utils/csv";
+import {
+  indexarVendedores,
+  nombreVendedor,
+  vendedoresParaFiltro,
+} from "@/lib/services/vendedores";
 import type { Atributo, AtributoValor } from "@/lib/supabase/types";
 
 type AtributoConValores = Atributo & { valores: AtributoValor[] };
@@ -15,6 +20,7 @@ type AtributoConValores = Atributo & { valores: AtributoValor[] };
 export function HistorialPedidos() {
   const {
     pedidos,
+    vendedores,
     cargando,
     error,
     pagina,
@@ -39,12 +45,14 @@ export function HistorialPedidos() {
 
   function exportar() {
     if (pedidos.length === 0) return;
+    const nombres = indexarVendedores(vendedores);
     const filas = [
-      ["Pedido", "Cliente", "Teléfono", "Fecha entrega", "Hora", "Total", "Anticipo", "Pago", "Área", "Estado"],
+      ["Pedido", "Cliente", "Teléfono", "Vendedor", "Fecha entrega", "Hora", "Total", "Anticipo", "Pago", "Área", "Estado"],
       ...pedidos.map((p) => [
         p.numero_pedido,
         p.cliente_nombre,
         p.cliente_telefono,
+        nombreVendedor(p.cajero_id, nombres),
         p.fecha_entrega,
         p.hora_entrega,
         p.total,
@@ -80,6 +88,8 @@ export function HistorialPedidos() {
           numeroPedido={filtros.numeroPedido ?? ""}
           estado={filtros.estado ?? ""}
           metodoPago={filtros.metodoPago ?? ""}
+          vendedorId={filtros.vendedorId ?? ""}
+          vendedores={vendedoresParaFiltro(vendedores)}
           fechaDesde={filtros.fechaDesde ?? ""}
           fechaHasta={filtros.fechaHasta ?? ""}
           requiereCorreccion={filtros.requiereCorreccion ?? ""}
@@ -100,7 +110,12 @@ export function HistorialPedidos() {
           </div>
         ) : (
           <>
-            <TablaPedidos pedidos={pedidos} atributosPool={atributosPool} onEstadoCambiado={recargar} />
+            <TablaPedidos
+              pedidos={pedidos}
+              vendedores={vendedores}
+              atributosPool={atributosPool}
+              onEstadoCambiado={recargar}
+            />
             <Paginador
               pagina={pagina}
               hasMore={hasMore}
