@@ -100,6 +100,7 @@ export function renderTicketHtml(
       <tr><td style="font-weight:bold;">Fecha:</td><td>${esc(pedido.fecha_recepcion)} ${esc(pedido.hora_recepcion?.slice(0, 5))}</td></tr>
       <tr><td style="font-weight:bold;">Cliente:</td><td>${esc(pedido.cliente_nombre)}</td></tr>
       ${pedido.cliente_telefono ? `<tr><td style="font-weight:bold;">Tel:</td><td>${esc(pedido.cliente_telefono)}</td></tr>` : ""}
+      ${pedido.vendedor_nombre ? `<tr><td style="font-weight:bold;">Vendedor:</td><td>${esc(pedido.vendedor_nombre)}</td></tr>` : ""}
       <tr><td style="font-weight:bold;">Entrega:</td><td>${esc(pedido.fecha_entrega)} ${esc(pedido.hora_entrega?.slice(0, 5))}</td></tr>
     </table>
 

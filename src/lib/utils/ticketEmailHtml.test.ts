@@ -62,6 +62,19 @@ describe("renderTicketHtml", () => {
     expect(renderTicketHtml(pedido)).not.toContain("Ver ticket en línea");
   });
 
+  it("muestra el vendedor cuando está presente", () => {
+    const html = renderTicketHtml({
+      ...pedido,
+      vendedor_nombre: "Ana <b>Ventas</b>",
+    } as unknown as Pedido);
+    expect(html).toContain("Vendedor:");
+    expect(html).toContain("Ana &lt;b&gt;Ventas&lt;/b&gt;");
+  });
+
+  it("omite la línea de vendedor cuando no hay nombre", () => {
+    expect(renderTicketHtml(pedido)).not.toContain("Vendedor:");
+  });
+
   it("muestra PENDIENTE cuando hay saldo sin cobrar", () => {
     const html = renderTicketHtml(pedido);
     expect(html).toContain("PENDIENTE");

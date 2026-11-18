@@ -89,6 +89,18 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: "Pedido no encontrado" }, { status: 404 });
   }
 
+  if (pedido.cajero_id) {
+    const { data: vendedor } = await admin
+      .from("profiles")
+      .select("nombre")
+      .eq("id", pedido.cajero_id)
+      .maybeSingle();
+    pedido = {
+      ...pedido,
+      vendedor_nombre: vendedor?.nombre?.trim() || null,
+    };
+  }
+
   const emailOverride =
     typeof body.email === "string" ? body.email.trim() : "";
   const email = emailOverride || pedido.cliente_email;

@@ -329,6 +329,7 @@ function MostradorContent() {
           anticipo: draft.anticipo,
           total: draft.total,
           metodo_pago: draft.metodo_pago,
+          vendedor_nombre: profile?.nombre?.trim() || null,
           saldo_cobrado: false,
           detalle_pedidos: draft.lineas.map((linea, index) => ({
             id: `${queueId}-${index}`,

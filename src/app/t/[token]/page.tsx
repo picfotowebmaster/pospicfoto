@@ -6,6 +6,10 @@ import {
   esTokenValido,
   obtenerEnlaceValido,
 } from "@/lib/services/enlacesCompartidos";
+import {
+  resolverNombresVendedor,
+  type PerfilVendedor,
+} from "@/lib/utils/vendedorTicket";
 import type { EntidadEmisora, Pedido } from "@/lib/supabase/types";
 import { BotonImprimir } from "./BotonImprimir";
 
@@ -89,6 +93,14 @@ export default async function TicketPublicoPage({
       pedidos = data as unknown as Pedido[];
     }
   }
+
+  pedidos = await resolverNombresVendedor(pedidos, async (ids) => {
+    const { data } = await admin
+      .from("profiles")
+      .select("id, nombre")
+      .in("id", ids);
+    return (data ?? []) as PerfilVendedor[];
+  });
 
   let emisor: EntidadEmisora | null = null;
   if (pedido.entidad_emisora_id) {

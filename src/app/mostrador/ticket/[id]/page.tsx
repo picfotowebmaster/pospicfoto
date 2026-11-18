@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { TicketTemplate } from "@/components/ui/TicketTemplate";
 import { cancelarVenta, fetchPedido, liquidarSaldo } from "@/lib/services/pedidos";
@@ -15,6 +15,11 @@ import { puedeCancelarPedido } from "@/lib/utils/cancelacion";
 import { pedidoPagado } from "@/lib/utils/fiscal";
 import { fetchEntidadesPorIds } from "@/lib/services/entidadesEmisoras";
 import { facturacionHabilitada } from "@/lib/config/features";
+import {
+  idsVendedoresUnicos,
+  resolverNombresVendedor,
+  type PerfilVendedor,
+} from "@/lib/utils/vendedorTicket";
 import type {
   EntidadEmisora,
   MetodoPago,
@@ -41,6 +46,7 @@ export default function TicketPage() {
     pdfUrl: string | null;
     xmlUrl: string | null;
   } | null>(null);
+  const vendedoresConsultadosRef = useRef("");
 
   useEffect(() => {
     if (!id) return;
@@ -77,6 +83,35 @@ export default function TicketPage() {
       }
     })();
   }, [id]);
+
+  useEffect(() => {
+    const idsVendedores = idsVendedoresUnicos(pedidos);
+    if (idsVendedores.length === 0) return;
+
+    const clave = [...idsVendedores].sort().join(",");
+    if (vendedoresConsultadosRef.current === clave) return;
+
+    let activo = true;
+
+    resolverNombresVendedor(pedidos, async (ids) => {
+      const { data, error } = await supabase
+        .from("profiles")
+        .select("id, nombre")
+        .in("id", ids);
+      if (error) throw error;
+      return (data ?? []) as PerfilVendedor[];
+    })
+      .then((actualizados) => {
+        if (!activo) return;
+        vendedoresConsultadosRef.current = clave;
+        setPedidos(actualizados);
+      })
+      .catch(() => {});
+
+    return () => {
+      activo = false;
+    };
+  }, [pedidos]);
 
   useEffect(() => {
     const ids = pedidos

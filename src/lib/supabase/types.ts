@@ -199,6 +199,7 @@ export interface Cliente {
 export interface Pedido {
   id: string;
   cajero_id: string | null;
+  vendedor_nombre?: string | null;
   cliente_id?: string | null;
   cliente_nombre: string;
   cliente_telefono: string | null;

@@ -27,6 +27,7 @@ export interface TicketPedido {
   saldo_cobrado?: boolean | null;
   saldo_metodo_pago?: string | null;
   saldo_cobrado_en?: string | null;
+  vendedor_nombre?: string | null;
   detalle_pedidos?: TicketDetalle[];
 }
 
@@ -111,6 +112,11 @@ export function TicketTemplate({ pedido, emisor, nota }: TicketTemplateProps) {
         {pedido.cliente_telefono && (
           <div>
             <span className="font-bold">Tel:</span> {pedido.cliente_telefono}
+          </div>
+        )}
+        {pedido.vendedor_nombre && (
+          <div>
+            <span className="font-bold">Vendedor:</span> {pedido.vendedor_nombre}
           </div>
         )}
         <div>
