@@ -5,7 +5,7 @@ import { Button } from "@/components/ui/Button";
 import { ConfirmModal } from "@/components/ui/ConfirmModal";
 import { supabase } from "@/lib/supabase/client";
 import { useAuth } from "@/lib/hooks/useAuth";
-import { listarUsuarios, resetPassword, createUser, updateUserUbicacion, updateUserRol, type UsuarioRow } from "./actions";
+import { listarUsuarios, resetPassword, createUser, updateUserUbicacion, updateUserRol, deleteUser, type UsuarioRow } from "./actions";
 
 type MarcaOpcion = { id: string; nombre: string; codigo: string };
 type SucursalOpcion = { id: string; nombre: string; codigo: string };
@@ -401,6 +401,9 @@ export default function UsuariosPage() {
     usuario: UsuarioRow;
     nuevoRol: string;
   } | null>(null);
+  const [pendienteEliminar, setPendienteEliminar] = useState<UsuarioRow | null>(
+    null,
+  );
 
   const cargar = useCallback(async () => {
     setCargando(true);
@@ -474,6 +477,19 @@ export default function UsuariosPage() {
     } catch (err: unknown) {
       setError(
         err instanceof Error ? err.message : "Error al actualizar el rol."
+      );
+      await cargar();
+    }
+  }
+
+  async function eliminarUsuario(usuario: UsuarioRow) {
+    setError("");
+    try {
+      await deleteUser(usuario.id);
+      await cargar();
+    } catch (err: unknown) {
+      setError(
+        err instanceof Error ? err.message : "Error al eliminar el usuario.",
       );
       await cargar();
     }
@@ -667,13 +683,26 @@ export default function UsuariosPage() {
                         : "—"}
                     </td>
                     <td className="py-2 px-3 text-right">
-                      <Button
-                        size="sm"
-                        variant="danger"
-                        onClick={() => setModalUsuario(u)}
-                      >
-                        Reset
-                      </Button>
+                      <div className="flex justify-end gap-1.5">
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          onClick={() => setModalUsuario(u)}
+                        >
+                          Reset
+                        </Button>
+                        {u.id !== currentUserId &&
+                          (esSuperadmin || u.rol !== "superadmin") && (
+                            <Button
+                              size="sm"
+                              variant="danger"
+                              onClick={() => setPendienteEliminar(u)}
+                            >
+                              <i className="fas fa-trash-can mr-1" />
+                              Eliminar
+                            </Button>
+                          )}
+                      </div>
                     </td>
                   </tr>
                 ))}
@@ -733,6 +762,27 @@ export default function UsuariosPage() {
           aplicarCambioRol(usuario, nuevoRol);
         }}
         onCancel={() => setPendienteRol(null)}
+      />
+
+      <ConfirmModal
+        open={pendienteEliminar !== null}
+        title="Eliminar usuario"
+        message={
+          pendienteEliminar
+            ? `¿Eliminar permanentemente a ${
+                pendienteEliminar.email ?? "este usuario"
+              }? Esta acción no se puede deshacer. Sus pedidos se conservarán, pero quedarán sin vendedor asignado.`
+            : ""
+        }
+        confirmLabel="Eliminar"
+        variant="danger"
+        onConfirm={() => {
+          if (!pendienteEliminar) return;
+          const usuario = pendienteEliminar;
+          setPendienteEliminar(null);
+          void eliminarUsuario(usuario);
+        }}
+        onCancel={() => setPendienteEliminar(null)}
       />
     </div>
   );

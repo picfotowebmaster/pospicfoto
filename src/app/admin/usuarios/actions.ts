@@ -140,6 +140,59 @@ export async function resetPassword(userId: string, newPassword: string) {
   return { success: true };
 }
 
+export async function deleteUser(userId: string) {
+  const { id: currentUserId, rol: currentRol } =
+    await obtenerPerfilAutenticado();
+
+  if (!["admin", "superadmin"].includes(currentRol)) {
+    throw new Error("No autorizado");
+  }
+
+  if (userId === currentUserId) {
+    throw new Error("No puedes eliminar tu propia cuenta.");
+  }
+
+  const client = createAdminClient();
+
+  const { data: target, error: targetError } = await client
+    .from("profiles")
+    .select("rol")
+    .eq("id", userId)
+    .maybeSingle();
+
+  if (targetError) throw new Error(targetError.message);
+  if (!target) throw new Error("Usuario no encontrado.");
+
+  if (target.rol === "superadmin") {
+    if (currentRol !== "superadmin") {
+      throw new Error("Solo un superadmin puede eliminar a otro superadmin.");
+    }
+
+    const { count, error: countError } = await client
+      .from("profiles")
+      .select("id", { count: "exact", head: true })
+      .eq("rol", "superadmin");
+
+    if (countError) throw new Error(countError.message);
+    if ((count ?? 0) <= 1) {
+      throw new Error("No puedes eliminar al último superadmin.");
+    }
+  }
+
+  const { error } = await client.auth.admin.deleteUser(userId);
+
+  if (error) {
+    if (error.message.toLowerCase().includes("foreign key")) {
+      throw new Error(
+        "El usuario tiene registros asociados. Aplica la migración 067 para poder eliminarlo.",
+      );
+    }
+    throw new Error(error.message);
+  }
+
+  return { success: true };
+}
+
 async function resolverEntidadEmisora(
   client: ReturnType<typeof createAdminClient>,
   marcaId: string,
