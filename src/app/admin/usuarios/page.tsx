@@ -5,6 +5,10 @@ import { Button } from "@/components/ui/Button";
 import { ConfirmModal } from "@/components/ui/ConfirmModal";
 import { supabase } from "@/lib/supabase/client";
 import { useAuth } from "@/lib/hooks/useAuth";
+import {
+  esVersionDesactualizada,
+  mensajeErrorUsuario,
+} from "@/lib/utils/versionSkew";
 import { listarUsuarios, resetPassword, createUser, updateUserUbicacion, updateUserRol, deleteUser, type UsuarioRow } from "./actions";
 
 type MarcaOpcion = { id: string; nombre: string; codigo: string };
@@ -63,6 +67,7 @@ function ResetModal({
   const [nuevaPassword, setNuevaPassword] = useState("");
   const [confirmar, setConfirmar] = useState("");
   const [error, setError] = useState("");
+  const [requiereRecarga, setRequiereRecarga] = useState(false);
   const [cargando, setCargando] = useState(false);
   const [exito, setExito] = useState(false);
 
@@ -84,9 +89,8 @@ function ResetModal({
       await resetPassword(usuario.id, nuevaPassword);
       setExito(true);
     } catch (err: unknown) {
-      setError(
-        err instanceof Error ? err.message : "Error al cambiar la contraseña."
-      );
+      setRequiereRecarga(esVersionDesactualizada(err));
+      setError(mensajeErrorUsuario(err, "Error al cambiar la contraseña."));
     }
     setCargando(false);
   }
@@ -121,6 +125,17 @@ function ResetModal({
             <div className="bg-red-50 text-red-600 text-sm px-3 py-2 rounded-lg">
               {error}
             </div>
+          )}
+
+          {requiereRecarga && (
+            <Button
+              type="button"
+              variant="ghost"
+              className="w-full"
+              onClick={() => window.location.reload()}
+            >
+              Recargar aplicación
+            </Button>
           )}
 
           <div>
@@ -201,6 +216,7 @@ function CreateModal({
       "",
   );
   const [error, setError] = useState("");
+  const [requiereRecarga, setRequiereRecarga] = useState(false);
   const [cargando, setCargando] = useState(false);
 
   const requiereEntidad = ["mostrador", "admin", "superadmin"].includes(rol);
@@ -238,9 +254,8 @@ function CreateModal({
       });
       onDone();
     } catch (err: unknown) {
-      setError(
-        err instanceof Error ? err.message : "Error al crear el usuario."
-      );
+      setRequiereRecarga(esVersionDesactualizada(err));
+      setError(mensajeErrorUsuario(err, "Error al crear el usuario."));
     }
     setCargando(false);
   }
@@ -255,6 +270,17 @@ function CreateModal({
             <div className="bg-red-50 text-red-600 text-sm px-3 py-2 rounded-lg">
               {error}
             </div>
+          )}
+
+          {requiereRecarga && (
+            <Button
+              type="button"
+              variant="ghost"
+              className="w-full"
+              onClick={() => window.location.reload()}
+            >
+              Recargar aplicación
+            </Button>
           )}
 
           <div>
@@ -392,6 +418,7 @@ export default function UsuariosPage() {
   const [usuarios, setUsuarios] = useState<UsuarioRow[]>([]);
   const [cargando, setCargando] = useState(true);
   const [error, setError] = useState("");
+  const [requiereRecarga, setRequiereRecarga] = useState(false);
   const [modalUsuario, setModalUsuario] = useState<UsuarioRow | null>(null);
   const [showCreate, setShowCreate] = useState(false);
   const [marcas, setMarcas] = useState<MarcaOpcion[]>([]);
@@ -412,9 +439,8 @@ export default function UsuariosPage() {
       const data = await listarUsuarios();
       setUsuarios(data);
     } catch (err: unknown) {
-      setError(
-        err instanceof Error ? err.message : "Error al cargar usuarios."
-      );
+      setRequiereRecarga(esVersionDesactualizada(err));
+      setError(mensajeErrorUsuario(err, "Error al cargar usuarios."));
     }
     setCargando(false);
   }, []);
@@ -430,10 +456,9 @@ export default function UsuariosPage() {
         await updateUserUbicacion(usuario.id, null, null);
         await cargar();
       } catch (err: unknown) {
+        setRequiereRecarga(esVersionDesactualizada(err));
         setError(
-          err instanceof Error
-            ? err.message
-            : "Error al actualizar la ubicación.",
+          mensajeErrorUsuario(err, "Error al actualizar la ubicación."),
         );
         await cargar();
       }
@@ -462,8 +487,9 @@ export default function UsuariosPage() {
       await updateUserUbicacion(usuario.id, marcaFinal, sucursalFinal);
       await cargar();
     } catch (err: unknown) {
+      setRequiereRecarga(esVersionDesactualizada(err));
       setError(
-        err instanceof Error ? err.message : "Error al actualizar la ubicación.",
+        mensajeErrorUsuario(err, "Error al actualizar la ubicación."),
       );
       await cargar();
     }
@@ -475,9 +501,8 @@ export default function UsuariosPage() {
       await updateUserRol(usuario.id, nuevoRol);
       await cargar();
     } catch (err: unknown) {
-      setError(
-        err instanceof Error ? err.message : "Error al actualizar el rol."
-      );
+      setRequiereRecarga(esVersionDesactualizada(err));
+      setError(mensajeErrorUsuario(err, "Error al actualizar el rol."));
       await cargar();
     }
   }
@@ -488,9 +513,8 @@ export default function UsuariosPage() {
       await deleteUser(usuario.id);
       await cargar();
     } catch (err: unknown) {
-      setError(
-        err instanceof Error ? err.message : "Error al eliminar el usuario.",
-      );
+      setRequiereRecarga(esVersionDesactualizada(err));
+      setError(mensajeErrorUsuario(err, "Error al eliminar el usuario."));
       await cargar();
     }
   }
@@ -517,8 +541,10 @@ export default function UsuariosPage() {
         if (!ignore) setUsuarios(data);
       })
       .catch((err: unknown) => {
-        if (!ignore)
-          setError(err instanceof Error ? err.message : "Error al cargar usuarios.");
+        if (!ignore) {
+          setRequiereRecarga(esVersionDesactualizada(err));
+          setError(mensajeErrorUsuario(err, "Error al cargar usuarios."));
+        }
       })
       .finally(() => {
         if (!ignore) setCargando(false);
@@ -579,6 +605,16 @@ export default function UsuariosPage() {
           <div className="bg-red-50 text-red-600 text-sm px-3 py-2 rounded-lg">
             {error}
           </div>
+        )}
+
+        {requiereRecarga && (
+          <Button
+            size="sm"
+            variant="ghost"
+            onClick={() => window.location.reload()}
+          >
+            Recargar aplicación
+          </Button>
         )}
 
         {cargando ? (

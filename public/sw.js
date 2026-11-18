@@ -1,4 +1,4 @@
-const CACHE_NAME = "picphoto-v4";
+const CACHE_NAME = "picphoto-v5";
 const ASSET_PATTERN = /\.(woff2?|ttf|eot|svg|png|jpg|jpeg|gif|webp|ico)$/;
 
 self.addEventListener("install", (event) => {
