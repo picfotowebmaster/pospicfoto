@@ -45,7 +45,7 @@ describe("obtenerPedidosReporte", () => {
 
     expect(supabase.from).toHaveBeenCalledWith("pedidos");
     expect(builder.or).toHaveBeenCalledWith(
-      "and(fecha_recepcion.gte.2026-11-01,fecha_recepcion.lte.2026-11-30),and(saldo_cobrado_en.gte.2026-11-01T00:00:00-06:00,saldo_cobrado_en.lte.2026-11-30T23:59:59.999-06:00)",
+      "and(fecha_recepcion.gte.2026-11-01,fecha_recepcion.lte.2026-11-30),and(saldo_cobrado_en.gte.2026-11-01T00:00:00-06:00,saldo_cobrado_en.lte.2026-11-30T23:59:59.999-06:00),and(reembolso_realizado_en.gte.2026-11-01T00:00:00-06:00,reembolso_realizado_en.lte.2026-11-30T23:59:59.999-06:00)",
     );
     expect(builder.range).toHaveBeenCalledWith(0, 999);
     expect(resultado).toEqual([pedido]);
@@ -69,6 +69,28 @@ describe("obtenerPedidosReporte", () => {
     );
 
     expect(builder.eq).toHaveBeenCalledWith("sucursal_id", "suc-1");
+  });
+
+  it("filtra por marca cuando se indica", async () => {
+    const builder = {
+      select: vi.fn().mockReturnThis(),
+      or: vi.fn().mockReturnThis(),
+      eq: vi.fn().mockReturnThis(),
+      order: vi.fn().mockReturnThis(),
+      range: vi.fn().mockResolvedValue({ data: [pedido], error: null }),
+    };
+    vi.mocked(supabase.from).mockReturnValue(
+      builder as unknown as ReturnType<typeof supabase.from>,
+    );
+
+    await obtenerPedidosReporte(
+      { desde: "2026-11-01", hasta: "2026-11-30" },
+      "suc-1",
+      "mar-1",
+    );
+
+    expect(builder.eq).toHaveBeenCalledWith("sucursal_id", "suc-1");
+    expect(builder.eq).toHaveBeenCalledWith("marca_id", "mar-1");
   });
 
   it("propaga errores de la consulta", async () => {

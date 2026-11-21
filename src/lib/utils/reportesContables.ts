@@ -11,6 +11,8 @@ export interface PedidoReporteContable {
   cliente_nombre: string;
   cliente_rfc?: string | null;
   cajero_id?: string | null;
+  sucursal_id?: string | null;
+  marca_id?: string | null;
   fecha_recepcion: string;
   estado?: string | null;
   subtotal?: number | null;
@@ -21,6 +23,10 @@ export interface PedidoReporteContable {
   saldo_metodo_pago?: string | null;
   saldo_cobrado_en?: string | null;
   saldo_cobrado_por?: string | null;
+  reembolso_estado?: string | null;
+  reembolso_monto?: number | null;
+  reembolso_realizado_en?: string | null;
+  reembolso_realizado_por?: string | null;
   factura_folio?: string | null;
   factura_uuid?: string | null;
   factura_estado?: string | null;
@@ -32,13 +38,17 @@ export interface MovimientoContable {
   numeroPedido: string | null;
   clienteNombre: string;
   clienteRfc: string | null;
+  sucursalId: string | null;
+  sucursalNombre: string;
+  marcaId: string | null;
+  marcaNombre: string;
   vendedorId: string | null;
   vendedorNombre: string;
   cobradoPorId: string | null;
   cobradoPorNombre: string;
   fechaVenta: string;
   fechaCobro: string;
-  tipo: "Anticipo" | "Saldo";
+  tipo: "Anticipo" | "Saldo" | "Reembolso";
   metodoPago: string;
   importe: number;
   subtotal: number;
@@ -58,9 +68,18 @@ export interface ResumenVendedor {
   cobrado: number;
 }
 
+export interface ResumenCobrador {
+  cobradorId: string | null;
+  cobradorNombre: string;
+  movimientos: number;
+  cobrado: number;
+}
+
 export interface OpcionesReporteContable {
   vendedorId?: string;
   nombresVendedores?: Map<string, string>;
+  nombresSucursales?: Map<string, string>;
+  nombresMarcas?: Map<string, string>;
 }
 
 export interface MovimientoDiaReporte {
@@ -74,16 +93,20 @@ export interface MovimientoDiaReporte {
 export interface ReporteContable {
   totalVendido: number;
   totalCobrado: number;
+  totalReembolsado: number;
   saldoPendiente: number;
   totalPedidos: number;
   ticketPromedio: number;
   porDia: MovimientoDiaReporte[];
   movimientos: MovimientoContable[];
   porVendedor: ResumenVendedor[];
+  porCobrador: ResumenCobrador[];
   cobradoPorMetodo: { metodo_pago: string; count: number; total: number }[];
 }
 
 const TASA_IVA = 0.16;
+const SIN_SUCURSAL = "Sin sucursal";
+const SIN_MARCA = "Sin marca";
 
 function redondear2(valor: number): number {
   return Math.round(valor * 100) / 100;
@@ -147,13 +170,18 @@ export function construirReporteContable(
 ): ReporteContable {
   const vendedorFiltro = opciones.vendedorId ?? "";
   const nombres = opciones.nombresVendedores ?? new Map<string, string>();
+  const nombresSucursales =
+    opciones.nombresSucursales ?? new Map<string, string>();
+  const nombresMarcas = opciones.nombresMarcas ?? new Map<string, string>();
   const dias = new Map<string, MovimientoDiaReporte>();
   const metodos = new Map<string, { count: number; total: number }>();
   const vendedores = new Map<string, ResumenVendedor>();
+  const cobradores = new Map<string, ResumenCobrador>();
   const movimientos: MovimientoContable[] = [];
 
   let totalVendido = 0;
   let totalCobrado = 0;
+  let totalReembolsado = 0;
   let totalSaldoPendiente = 0;
   let totalPedidos = 0;
 
@@ -176,6 +204,18 @@ export function construirReporteContable(
     return actual;
   }
 
+  function entradaCobrador(id: string | null): ResumenCobrador {
+    const clave = id ?? "sin_cobrador";
+    const actual = cobradores.get(clave) ?? {
+      cobradorId: id,
+      cobradorNombre: nombreDe(id, nombres, "Sin registro"),
+      movimientos: 0,
+      cobrado: 0,
+    };
+    cobradores.set(clave, actual);
+    return actual;
+  }
+
   function dia(fecha: string): MovimientoDiaReporte {
     const actual = dias.get(fecha) ?? {
       fecha,
@@ -190,7 +230,7 @@ export function construirReporteContable(
 
   function sumarCobro(
     pedido: PedidoReporteContable,
-    tipo: "Anticipo" | "Saldo",
+    tipo: "Anticipo" | "Saldo" | "Reembolso",
     fechaCobro: string,
     metodo: string,
     importe: number,
@@ -198,24 +238,31 @@ export function construirReporteContable(
     desglose: { subtotal: number; iva: number },
   ) {
     const redondeado = redondear2(importe);
+    const esReembolso = tipo === "Reembolso";
     totalCobrado = redondear2(totalCobrado + redondeado);
 
     const diaActual = dia(fechaCobro);
     diaActual.cobrado = redondear2(diaActual.cobrado + redondeado);
 
-    const metodoActual = metodos.get(metodo) ?? { count: 0, total: 0 };
-    metodoActual.count += 1;
-    metodoActual.total = redondear2(metodoActual.total + redondeado);
-    metodos.set(metodo, metodoActual);
+    if (esReembolso) {
+      totalReembolsado = redondear2(totalReembolsado + Math.abs(redondeado));
+    } else {
+      const metodoActual = metodos.get(metodo) ?? { count: 0, total: 0 };
+      metodoActual.count += 1;
+      metodoActual.total = redondear2(metodoActual.total + redondeado);
+      metodos.set(metodo, metodoActual);
+    }
 
     const vendedorId = pedido.cajero_id ?? null;
     const vendedorNombre = nombreDe(vendedorId, nombres, "Sin vendedor");
-    const cobradoPorId =
-      tipo === "Anticipo"
+    const cobradoPorId = esReembolso
+      ? (pedido.reembolso_realizado_por ?? null)
+      : tipo === "Anticipo"
         ? vendedorId
         : (pedido.saldo_cobrado_por ?? null);
-    const cobradoPorNombre =
-      tipo === "Anticipo"
+    const cobradoPorNombre = esReembolso
+      ? nombreDe(cobradoPorId, nombres, "Sin registro")
+      : tipo === "Anticipo"
         ? vendedorNombre
         : nombreDe(cobradoPorId, nombres, "Sin registro");
 
@@ -224,11 +271,29 @@ export function construirReporteContable(
       resumenVendedor.cobrado + redondeado,
     );
 
+    const resumenCobrador = entradaCobrador(cobradoPorId);
+    resumenCobrador.movimientos += 1;
+    resumenCobrador.cobrado = redondear2(
+      resumenCobrador.cobrado + redondeado,
+    );
+
     movimientos.push({
       pedidoId: pedido.id,
       numeroPedido: pedido.numero_pedido ?? null,
       clienteNombre: pedido.cliente_nombre,
       clienteRfc: pedido.cliente_rfc ?? null,
+      sucursalId: pedido.sucursal_id ?? null,
+      sucursalNombre: nombreDe(
+        pedido.sucursal_id ?? null,
+        nombresSucursales,
+        SIN_SUCURSAL,
+      ),
+      marcaId: pedido.marca_id ?? null,
+      marcaNombre: nombreDe(
+        pedido.marca_id ?? null,
+        nombresMarcas,
+        SIN_MARCA,
+      ),
       vendedorId,
       vendedorNombre,
       cobradoPorId,
@@ -249,8 +314,7 @@ export function construirReporteContable(
   }
 
   for (const pedido of pedidos) {
-    if (pedido.estado === "cancelado") continue;
-
+    const cancelado = pedido.estado === "cancelado";
     const total = redondear2(Number(pedido.total ?? 0));
     const anticipo = redondear2(Number(pedido.anticipo ?? 0));
     const saldo = Math.max(0, redondear2(total - anticipo));
@@ -259,7 +323,7 @@ export function construirReporteContable(
     const coincide = coincideMetodo(pedido, metodoPago);
     const coincideV = coincideVendedor(pedido);
 
-    if (vendidoEnRango && coincide && coincideV) {
+    if (!cancelado && vendidoEnRango && coincide && coincideV) {
       totalVendido = redondear2(totalVendido + total);
       totalPedidos += 1;
       const resumenVendedor = entradaVendedor(pedido.cajero_id ?? null);
@@ -321,6 +385,27 @@ export function construirReporteContable(
         );
       }
     }
+
+    const reembolso = redondear2(Number(pedido.reembolso_monto ?? 0));
+    if (
+      reembolso > 0.01 &&
+      pedido.reembolso_estado === "realizado" &&
+      !metodoPago &&
+      coincideV
+    ) {
+      const fechaReembolso = fechaDia(pedido.reembolso_realizado_en);
+      if (dentroDeRango(fechaReembolso, rango)) {
+        sumarCobro(
+          pedido,
+          "Reembolso",
+          fechaReembolso,
+          "Reembolso",
+          -reembolso,
+          total,
+          desglose,
+        );
+      }
+    }
   }
 
   movimientos.sort((a, b) => {
@@ -334,6 +419,7 @@ export function construirReporteContable(
   return {
     totalVendido,
     totalCobrado,
+    totalReembolsado,
     saldoPendiente: totalSaldoPendiente,
     totalPedidos,
     ticketPromedio:
@@ -343,6 +429,10 @@ export function construirReporteContable(
     porVendedor: [...vendedores.values()].sort((a, b) => {
       if (b.vendido !== a.vendido) return b.vendido - a.vendido;
       return a.vendedorNombre.localeCompare(b.vendedorNombre);
+    }),
+    porCobrador: [...cobradores.values()].sort((a, b) => {
+      if (b.cobrado !== a.cobrado) return b.cobrado - a.cobrado;
+      return a.cobradorNombre.localeCompare(b.cobradorNombre);
     }),
     cobradoPorMetodo: [...metodos.entries()]
       .map(([metodo_pago, datos]) => ({ metodo_pago, ...datos }))

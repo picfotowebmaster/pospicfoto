@@ -16,6 +16,15 @@ import {
   vendedoresParaFiltro,
   type Vendedor,
 } from "@/lib/services/vendedores";
+import {
+  indexarSucursales,
+  listarSucursales,
+} from "@/lib/services/sucursales";
+import {
+  indexarMarcas,
+  listarMarcas,
+} from "@/lib/services/marcas";
+import type { Marca, Sucursal } from "@/lib/supabase/types";
 
 interface OpcionesReportesContables {
   sucursalFijo?: string | null;
@@ -33,16 +42,25 @@ export function useReportesContables(
   const [metodoPago, setMetodoPagoState] = useState("");
   const [vendedorId, setVendedorIdState] = useState("");
   const [vendedores, setVendedores] = useState<Vendedor[]>([]);
+  const [sucursales, setSucursales] = useState<Sucursal[]>([]);
+  const [marcas, setMarcas] = useState<Marca[]>([]);
+  const [sucursalSeleccionada, setSucursalSeleccionadaState] = useState("");
+  const [marcaSeleccionada, setMarcaSeleccionadaState] = useState("");
   const [pedidos, setPedidos] = useState<PedidoReporteContable[]>([]);
   const [cargando, setCargando] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [trigger, setTrigger] = useState(0);
 
+  const sucursalEfectiva = restringido
+    ? (sucursalFijo ?? null)
+    : sucursalSeleccionada || null;
+  const marcaEfectiva = restringido ? null : marcaSeleccionada || null;
+
   useEffect(() => {
     if (sinSucursal) return;
     let ignore = false;
 
-    listarVendedores(sucursalFijo ?? undefined)
+    listarVendedores(sucursalEfectiva ?? undefined)
       .then((data) => {
         if (!ignore) setVendedores(data);
       })
@@ -51,7 +69,28 @@ export function useReportesContables(
     return () => {
       ignore = true;
     };
-  }, [sucursalFijo, sinSucursal]);
+  }, [sucursalEfectiva, sinSucursal]);
+
+  useEffect(() => {
+    if (restringido) return;
+    let ignore = false;
+
+    listarSucursales()
+      .then((data) => {
+        if (!ignore) setSucursales(data);
+      })
+      .catch(() => {});
+
+    listarMarcas()
+      .then((data) => {
+        if (!ignore) setMarcas(data);
+      })
+      .catch(() => {});
+
+    return () => {
+      ignore = true;
+    };
+  }, [restringido]);
 
   const rango = useMemo(
     () =>
@@ -72,7 +111,8 @@ export function useReportesContables(
 
     obtenerPedidosReporte(
       { desde: rango.desde, hasta: rango.hasta },
-      sucursalFijo ?? undefined,
+      sucursalEfectiva ?? undefined,
+      marcaEfectiva ?? undefined,
     )
       .then((data) => {
         if (ignore) return;
@@ -94,20 +134,47 @@ export function useReportesContables(
     return () => {
       ignore = true;
     };
-  }, [rango.desde, rango.hasta, rangoValido, trigger, sucursalFijo, sinSucursal]);
+  }, [
+    rango.desde,
+    rango.hasta,
+    rangoValido,
+    trigger,
+    sucursalEfectiva,
+    marcaEfectiva,
+    sinSucursal,
+  ]);
 
   const nombresVendedores = useMemo(
     () => indexarVendedores(vendedores),
     [vendedores],
   );
 
+  const nombresSucursales = useMemo(
+    () => indexarSucursales(sucursales),
+    [sucursales],
+  );
+
+  const nombresMarcas = useMemo(() => indexarMarcas(marcas), [marcas]);
+
+  const vendedorEfectivo = restringido ? "" : vendedorId;
+
   const reporte = useMemo(
     () =>
       construirReporteContable(pedidos, rango, metodoPago, {
-        vendedorId,
+        vendedorId: vendedorEfectivo,
         nombresVendedores,
+        nombresSucursales,
+        nombresMarcas,
       }),
-    [pedidos, rango, metodoPago, vendedorId, nombresVendedores],
+    [
+      pedidos,
+      rango,
+      metodoPago,
+      vendedorEfectivo,
+      nombresVendedores,
+      nombresSucursales,
+      nombresMarcas,
+    ],
   );
 
   const setPeriodo = useCallback(
@@ -162,6 +229,28 @@ export function useReportesContables(
     setVendedorIdState(valor);
   }, []);
 
+  const setSucursalSeleccionada = useCallback(
+    (valor: string) => {
+      if (restringido) return;
+      setSucursalSeleccionadaState(valor);
+      setVendedorIdState("");
+      setError(null);
+      setCargando(rangoValido);
+    },
+    [restringido, rangoValido],
+  );
+
+  const setMarcaSeleccionada = useCallback(
+    (valor: string) => {
+      if (restringido) return;
+      setMarcaSeleccionadaState(valor);
+      setVendedorIdState("");
+      setError(null);
+      setCargando(rangoValido);
+    },
+    [restringido, rangoValido],
+  );
+
   const recargar = useCallback(() => {
     if (!rangoValido || sinSucursal) return;
     setCargando(true);
@@ -181,6 +270,14 @@ export function useReportesContables(
     vendedorId,
     setVendedorId,
     vendedores: vendedoresParaFiltro(vendedores),
+    sucursales,
+    sucursalSeleccionada,
+    setSucursalSeleccionada,
+    sucursalEfectiva,
+    marcas,
+    marcaSeleccionada,
+    setMarcaSeleccionada,
+    marcaEfectiva,
     rango,
     rangoValido,
     reporte,

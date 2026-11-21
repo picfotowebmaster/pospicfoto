@@ -15,6 +15,7 @@ import {
   ETIQUETAS_PERIODO,
   type PeriodoKey,
 } from "@/lib/utils/periodos";
+import { ZONA_NEGOCIO } from "@/lib/utils/fechas";
 import {
   filasMovimientosContables,
   filasResumenContable,
@@ -82,7 +83,7 @@ export function ReportesContables({
   sucursalId,
   sucursalNombre,
 }: ReportesContablesProps) {
-  const { signOut } = useAuth();
+  const { signOut, profile, session } = useAuth();
   const {
     periodo,
     setPeriodo,
@@ -95,6 +96,14 @@ export function ReportesContables({
     vendedorId,
     setVendedorId,
     vendedores,
+    sucursales,
+    sucursalSeleccionada,
+    setSucursalSeleccionada,
+    sucursalEfectiva,
+    marcas,
+    marcaSeleccionada,
+    setMarcaSeleccionada,
+    marcaEfectiva,
     rango,
     rangoValido,
     reporte,
@@ -105,6 +114,24 @@ export function ReportesContables({
     sucursalFijo: puedeVerTodo ? undefined : sucursalId,
     restringido: !puedeVerTodo,
   });
+
+  const sucursalEtiqueta = useMemo(() => {
+    if (!puedeVerTodo) return sucursalNombre ?? "Sin sucursal";
+    if (!sucursalEfectiva) return "Todas las sucursales";
+    return (
+      sucursales.find((sucursal) => sucursal.id === sucursalEfectiva)?.nombre ??
+      "Sucursal seleccionada"
+    );
+  }, [puedeVerTodo, sucursalNombre, sucursalEfectiva, sucursales]);
+
+  const marcaEtiqueta = useMemo(() => {
+    if (!puedeVerTodo) return null;
+    if (!marcaEfectiva) return "Todas las marcas";
+    return (
+      marcas.find((marca) => marca.id === marcaEfectiva)?.nombre ??
+      "Marca seleccionada"
+    );
+  }, [puedeVerTodo, marcaEfectiva, marcas]);
 
   const datosVentas = useMemo(
     () =>
@@ -130,6 +157,14 @@ export function ReportesContables({
     desde: rango.desde,
     hasta: rango.hasta,
     metodoPago,
+    sucursal: sucursalEtiqueta,
+    marca: marcaEtiqueta ?? undefined,
+    generadoEn: new Intl.DateTimeFormat("es-MX", {
+      dateStyle: "short",
+      timeStyle: "short",
+      timeZone: ZONA_NEGOCIO,
+    }).format(new Date()),
+    generadoPor: profile?.nombre || session?.user.email || "Sistema",
     vendedor:
       vendedorId === "sin_vendedor"
         ? "Sin vendedor"
@@ -141,17 +176,20 @@ export function ReportesContables({
           })(),
   };
 
+  const sufijoSucursal = slug(sucursalEtiqueta) || "todas";
+  const sufijoMarca = slug(marcaEtiqueta ?? "") || "todas";
+  const sufijoMetodo = metodoPago ? `-${slug(metodoPago)}` : "";
+
   function exportarResumen() {
     descargarCSV(
-      `reporte-contable-resumen-${rango.desde}-${rango.hasta}.csv`,
+      `corte-${sufijoSucursal}-${sufijoMarca}${sufijoMetodo}-${rango.desde}-${rango.hasta}.csv`,
       filasResumenContable(reporte, meta),
     );
   }
 
   function exportarMovimientos() {
-    const metodo = metodoPago ? `-${slug(metodoPago)}` : "";
     descargarCSV(
-      `reporte-contable-movimientos${metodo}-${rango.desde}-${rango.hasta}.csv`,
+      `corte-movimientos-${sufijoSucursal}-${sufijoMarca}${sufijoMetodo}-${rango.desde}-${rango.hasta}.csv`,
       filasMovimientosContables(reporte.movimientos, meta),
     );
   }
@@ -220,6 +258,54 @@ export function ReportesContables({
               ))}
             </div>
 
+            {puedeVerTodo && (
+              <div>
+                <label
+                  htmlFor="reporte-sucursal"
+                  className="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1"
+                >
+                  Sucursal
+                </label>
+                <select
+                  id="reporte-sucursal"
+                  value={sucursalSeleccionada}
+                  onChange={(e) => setSucursalSeleccionada(e.target.value)}
+                  className="border border-gray-300 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-100 rounded-lg px-2.5 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                >
+                  <option value="">Todas las sucursales</option>
+                  {sucursales.map((sucursal) => (
+                    <option key={sucursal.id} value={sucursal.id}>
+                      {sucursal.nombre}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            )}
+
+            {puedeVerTodo && (
+              <div>
+                <label
+                  htmlFor="reporte-marca"
+                  className="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1"
+                >
+                  Marca
+                </label>
+                <select
+                  id="reporte-marca"
+                  value={marcaSeleccionada}
+                  onChange={(e) => setMarcaSeleccionada(e.target.value)}
+                  className="border border-gray-300 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-100 rounded-lg px-2.5 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                >
+                  <option value="">Todas las marcas</option>
+                  {marcas.map((marca) => (
+                    <option key={marca.id} value={marca.id}>
+                      {marca.nombre}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            )}
+
             <div>
               <label
                 htmlFor="reporte-metodo-pago"
@@ -242,28 +328,30 @@ export function ReportesContables({
               </select>
             </div>
 
-              <div>
-                <label
-                  htmlFor="reporte-vendedor"
-                  className="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1"
-                >
-                  Vendedor
-                </label>
-                <select
-                  id="reporte-vendedor"
-                  value={vendedorId}
-                  onChange={(e) => setVendedorId(e.target.value)}
-                  className="border border-gray-300 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-100 rounded-lg px-2.5 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-                >
-                  <option value="">Todos</option>
-                  {vendedores.map((vendedor) => (
-                    <option key={vendedor.id} value={vendedor.id}>
-                      {etiquetaVendedor(vendedor)}
-                    </option>
-                  ))}
-                  <option value="sin_vendedor">Sin vendedor</option>
-                </select>
-              </div>
+              {puedeVerTodo && (
+                <div>
+                  <label
+                    htmlFor="reporte-vendedor"
+                    className="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1"
+                  >
+                    Vendedor
+                  </label>
+                  <select
+                    id="reporte-vendedor"
+                    value={vendedorId}
+                    onChange={(e) => setVendedorId(e.target.value)}
+                    className="border border-gray-300 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-100 rounded-lg px-2.5 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  >
+                    <option value="">Todos</option>
+                    {vendedores.map((vendedor) => (
+                      <option key={vendedor.id} value={vendedor.id}>
+                        {etiquetaVendedor(vendedor)}
+                      </option>
+                    ))}
+                    <option value="sin_vendedor">Sin vendedor</option>
+                  </select>
+                </div>
+              )}
           </div>
 
           {periodo === "personalizado" && (
@@ -307,11 +395,9 @@ export function ReportesContables({
           )}
 
           <p className="text-xs text-gray-500 dark:text-gray-400">
-            Periodo: {rango.desde} a {rango.hasta}
+            Periodo: {rango.desde} a {rango.hasta} · Sucursal: {sucursalEtiqueta}
+            {marcaEtiqueta ? ` · Marca: ${marcaEtiqueta}` : ""}
             {metodoPago ? ` · Método: ${metodoPago}` : ""}
-            {!puedeVerTodo && sucursalNombre
-              ? ` · Sucursal: ${sucursalNombre}`
-              : ""}
             {vendedorId && meta.vendedor !== "Todos"
               ? ` · Vendedor: ${meta.vendedor}`
               : ""}
@@ -377,6 +463,18 @@ export function ReportesContables({
                     </div>
                   </div>
 
+                  {reporte.totalReembolsado > 0 && (
+                    <p className="text-xs text-gray-500 dark:text-gray-400">
+                      Cobrado bruto:{" "}
+                      {formatoMoneda.format(
+                        reporte.totalCobrado + reporte.totalReembolsado,
+                      )}{" "}
+                      · Reembolsos:{" "}
+                      {formatoMoneda.format(reporte.totalReembolsado)} · Cobrado
+                      neto: {formatoMoneda.format(reporte.totalCobrado)}
+                    </p>
+                  )}
+
                   <div className="grid grid-cols-1 xl:grid-cols-2 gap-4">
                     <VentasChart
                       data={datosVentas}
@@ -393,6 +491,132 @@ export function ReportesContables({
                         data={reporte.cobradoPorMetodo}
                         titulo="Cobrado por método"
                       />
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-1 xl:grid-cols-2 gap-4">
+                    <div>
+                      <h3 className="text-sm font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide mb-2">
+                        Cobrado por método
+                      </h3>
+                      {reporte.cobradoPorMetodo.length === 0 ? (
+                        <div className="text-gray-400 dark:text-gray-500 text-sm text-center py-6">
+                          No hay cobros por método en este periodo.
+                        </div>
+                      ) : (
+                        <div className="overflow-auto border border-gray-200 dark:border-gray-700 rounded-lg">
+                          <table className="min-w-full text-sm">
+                            <thead className="bg-gray-50 dark:bg-gray-800">
+                              <tr className="text-left text-xs uppercase text-gray-500 dark:text-gray-400">
+                                <th className="px-3 py-2 font-medium">Método</th>
+                                <th className="px-3 py-2 font-medium text-right">
+                                  Movimientos
+                                </th>
+                                <th className="px-3 py-2 font-medium text-right">
+                                  Cobrado
+                                </th>
+                              </tr>
+                            </thead>
+                            <tbody className="divide-y divide-gray-100 dark:divide-gray-800">
+                              {reporte.cobradoPorMetodo.map((metodo) => (
+                                <tr key={metodo.metodo_pago}>
+                                  <td className="px-3 py-2 text-gray-700 dark:text-gray-300">
+                                    {metodo.metodo_pago}
+                                  </td>
+                                  <td className="px-3 py-2 text-right text-gray-600 dark:text-gray-400">
+                                    {metodo.count}
+                                  </td>
+                                  <td className="px-3 py-2 text-right text-gray-900 dark:text-gray-100 whitespace-nowrap">
+                                    {formatoMoneda.format(metodo.total)}
+                                  </td>
+                                </tr>
+                              ))}
+                              <tr className="bg-gray-50 dark:bg-gray-800 font-semibold">
+                                <td className="px-3 py-2 text-gray-700 dark:text-gray-300">
+                                  Totales
+                                </td>
+                                <td className="px-3 py-2 text-right text-gray-700 dark:text-gray-300">
+                                  {reporte.cobradoPorMetodo.reduce(
+                                    (suma, metodo) => suma + metodo.count,
+                                    0,
+                                  )}
+                                </td>
+                                <td className="px-3 py-2 text-right text-gray-900 dark:text-gray-100 whitespace-nowrap">
+                                  {formatoMoneda.format(
+                                    reporte.cobradoPorMetodo.reduce(
+                                      (suma, metodo) => suma + metodo.total,
+                                      0,
+                                    ),
+                                  )}
+                                </td>
+                              </tr>
+                            </tbody>
+                          </table>
+                        </div>
+                      )}
+                    </div>
+
+                    <div>
+                      <h3 className="text-sm font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide mb-2">
+                        Cobrado por cobrador
+                      </h3>
+                      {reporte.porCobrador.length === 0 ? (
+                        <div className="text-gray-400 dark:text-gray-500 text-sm text-center py-6">
+                          No hay cobros registrados en este periodo.
+                        </div>
+                      ) : (
+                        <div className="overflow-auto border border-gray-200 dark:border-gray-700 rounded-lg">
+                          <table className="min-w-full text-sm">
+                            <thead className="bg-gray-50 dark:bg-gray-800">
+                              <tr className="text-left text-xs uppercase text-gray-500 dark:text-gray-400">
+                                <th className="px-3 py-2 font-medium">Cobrador</th>
+                                <th className="px-3 py-2 font-medium text-right">
+                                  Movimientos
+                                </th>
+                                <th className="px-3 py-2 font-medium text-right">
+                                  Cobrado
+                                </th>
+                              </tr>
+                            </thead>
+                            <tbody className="divide-y divide-gray-100 dark:divide-gray-800">
+                              {reporte.porCobrador.map((cobrador) => (
+                                <tr key={cobrador.cobradorId ?? "sin_cobrador"}>
+                                  <td className="px-3 py-2 text-gray-700 dark:text-gray-300">
+                                    {cobrador.cobradorNombre}
+                                  </td>
+                                  <td className="px-3 py-2 text-right text-gray-600 dark:text-gray-400">
+                                    {cobrador.movimientos}
+                                  </td>
+                                  <td className="px-3 py-2 text-right text-gray-900 dark:text-gray-100 whitespace-nowrap">
+                                    {formatoMoneda.format(cobrador.cobrado)}
+                                  </td>
+                                </tr>
+                              ))}
+                              <tr className="bg-gray-50 dark:bg-gray-800 font-semibold">
+                                <td className="px-3 py-2 text-gray-700 dark:text-gray-300">
+                                  Totales
+                                </td>
+                                <td className="px-3 py-2 text-right text-gray-700 dark:text-gray-300">
+                                  {reporte.porCobrador.reduce(
+                                    (suma, cobrador) =>
+                                      suma + cobrador.movimientos,
+                                    0,
+                                  )}
+                                </td>
+                                <td className="px-3 py-2 text-right text-gray-900 dark:text-gray-100 whitespace-nowrap">
+                                  {formatoMoneda.format(
+                                    reporte.porCobrador.reduce(
+                                      (suma, cobrador) =>
+                                        suma + cobrador.cobrado,
+                                      0,
+                                    ),
+                                  )}
+                                </td>
+                              </tr>
+                            </tbody>
+                          </table>
+                        </div>
+                      )}
                     </div>
                   </div>
 
@@ -458,6 +682,8 @@ export function ReportesContables({
                           <thead className="bg-gray-50 dark:bg-gray-800 sticky top-0">
                             <tr className="text-left text-xs uppercase text-gray-500 dark:text-gray-400">
                               <th className="px-3 py-2 font-medium">Pedido</th>
+                              <th className="px-3 py-2 font-medium">Sucursal</th>
+                              <th className="px-3 py-2 font-medium">Marca</th>
                               <th className="px-3 py-2 font-medium">Fecha cobro</th>
                               <th className="px-3 py-2 font-medium">Cliente</th>
                               <th className="px-3 py-2 font-medium">Vendedor</th>
@@ -477,6 +703,12 @@ export function ReportesContables({
                               >
                                 <td className="px-3 py-2 font-mono text-xs text-gray-700 dark:text-gray-300 whitespace-nowrap">
                                   {movimiento.numeroPedido ?? "—"}
+                                </td>
+                                <td className="px-3 py-2 text-gray-600 dark:text-gray-400">
+                                  {movimiento.sucursalNombre}
+                                </td>
+                                <td className="px-3 py-2 text-gray-600 dark:text-gray-400">
+                                  {movimiento.marcaNombre}
                                 </td>
                                 <td className="px-3 py-2 text-gray-600 dark:text-gray-400 whitespace-nowrap">
                                   {movimiento.fechaCobro}
@@ -518,6 +750,12 @@ export function ReportesContables({
                     reporte.movimientos.length === 1 ? "" : "s"
                   } · ${reporte.totalPedidos} pedido${
                     reporte.totalPedidos === 1 ? "" : "s"
+                  }${
+                    reporte.totalReembolsado > 0
+                      ? ` · Reembolsos: ${formatoMoneda.format(
+                          reporte.totalReembolsado,
+                        )}`
+                      : ""
                   }`}
                 </p>
                 <div className="flex flex-wrap gap-2">
@@ -528,7 +766,7 @@ export function ReportesContables({
                     disabled={reporte.porDia.length === 0}
                   >
                     <i className="fas fa-file-csv mr-1" />
-                    Descargar resumen CSV
+                    Descargar corte CSV
                   </Button>
                   <Button
                     size="sm"

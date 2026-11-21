@@ -1,3 +1,5 @@
+import { fechaNegocio } from "./fechas";
+
 export interface PedidoReporte {
   fecha_recepcion: string;
   total: number | null;
@@ -35,7 +37,8 @@ function redondear2(valor: number): number {
 }
 
 function fechaDePago(fecha: string | null | undefined): string {
-  return (fecha ?? "").slice(0, 10);
+  if (!fecha) return "";
+  return fechaNegocio(fecha);
 }
 
 export function construirResumenReporte(

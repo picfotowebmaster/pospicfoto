@@ -37,17 +37,27 @@ function reporteVacio(overrides = {}) {
     vendedorId: "",
     setVendedorId: vi.fn(),
     vendedores: [],
+    sucursales: [],
+    sucursalSeleccionada: "",
+    setSucursalSeleccionada: vi.fn(),
+    sucursalEfectiva: null,
+    marcas: [],
+    marcaSeleccionada: "",
+    setMarcaSeleccionada: vi.fn(),
+    marcaEfectiva: null,
     rango: { desde: "2026-11-01", hasta: "2026-11-30" },
     rangoValido: true,
     reporte: {
       totalVendido: 999,
       totalCobrado: 888,
+      totalReembolsado: 0,
       saldoPendiente: 111,
       totalPedidos: 7,
       ticketPromedio: 142.71,
       porDia: [],
       movimientos: [],
       porVendedor: [],
+      porCobrador: [],
       cobradoPorMetodo: [],
     },
     cargando: false,
@@ -72,6 +82,10 @@ describe("ReportesContables", () => {
           numeroPedido: "PIC-CUB-00092",
           clienteNombre: "Baldemar Menchaca",
           clienteRfc: null,
+          sucursalId: "suc-1",
+          sucursalNombre: "Palma",
+          marcaId: "mar-1",
+          marcaNombre: "Picfoto",
           vendedorId: "u1",
           vendedorNombre: "Jesus",
           cobradoPorId: "u1",
@@ -112,8 +126,11 @@ describe("ReportesContables", () => {
     expect(screen.getByText("$126.00")).toBeInTheDocument();
     expect(screen.getByText(/Sucursal: Palma/i)).toBeInTheDocument();
     expect(screen.getByText(/Descargar movimientos CSV/i)).toBeInTheDocument();
-    expect(screen.getByText(/Descargar resumen CSV/i)).toBeInTheDocument();
+    expect(screen.getByText(/Descargar corte CSV/i)).toBeInTheDocument();
     expect(screen.queryByText("Mis ventas")).not.toBeInTheDocument();
+    expect(
+      screen.queryByLabelText(/Vendedor/i),
+    ).not.toBeInTheDocument();
   });
 
   it("muestra tarjetas y movimientos a admin y contador", () => {
@@ -132,5 +149,6 @@ describe("ReportesContables", () => {
     expect(screen.getByText("Vendido")).toBeInTheDocument();
     expect(screen.getByText("$999.00")).toBeInTheDocument();
     expect(screen.getByText("$888.00")).toBeInTheDocument();
+    expect(screen.getByLabelText(/Vendedor/i)).toBeInTheDocument();
   });
 });

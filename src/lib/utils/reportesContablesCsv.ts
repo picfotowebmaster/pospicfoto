@@ -10,20 +10,35 @@ export interface MetaReporteContable {
   hasta: string;
   metodoPago: string;
   vendedor?: string;
+  sucursal?: string;
+  marca?: string;
+  generadoEn?: string;
+  generadoPor?: string;
 }
 
 function filasMeta(meta: MetaReporteContable): CeldaCSV[][] {
   return [
-    ["Reporte contable"],
+    ["Reporte contable de corte"],
+    ["Sucursal", meta.sucursal || "Todas"],
+    ["Marca", meta.marca || "Todas"],
     ["Periodo", `${meta.desde} a ${meta.hasta}`],
     ["Método de pago", meta.metodoPago || "Todos"],
     ["Vendedor", meta.vendedor || "Todos"],
+    ["Generado", meta.generadoEn || ""],
+    ["Generado por", meta.generadoPor || ""],
     [],
   ];
 }
 
 function dinero(valor: number): string {
   return Number(valor).toFixed(2);
+}
+
+function filaTotales(columnas: number, indiceImporte: number, total: number): CeldaCSV[] {
+  const fila: CeldaCSV[] = Array(columnas).fill("");
+  fila[0] = "Totales";
+  fila[indiceImporte] = dinero(total);
+  return fila;
 }
 
 export function filasResumenContable(
@@ -48,6 +63,37 @@ export function filasResumenContable(
     ],
   );
 
+  const totalPedidosVendedor = reporte.porVendedor.reduce(
+    (suma, vendedor) => suma + vendedor.pedidos,
+    0,
+  );
+  const totalVendidoVendedor = reporte.porVendedor.reduce(
+    (suma, vendedor) => suma + vendedor.vendido,
+    0,
+  );
+  const totalCobradoVendedor = reporte.porVendedor.reduce(
+    (suma, vendedor) => suma + vendedor.cobrado,
+    0,
+  );
+
+  const totalMovimientosCobrador = reporte.porCobrador.reduce(
+    (suma, cobrador) => suma + cobrador.movimientos,
+    0,
+  );
+  const totalCobradoCobrador = reporte.porCobrador.reduce(
+    (suma, cobrador) => suma + cobrador.cobrado,
+    0,
+  );
+
+  const totalMovimientosMetodo = reporte.cobradoPorMetodo.reduce(
+    (suma, metodo) => suma + metodo.count,
+    0,
+  );
+  const totalCobradoMetodo = reporte.cobradoPorMetodo.reduce(
+    (suma, metodo) => suma + metodo.total,
+    0,
+  );
+
   return [
     ...filasMeta(meta),
     encabezado,
@@ -60,6 +106,10 @@ export function filasResumenContable(
       dinero(reporte.saldoPendiente),
     ],
     [],
+    ["Cobrado bruto", dinero(reporte.totalCobrado + reporte.totalReembolsado)],
+    ["Reembolsos realizados", dinero(reporte.totalReembolsado)],
+    ["Cobrado neto", dinero(reporte.totalCobrado)],
+    [],
     ["Resumen por vendedor"],
     ["Vendedor", "Pedidos", "Vendido", "Cobrado"],
     ...reporte.porVendedor.map((vendedor) => [
@@ -68,6 +118,38 @@ export function filasResumenContable(
       dinero(vendedor.vendido),
       dinero(vendedor.cobrado),
     ]),
+    [
+      "Totales",
+      totalPedidosVendedor,
+      dinero(totalVendidoVendedor),
+      dinero(totalCobradoVendedor),
+    ],
+    [],
+    ["Cobrado por cobrador"],
+    ["Cobrador", "Movimientos", "Cobrado"],
+    ...reporte.porCobrador.map((cobrador) => [
+      cobrador.cobradorNombre,
+      cobrador.movimientos,
+      dinero(cobrador.cobrado),
+    ]),
+    [
+      "Totales",
+      totalMovimientosCobrador,
+      dinero(totalCobradoCobrador),
+    ],
+    [],
+    ["Cobrado por método"],
+    ["Método", "Movimientos", "Cobrado"],
+    ...reporte.cobradoPorMetodo.map((metodo) => [
+      metodo.metodo_pago,
+      metodo.count,
+      dinero(metodo.total),
+    ]),
+    [
+      "Totales",
+      totalMovimientosMetodo,
+      dinero(totalCobradoMetodo),
+    ],
   ];
 }
 
@@ -77,6 +159,8 @@ export function filasMovimientosContables(
 ): CeldaCSV[][] {
   const encabezado: CeldaCSV[] = [
     "Pedido",
+    "Sucursal",
+    "Marca",
     "Cliente",
     "RFC",
     "Vendedor",
@@ -97,6 +181,8 @@ export function filasMovimientosContables(
 
   const filas: CeldaCSV[][] = movimientos.map((movimiento) => [
     movimiento.numeroPedido ?? movimiento.pedidoId,
+    movimiento.sucursalNombre,
+    movimiento.marcaNombre,
     movimiento.clienteNombre,
     movimiento.clienteRfc ?? "",
     movimiento.vendedorNombre,
@@ -120,14 +206,10 @@ export function filasMovimientosContables(
     0,
   );
 
-  const filaTotales: CeldaCSV[] = Array(encabezado.length).fill("");
-  filaTotales[0] = "Totales";
-  filaTotales[9] = dinero(totalImporte);
-
   return [
     ...filasMeta(meta),
     encabezado,
     ...filas,
-    filaTotales,
+    filaTotales(encabezado.length, 11, totalImporte),
   ];
 }

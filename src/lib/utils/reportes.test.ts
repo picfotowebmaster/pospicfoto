@@ -80,6 +80,24 @@ describe("construirResumenReporte", () => {
     ]);
   });
 
+  it("agrupa el cobro del saldo por fecha de México", () => {
+    const resumen = construirResumenReporte(
+      [
+        {
+          ...base,
+          saldo_cobrado: true,
+          saldo_metodo_pago: "Efectivo",
+          saldo_cobrado_en: "2026-11-13T02:00:00.000Z",
+        },
+      ],
+      "2026-11-01",
+    );
+
+    expect(resumen.cobradoPorDia).toEqual([
+      { fecha_recepcion: "2026-11-12", count: 1, total: 100 },
+    ]);
+  });
+
   it("ignora pedidos cancelados", () => {
     const resumen = construirResumenReporte(
       [{ ...base, estado: "cancelado", anticipo: 70 }],

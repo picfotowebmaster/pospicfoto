@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from "react";
 import dynamic from "next/dynamic";
+import Link from "next/link";
 import { supabase } from "@/lib/supabase/client";
 import { useToast } from "@/components/ui/Toast";
 import { PendientesTabla } from "./_components/PendientesTabla";
@@ -140,21 +141,29 @@ export default function ReportesPage() {
     <div className="max-w-6xl mx-auto p-4 space-y-6">
       <div className="flex items-center justify-between">
         <h2 className="font-semibold text-gray-700 dark:text-gray-300 text-sm uppercase">Reportes</h2>
-        <div className="flex gap-1 bg-gray-100 dark:bg-gray-800 rounded-lg p-1">
-          {PERIODOS.map((p) => (
-            <button
-              type="button"
-              key={p.key}
-              onClick={() => setPeriodo(p.key)}
-              className={`px-3 py-1.5 text-xs font-medium rounded-md transition-colors cursor-pointer ${
-                periodo === p.key
-                  ? "bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 shadow-sm"
-                  : "text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200"
-              }`}
-            >
-              {p.label}
-            </button>
-          ))}
+        <div className="flex items-center gap-2">
+          <div className="flex gap-1 bg-gray-100 dark:bg-gray-800 rounded-lg p-1">
+            {PERIODOS.map((p) => (
+              <button
+                type="button"
+                key={p.key}
+                onClick={() => setPeriodo(p.key)}
+                className={`px-3 py-1.5 text-xs font-medium rounded-md transition-colors cursor-pointer ${
+                  periodo === p.key
+                    ? "bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 shadow-sm"
+                    : "text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200"
+                }`}
+              >
+                {p.label}
+              </button>
+            ))}
+          </div>
+          <Link
+            href="/reportes"
+            className="px-3 py-1.5 text-xs font-medium rounded-md bg-blue-600 text-white hover:bg-blue-700 transition-colors"
+          >
+            Corte por tienda
+          </Link>
         </div>
       </div>
 

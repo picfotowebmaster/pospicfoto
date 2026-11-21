@@ -14,6 +14,8 @@ const pedido: PedidoReporteContable = {
   cliente_nombre: "Jessica Herrera",
   cliente_rfc: "XAXX010101000",
   cajero_id: "v1",
+  sucursal_id: "suc-1",
+  marca_id: "mar-1",
   fecha_recepcion: "2026-11-10",
   estado: "entregado",
   subtotal: 116,
@@ -41,23 +43,37 @@ const reporte = construirReporteContable(
     hasta: "2026-11-30",
   },
   "",
-  { nombresVendedores: nombres },
+  {
+    nombresVendedores: nombres,
+    nombresSucursales: new Map([["suc-1", "Palma"]]),
+    nombresMarcas: new Map([["mar-1", "Picfoto"]]),
+  },
 );
 
-describe("filasResumenContable", () => {
-  it("incluye metadatos, días, totales y resumen por vendedor", () => {
-    const filas = filasResumenContable(reporte, {
-      desde: "2026-11-01",
-      hasta: "2026-11-30",
-      metodoPago: "",
-      vendedor: "Todos",
-    });
+const meta = {
+  desde: "2026-11-01",
+  hasta: "2026-11-30",
+  metodoPago: "",
+  vendedor: "Todos",
+  sucursal: "Palma",
+  marca: "Picfoto",
+  generadoEn: "20/11/2026, 10:30",
+  generadoPor: "Jessica Herrera",
+};
 
-    expect(filas[0]).toEqual(["Reporte contable"]);
-    expect(filas[1]).toEqual(["Periodo", "2026-11-01 a 2026-11-30"]);
-    expect(filas[2]).toEqual(["Método de pago", "Todos"]);
-    expect(filas[3]).toEqual(["Vendedor", "Todos"]);
-    expect(filas[5]).toEqual([
+describe("filasResumenContable", () => {
+  it("incluye metadatos, días, totales y desgloses", () => {
+    const filas = filasResumenContable(reporte, meta);
+
+    expect(filas[0]).toEqual(["Reporte contable de corte"]);
+    expect(filas[1]).toEqual(["Sucursal", "Palma"]);
+    expect(filas[2]).toEqual(["Marca", "Picfoto"]);
+    expect(filas[3]).toEqual(["Periodo", "2026-11-01 a 2026-11-30"]);
+    expect(filas[4]).toEqual(["Método de pago", "Todos"]);
+    expect(filas[5]).toEqual(["Vendedor", "Todos"]);
+    expect(filas[6]).toEqual(["Generado", "20/11/2026, 10:30"]);
+    expect(filas[7]).toEqual(["Generado por", "Jessica Herrera"]);
+    expect(filas[9]).toEqual([
       "Fecha",
       "Pedidos",
       "Vendido",
@@ -72,35 +88,48 @@ describe("filasResumenContable", () => {
       "116.00",
       "0.00",
     ]);
+    expect(filas).toContainEqual(["Cobrado bruto", "116.00"]);
+    expect(filas).toContainEqual(["Reembolsos realizados", "0.00"]);
+    expect(filas).toContainEqual(["Cobrado neto", "116.00"]);
     expect(filas).toContainEqual([
       "Jessica Herrera",
       1,
       "116.00",
       "116.00",
     ]);
-    expect(filas[filas.length - 1]).toEqual([
-      "Jessica Herrera",
+    expect(filas).toContainEqual([
+      "Totales",
       1,
       "116.00",
       "116.00",
     ]);
+    expect(filas).toContainEqual(["Cobrado por cobrador"]);
+    expect(filas).toContainEqual(["Carlos Ruiz", 1, "58.00"]);
+    expect(filas).toContainEqual(["Cobrado por método"]);
+    expect(filas).toContainEqual(["Tarjeta", 1, "58.00"]);
+    expect(filas).toContainEqual(["Transferencia", 1, "58.00"]);
   });
 });
 
 describe("filasMovimientosContables", () => {
-  it("genera una fila por cobro con vendedor y cobrador", () => {
+  it("genera una fila por cobro con sucursal, marca, vendedor y cobrador", () => {
     const filas = filasMovimientosContables(reporte.movimientos, {
-      desde: "2026-11-01",
-      hasta: "2026-11-30",
+      ...meta,
       metodoPago: "Transferencia",
       vendedor: "Jessica Herrera",
     });
 
-    expect(filas[2]).toEqual(["Método de pago", "Transferencia"]);
-    expect(filas[3]).toEqual(["Vendedor", "Jessica Herrera"]);
-    expect(filas[5]).toContain("Pedido");
+    expect(filas[1]).toEqual(["Sucursal", "Palma"]);
+    expect(filas[2]).toEqual(["Marca", "Picfoto"]);
+    expect(filas[4]).toEqual(["Método de pago", "Transferencia"]);
+    expect(filas[5]).toEqual(["Vendedor", "Jessica Herrera"]);
+    expect(filas[9]).toContain("Pedido");
+    expect(filas[9]).toContain("Sucursal");
+    expect(filas[9]).toContain("Marca");
     expect(filas).toContainEqual([
       "PIC-PAL-00001",
+      "Palma",
+      "Picfoto",
       "Jessica Herrera",
       "XAXX010101000",
       "Jessica Herrera",
@@ -120,6 +149,8 @@ describe("filasMovimientosContables", () => {
     ]);
     expect(filas).toContainEqual([
       "PIC-PAL-00001",
+      "Palma",
+      "Picfoto",
       "Jessica Herrera",
       "XAXX010101000",
       "Jessica Herrera",
@@ -138,6 +169,38 @@ describe("filasMovimientosContables", () => {
       "timbrada",
     ]);
     expect(filas[filas.length - 1][0]).toBe("Totales");
-    expect(filas[filas.length - 1][9]).toBe("116.00");
+    expect(filas[filas.length - 1][11]).toBe("116.00");
+  });
+
+  it("muestra reembolsos con importe negativo", () => {
+    const conReembolso = construirReporteContable(
+      [
+        {
+          ...pedido,
+          estado: "cancelado",
+          saldo_cobrado: false,
+          saldo_metodo_pago: null,
+          saldo_cobrado_en: null,
+          saldo_cobrado_por: null,
+          reembolso_estado: "realizado",
+          reembolso_monto: 58,
+          reembolso_realizado_en: "2026-11-20T18:00:00.000Z",
+          reembolso_realizado_por: "v1",
+        },
+      ],
+      { desde: "2026-11-01", hasta: "2026-11-30" },
+      "",
+      {
+        nombresVendedores: nombres,
+        nombresSucursales: new Map([["suc-1", "Palma"]]),
+        nombresMarcas: new Map([["mar-1", "Picfoto"]]),
+      },
+    );
+
+    const filas = filasMovimientosContables(conReembolso.movimientos, meta);
+    expect(filas).toContainEqual(
+      expect.arrayContaining(["Reembolso", "Reembolso", "-58.00"]),
+    );
+    expect(filas[filas.length - 1][11]).toBe("0.00");
   });
 });

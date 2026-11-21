@@ -95,16 +95,99 @@ describe("construirReporteContable", () => {
     expect(efectivo.movimientos[0].tipo).toBe("Saldo");
   });
 
-  it("excluye pedidos cancelados", () => {
+  it("excluye ventas canceladas pero conserva el efectivo cobrado", () => {
     const reporte = construirReporteContable(
       [pedido({ estado: "cancelado" })],
       NOVIEMBRE,
     );
 
     expect(reporte.totalVendido).toBe(0);
-    expect(reporte.totalCobrado).toBe(0);
+    expect(reporte.totalPedidos).toBe(0);
+    expect(reporte.totalCobrado).toBe(58);
     expect(reporte.saldoPendiente).toBe(0);
-    expect(reporte.movimientos).toEqual([]);
+    expect(reporte.movimientos).toHaveLength(1);
+    expect(reporte.movimientos[0]).toMatchObject({
+      tipo: "Anticipo",
+      importe: 58,
+    });
+  });
+
+  it("resta los reembolsos realizados del cobrado neto", () => {
+    const reporte = construirReporteContable(
+      [
+        pedido({
+          estado: "cancelado",
+          saldo_cobrado: true,
+          saldo_metodo_pago: "Efectivo",
+          saldo_cobrado_en: "2026-11-15T10:00:00.000Z",
+          saldo_cobrado_por: "v2",
+          reembolso_estado: "realizado",
+          reembolso_monto: 116,
+          reembolso_realizado_en: "2026-11-20T18:00:00.000Z",
+          reembolso_realizado_por: "v1",
+        }),
+      ],
+      NOVIEMBRE,
+      "",
+      {
+        nombresVendedores: new Map([
+          ["v1", "Jessica Herrera"],
+          ["v2", "Carlos Ruiz"],
+        ]),
+      },
+    );
+
+    expect(reporte.totalVendido).toBe(0);
+    expect(reporte.totalCobrado).toBe(0);
+    expect(reporte.totalReembolsado).toBe(116);
+    expect(reporte.movimientos.map((m) => m.tipo)).toEqual([
+      "Anticipo",
+      "Saldo",
+      "Reembolso",
+    ]);
+    expect(reporte.movimientos[2]).toMatchObject({
+      tipo: "Reembolso",
+      importe: -116,
+      cobradoPorNombre: "Jessica Herrera",
+      fechaCobro: "2026-11-20",
+    });
+    expect(reporte.cobradoPorMetodo).toEqual([
+      { metodo_pago: "Tarjeta", count: 1, total: 58 },
+      { metodo_pago: "Efectivo", count: 1, total: 58 },
+    ]);
+  });
+
+  it("ignora reembolsos realizados fuera del periodo", () => {
+    const reporte = construirReporteContable(
+      [
+        pedido({
+          estado: "cancelado",
+          reembolso_estado: "realizado",
+          reembolso_monto: 58,
+          reembolso_realizado_en: "2026-12-02T18:00:00.000Z",
+        }),
+      ],
+      NOVIEMBRE,
+    );
+
+    expect(reporte.totalReembolsado).toBe(0);
+    expect(reporte.totalCobrado).toBe(58);
+  });
+
+  it("resuelve el nombre de la sucursal del movimiento", () => {
+    const reporte = construirReporteContable(
+      [pedido({ sucursal_id: "suc-1" })],
+      NOVIEMBRE,
+      "",
+      {
+        nombresSucursales: new Map([["suc-1", "Palma"]]),
+      },
+    );
+
+    expect(reporte.movimientos[0]).toMatchObject({
+      sucursalId: "suc-1",
+      sucursalNombre: "Palma",
+    });
   });
 
   it("calcula el IVA incluido en el total", () => {
@@ -200,6 +283,20 @@ describe("construirReporteContable", () => {
         cobrado: 116,
       },
     ]);
+    expect(reporte.porCobrador).toEqual([
+      {
+        cobradorId: "v2",
+        cobradorNombre: "Carlos Ruiz",
+        movimientos: 1,
+        cobrado: 58,
+      },
+      {
+        cobradorId: "v1",
+        cobradorNombre: "Jessica Herrera",
+        movimientos: 1,
+        cobrado: 58,
+      },
+    ]);
   });
 
   it("agrupa el cobro del saldo por fecha de México", () => {
@@ -222,6 +319,22 @@ describe("construirReporteContable", () => {
     expect(
       reporte.porDia.find((dia) => dia.fecha === "2026-11-12")?.cobrado,
     ).toBe(58);
+  });
+
+  it("resuelve el nombre de la marca del movimiento", () => {
+    const reporte = construirReporteContable(
+      [pedido({ marca_id: "mar-1" })],
+      NOVIEMBRE,
+      "",
+      {
+        nombresMarcas: new Map([["mar-1", "Picfoto"]]),
+      },
+    );
+
+    expect(reporte.movimientos[0]).toMatchObject({
+      marcaId: "mar-1",
+      marcaNombre: "Picfoto",
+    });
   });
 
   it("filtra por vendedor y agrupa sus ventas", () => {
