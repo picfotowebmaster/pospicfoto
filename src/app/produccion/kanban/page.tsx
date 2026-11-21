@@ -698,9 +698,21 @@ export default function KanbanPage() {
         pedido={pedidos.find((p) => p.id === pedidoCancelarId) ?? null}
         perfil={{ rol: rolVista }}
         onClose={() => setPedidoCancelarId(null)}
-        onConfirm={async ({ motivo, notas }: { motivo: MotivoCancelacionPedido; notas: string }) => {
+        onConfirm={async ({
+          motivo,
+          notas,
+          autorizacion,
+        }: {
+          motivo: MotivoCancelacionPedido;
+          notas: string;
+          autorizacion?: { adminId: string; password: string };
+        }) => {
           if (!pedidoCancelarId) return;
-          await cancelarPedido(pedidoCancelarId, { motivo, notas });
+          await cancelarPedido(pedidoCancelarId, {
+            motivo,
+            notas,
+            autorizacion,
+          });
           setPedidoCancelarId(null);
         }}
       />

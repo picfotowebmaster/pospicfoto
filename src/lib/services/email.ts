@@ -4,7 +4,12 @@ import { NOMBRE_EMPRESA } from "@/lib/utils/constantes";
 import { renderTicketHtml } from "@/lib/utils/ticketEmailHtml";
 import type { EntidadEmisora, Pedido } from "@/lib/supabase/types";
 
-export type TipoEnvioCorreo = "ticket" | "factura" | "factura_global" | "otro";
+export type TipoEnvioCorreo =
+  | "ticket"
+  | "factura"
+  | "factura_global"
+  | "cancelacion"
+  | "otro";
 
 export interface AdjuntoCorreo {
   filename: string;
@@ -37,6 +42,22 @@ interface EnviarTicketParams {
   pedido: Pedido;
   emisor?: EntidadEmisora | null;
   baseUrl?: string;
+  urlTicket?: string | null;
+}
+
+export interface EnviarCancelacionParams {
+  to: string;
+  numeroPedido: string;
+  clienteNombre: string;
+  total: number;
+  montoPagado: number;
+  motivo: string;
+  notas?: string | null;
+  solicitadoPor?: string | null;
+  autorizadoPor?: string | null;
+  fecha: string;
+  cancelados: number;
+  urlPedidos?: string | null;
   urlTicket?: string | null;
 }
 
@@ -242,5 +263,93 @@ export async function enviarTicketPorCorreo({
     html: renderTicketHtml(pedido, emisor, baseUrl, urlTicket),
     tipo: "ticket",
     referenciaId: pedido.id,
+  });
+}
+
+function escaparHtml(valor: string | number | null | undefined): string {
+  return String(valor ?? "")
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#39;");
+}
+
+export async function enviarCancelacionVenta({
+  to,
+  numeroPedido,
+  clienteNombre,
+  total,
+  montoPagado,
+  motivo,
+  notas,
+  solicitadoPor,
+  autorizadoPor,
+  fecha,
+  cancelados,
+  urlPedidos,
+  urlTicket,
+}: EnviarCancelacionParams): Promise<string | null> {
+  const totalFormateado = `$${total.toFixed(2)}`;
+  const pagadoFormateado = `$${montoPagado.toFixed(2)}`;
+  const enlace =
+    urlPedidos && /^https?:\/\//i.test(urlPedidos) ? urlPedidos : null;
+  const enlaceTicket =
+    urlTicket && /^https?:\/\//i.test(urlTicket) ? urlTicket : null;
+
+  const filas = [
+    ["Pedidos cancelados", String(cancelados)],
+    ["Total de la venta", totalFormateado],
+    ["Monto pagado", pagadoFormateado],
+    ["Motivo", motivo],
+    ...(notas ? [["Notas", notas]] : []),
+    ["Solicitó", solicitadoPor || "No registrado"],
+    ["Autorizó", autorizadoPor || "No registrado"],
+    ["Fecha", fecha],
+  ]
+    .map(
+      ([etiqueta, valor]) =>
+        `<tr><td style="padding:4px 10px 4px 0; vertical-align:top;"><strong>${escaparHtml(etiqueta)}:</strong></td><td style="padding:4px 0;">${escaparHtml(valor)}</td></tr>`,
+    )
+    .join("");
+
+  const html = `
+    <div style="font-family: Arial, sans-serif; color: #1f2937; max-width: 620px;">
+      <h2 style="margin:0 0 8px; color:#b01c1c;">Venta cancelada</h2>
+      <p style="margin:0 0 12px;">
+        Se canceló la venta <strong>${escaparHtml(numeroPedido)}</strong> del cliente
+        <strong>${escaparHtml(clienteNombre)}</strong>.
+      </p>
+      <table style="font-size:14px; border-collapse:collapse; margin:12px 0;">
+        ${filas}
+      </table>
+      ${
+        montoPagado > 0
+          ? `<p style="background:#fff7e6; border:1px solid #f0c36d; padding:10px; border-radius:6px;">
+              Hay un monto pagado de <strong>${escaparHtml(pagadoFormateado)}</strong> que queda como reembolso pendiente de registrar por un administrador.
+            </p>`
+          : ""
+      }
+      ${
+        enlace || enlaceTicket
+          ? `<p>
+              ${enlace ? `<a href="${escaparHtml(enlace)}" style="color:#1f3864;">Ver pedidos en el sistema</a>` : ""}
+              ${enlace && enlaceTicket ? " &nbsp;·&nbsp; " : ""}
+              ${enlaceTicket ? `<a href="${escaparHtml(enlaceTicket)}" style="color:#1f3864;">Ver ticket cancelado</a>` : ""}
+            </p>`
+          : ""
+      }
+      <p style="color:#6b7280; font-size:12px; margin-top:16px;">
+        Aviso automático del sistema de ${escaparHtml(NOMBRE_EMPRESA)}.
+      </p>
+    </div>
+  `;
+
+  return enviarCorreo({
+    to,
+    subject: `Venta cancelada ${numeroPedido} - ${NOMBRE_EMPRESA}`,
+    html,
+    tipo: "cancelacion",
+    referenciaId: numeroPedido,
   });
 }

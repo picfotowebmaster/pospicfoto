@@ -9,7 +9,11 @@ import { ESTADOS_PEDIDO, AREAS_PRODUCCION_DATA } from "@/lib/utils/constantes";
 import { actualizarEstadoPedido, cancelarVenta, actualizarPedido } from "@/lib/services/pedidos";
 import { useAuth } from "@/lib/hooks/useAuth";
 import { ModalCancelarPedido } from "@/components/pedidos/ModalCancelarPedido";
-import { puedeCancelarPedido, type MotivoCancelacionPedido } from "@/lib/utils/cancelacion";
+import {
+  puedeCancelarPedido,
+  puedeIntentarCancelar,
+  type MotivoCancelacionPedido,
+} from "@/lib/utils/cancelacion";
 import { crearComentario } from "@/lib/services/comentarios";
 import { supabase } from "@/lib/supabase/client";
 import { pedidoPagado } from "@/lib/utils/fiscal";
@@ -195,15 +199,25 @@ export function TablaPedidos({ pedidos, vendedores, atributosPool, onEstadoCambi
   async function confirmarCancelacion({
     motivo,
     notas,
+    autorizacion,
   }: {
     motivo: MotivoCancelacionPedido;
     notas: string;
+    autorizacion?: { adminId: string; password: string };
   }) {
     if (!pedidoCancelar) return;
     setCancelando(pedidoCancelar.id);
     try {
-      await cancelarVenta(pedidoCancelar.id, { motivo, notas });
-      showSuccess("Venta cancelada.");
+      const resultado = await cancelarVenta(pedidoCancelar.id, {
+        motivo,
+        notas,
+        autorizacion,
+      });
+      showSuccess(
+        resultado.autorizadoPor
+          ? `Venta cancelada. Autorizó: ${resultado.autorizadoPor}`
+          : "Venta cancelada.",
+      );
       setPedidoCancelar(null);
       onEstadoCambiado();
     } catch (err) {
@@ -394,12 +408,12 @@ export function TablaPedidos({ pedidos, vendedores, atributosPool, onEstadoCambi
               }}
               onCambiarEstado={(estado) => solicitarCambioEstado(p.id, estado, p.estado)}
               onCancelar={() => handleCancelar(p.id)}
-              puedeCancelar={
+              puedeCancelar={puedeIntentarCancelar(
                 puedeCancelarPedido(p, {
                   rol: profile?.rol ?? null,
                   sucursal_id: profile?.sucursal_id ?? null,
-                }).permitido
-              }
+                }),
+              )}
               onFacturar={() => handleFacturar(p.id)}
               enviandoTicket={enviandoTicket === p.id}
               onEnviarTicket={() => handleEnviarTicket(p.id)}

@@ -8,10 +8,14 @@ import { supabase } from "@/lib/supabase/client";
 import { Button } from "@/components/ui/Button";
 import { useToast } from "@/components/ui/Toast";
 import { useAuth } from "@/lib/hooks/useAuth";
+import { useOffline } from "@/lib/offline/useOffline";
 import { LiquidarSaldoModal } from "@/app/mostrador/_components/LiquidarSaldoModal";
 import { ModalCompartirTicket } from "@/app/mostrador/_components/ModalCompartirTicket";
 import { ModalCancelarPedido } from "@/components/pedidos/ModalCancelarPedido";
-import { puedeCancelarPedido } from "@/lib/utils/cancelacion";
+import {
+  puedeCancelarPedido,
+  puedeIntentarCancelar,
+} from "@/lib/utils/cancelacion";
 import { pedidoPagado } from "@/lib/utils/fiscal";
 import { fetchEntidadesPorIds } from "@/lib/services/entidadesEmisoras";
 import { facturacionHabilitada } from "@/lib/config/features";
@@ -30,6 +34,7 @@ export default function TicketPage() {
   const { id } = useParams<{ id: string }>();
   const router = useRouter();
   const { session, profile } = useAuth();
+  const { isOnline } = useOffline();
   const { showError, showSuccess } = useToast();
   const [pedidos, setPedidos] = useState<Pedido[]>([]);
   const [emisores, setEmisores] = useState<Map<string, EntidadEmisora>>(
@@ -197,9 +202,15 @@ export default function TicketPage() {
     rol: profile?.rol ?? null,
     sucursal_id: profile?.sucursal_id ?? null,
   };
+  const validacionesCancelacion = pedidos.map((p) =>
+    puedeCancelarPedido(p, perfilCancelacion),
+  );
   const puedeCancelarVenta =
     pedidos.length > 0 &&
-    pedidos.every((p) => puedeCancelarPedido(p, perfilCancelacion).permitido);
+    validacionesCancelacion.every(puedeIntentarCancelar);
+  const razonNoCancelable = validacionesCancelacion.find(
+    (validacion) => !puedeIntentarCancelar(validacion),
+  )?.razon;
 
   const puedeLiquidar =
     pedidos.length === 1 &&
@@ -291,6 +302,12 @@ export default function TicketPage() {
             size="sm"
             variant="danger"
             onClick={() => setCancelando(true)}
+            disabled={!isOnline}
+            title={
+              isOnline
+                ? "Cancelar venta"
+                : "Sin conexión: no se pueden cancelar ventas"
+            }
           >
             <i className="fas fa-times-circle mr-1" />
             Cancelar venta
@@ -305,6 +322,15 @@ export default function TicketPage() {
           Regresar
         </Button>
       </div>
+
+      {(!isOnline || (!puedeCancelarVenta && razonNoCancelable)) && (
+        <div className="mb-4 w-full max-w-[72mm] no-print text-xs rounded-lg px-3 py-2 bg-amber-50 border border-amber-200 text-amber-800 dark:bg-amber-900/20 dark:border-amber-800 dark:text-amber-300">
+          <i className="fas fa-circle-info mr-1.5" />
+          {!isOnline
+            ? "Sin conexión: no se pueden cancelar ventas. Pide al administrador cancelar cuando vuelva la red."
+            : `No se puede cancelar: ${razonNoCancelable}`}
+        </div>
+      )}
 
       {pedidos.length === 1 &&
         saldoPendiente > 0.01 &&
@@ -435,14 +461,23 @@ export default function TicketPage() {
         <ModalCancelarPedido
           pedido={pedidoPrincipal}
           perfil={perfilCancelacion}
+          enLinea={isOnline}
           onClose={() => setCancelando(false)}
-          onConfirm={async ({ motivo, notas }) => {
-            await cancelarVenta(pedidoPrincipal.id, { motivo, notas });
+          onConfirm={async ({ motivo, notas, autorizacion }) => {
+            const resultado = await cancelarVenta(pedidoPrincipal.id, {
+              motivo,
+              notas,
+              autorizacion,
+            });
             setPedidos((prev) =>
               prev.map((pedido) => ({ ...pedido, estado: "cancelado" as const })),
             );
             setCancelando(false);
-            showSuccess("Venta cancelada.");
+            showSuccess(
+              resultado.autorizadoPor
+                ? `Venta cancelada. Autorizó: ${resultado.autorizadoPor}`
+                : "Venta cancelada.",
+            );
           }}
         />
       )}

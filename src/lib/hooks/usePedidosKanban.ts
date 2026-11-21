@@ -225,7 +225,11 @@ export function usePedidosKanban(areaFiltro?: string, onNuevoPedido?: (pedido: P
   const cancelarPedido = useCallback(
     async (
       pedidoId: string,
-      opciones: { motivo: string; notas?: string | null },
+      opciones: {
+        motivo: string;
+        notas?: string | null;
+        autorizacion?: { adminId: string; password: string };
+      },
     ) => {
       try {
         await cancelarVentaService(pedidoId, opciones);

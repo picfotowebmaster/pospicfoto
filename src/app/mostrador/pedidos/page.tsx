@@ -12,11 +12,13 @@ import { LiquidarSaldoModal } from "@/app/mostrador/_components/LiquidarSaldoMod
 import { ModalCancelarPedido } from "@/components/pedidos/ModalCancelarPedido";
 import { useHistorialPedidos } from "@/lib/hooks/useHistorialPedidos";
 import { useAuth } from "@/lib/hooks/useAuth";
+import { useOffline } from "@/lib/offline/useOffline";
 import { liquidarSaldo } from "@/lib/services/pedidos";
 import { vendedoresParaFiltro } from "@/lib/services/vendedores";
 import { ESTADOS_PEDIDO } from "@/lib/utils/constantes";
 import {
   puedeCancelarPedido,
+  puedeIntentarCancelar,
   type MotivoCancelacionPedido,
 } from "@/lib/utils/cancelacion";
 import { cancelarVenta } from "@/lib/services/pedidos";
@@ -47,6 +49,7 @@ function EstadoBadge({ estado }: { estado: string }) {
 export default function PedidosMostradorPage() {
   const router = useRouter();
   const { session, profile, perfilCargando } = useAuth();
+  const { isOnline } = useOffline();
   const { showSuccess } = useToast();
   const verTodos = profile?.rol === "admin" || profile?.rol === "superadmin";
   const restringir = !verTodos;
@@ -137,6 +140,14 @@ export default function PedidosMostradorPage() {
             </div>
           )}
 
+          {!isOnline && (
+            <div className="bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 text-amber-800 dark:text-amber-300 text-sm rounded-lg px-4 py-3">
+              <i className="fas fa-wifi mr-1.5" />
+              Sin conexión: no se pueden cancelar ventas. Pide al administrador
+              cancelar cuando vuelva la red.
+            </div>
+          )}
+
           {sinSucursal ? (
             <div className="bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 text-amber-800 dark:text-amber-300 text-sm rounded-lg px-4 py-3">
               No tienes una sucursal asignada. Contacta al administrador para
@@ -185,6 +196,15 @@ export default function PedidosMostradorPage() {
                     {pedidos.map((p) => {
                       const saldo = Math.max(0, p.total - p.anticipo);
                       const saldoPagado = Boolean(p.saldo_cobrado) || saldo <= 0.01;
+                      const validacion = puedeCancelarPedido(p, {
+                        rol: profile?.rol ?? null,
+                        sucursal_id: profile?.sucursal_id ?? null,
+                      });
+                      const puedeIntentar = puedeIntentarCancelar(validacion);
+                      const esDeMiSucursal = Boolean(
+                        profile?.sucursal_id &&
+                          p.sucursal_id === profile.sucursal_id,
+                      );
                       return (
                         <tr
                           key={p.id}
@@ -242,19 +262,31 @@ export default function PedidosMostradorPage() {
                                   Liquidar
                                 </button>
                               )}
-                              {puedeCancelarPedido(p, {
-                                rol: profile?.rol ?? null,
-                                sucursal_id: profile?.sucursal_id ?? null,
-                              }).permitido && (
+                              {puedeIntentar && (
                                 <button
                                   type="button"
                                   onClick={() => setCancelando(p)}
-                                  className="text-xs rounded px-1.5 py-0.5 transition-colors cursor-pointer font-medium text-red-600 hover:text-red-800 hover:bg-red-50 dark:hover:bg-red-900/30"
-                                  title="Cancelar venta"
+                                  disabled={!isOnline}
+                                  className="text-xs rounded px-1.5 py-0.5 transition-colors cursor-pointer font-medium text-red-600 hover:text-red-800 hover:bg-red-50 dark:hover:bg-red-900/30 disabled:opacity-50 disabled:cursor-not-allowed"
+                                  title={
+                                    isOnline
+                                      ? "Cancelar venta"
+                                      : "Sin conexión: no se pueden cancelar ventas"
+                                  }
                                 >
                                   Cancelar
                                 </button>
                               )}
+                              {!puedeIntentar &&
+                                esDeMiSucursal &&
+                                p.estado !== "cancelado" && (
+                                  <span
+                                    className="text-xs text-gray-400 dark:text-gray-500 cursor-not-allowed"
+                                    title={validacion.razon}
+                                  >
+                                    Cancelar
+                                  </span>
+                                )}
                               <a
                                 href={`/mostrador/ticket/${p.numero_pedido || p.id}`}
                                 className="text-xs text-blue-600 hover:text-blue-800 font-medium"
@@ -296,18 +328,29 @@ export default function PedidosMostradorPage() {
       <ModalCancelarPedido
         pedido={cancelando}
         perfil={{ rol: profile?.rol ?? null, sucursal_id: profile?.sucursal_id ?? null }}
+        enLinea={isOnline}
         onClose={() => setCancelando(null)}
         onConfirm={async ({
           motivo,
           notas,
+          autorizacion,
         }: {
           motivo: MotivoCancelacionPedido;
           notas: string;
+          autorizacion?: { adminId: string; password: string };
         }) => {
           if (!cancelando) return;
-          await cancelarVenta(cancelando.id, { motivo, notas });
+          const resultado = await cancelarVenta(cancelando.id, {
+            motivo,
+            notas,
+            autorizacion,
+          });
           setCancelando(null);
-          showSuccess("Venta cancelada.");
+          showSuccess(
+            resultado.autorizadoPor
+              ? `Venta cancelada. Autorizó: ${resultado.autorizadoPor}`
+              : "Venta cancelada.",
+          );
           recargar();
         }}
       />

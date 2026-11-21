@@ -3,6 +3,7 @@ import {
   etiquetaMotivoCancelacion,
   montoPagadoPedido,
   puedeCancelarPedido,
+  puedeIntentarCancelar,
   tieneCfdiVigente,
 } from "./cancelacion";
 
@@ -46,10 +47,14 @@ describe("montoPagadoPedido", () => {
 });
 
 describe("puedeCancelarPedido", () => {
-  it("mostrador cancela pendientes en mostrador de su sucursal", () => {
-    expect(
-      puedeCancelarPedido(base, { rol: "mostrador", sucursal_id: "suc-1" }),
-    ).toEqual({ permitido: true });
+  it("mostrador requiere autorización de admin para pendientes de su sucursal", () => {
+    const resultado = puedeCancelarPedido(base, {
+      rol: "mostrador",
+      sucursal_id: "suc-1",
+    });
+    expect(resultado.permitido).toBe(false);
+    expect(resultado.requiereAutorizacion).toBe(true);
+    expect(puedeIntentarCancelar(resultado)).toBe(true);
   });
 
   it("mostrador no cancela pedidos ya en producción", () => {
@@ -114,6 +119,22 @@ describe("puedeCancelarPedido", () => {
         { rol: "superadmin" },
       ).permitido,
     ).toBe(false);
+  });
+});
+
+describe("puedeIntentarCancelar", () => {
+  it("permite intentar cuando el rol está autorizado", () => {
+    expect(puedeIntentarCancelar({ permitido: true })).toBe(true);
+  });
+
+  it("permite intentar cuando requiere autorización de admin", () => {
+    expect(
+      puedeIntentarCancelar({ permitido: false, requiereAutorizacion: true }),
+    ).toBe(true);
+  });
+
+  it("bloquea cuando no está permitido ni requiere autorización", () => {
+    expect(puedeIntentarCancelar({ permitido: false })).toBe(false);
   });
 });
 

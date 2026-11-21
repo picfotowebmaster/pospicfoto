@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach } from "vitest";
+import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { supabase } from "@/lib/supabase/client";
 import {
   crearPedido,
@@ -210,38 +210,102 @@ describe("fetchPedidosPorEstado", () => {
 });
 
 describe("cancelarVenta", () => {
-  it("cancela la venta con motivo mediante RPC", async () => {
-    mockFrom(() =>
-      qb("single", { id: "p1" }) as ReturnType<typeof supabase.from>,
-    );
-    vi.mocked(supabase.rpc).mockResolvedValue({
-      data: { cancelados: 1 },
-      error: null,
+  const fetchMock = vi.fn();
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    vi.stubGlobal("fetch", fetchMock);
+  });
+
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
+  function respuestaOk(cancelados = 1, autorizadoPor: string | null = null) {
+    fetchMock.mockResolvedValue({
+      ok: true,
+      json: async () => ({ success: true, cancelados, autorizadoPor }),
     });
+  }
+
+  it("envía la cancelación al API", async () => {
+    respuestaOk();
 
     await expect(
       cancelarVenta("p1", { motivo: "cliente_cancela", notas: "Prueba" }),
-    ).resolves.toEqual({ cancelados: 1 });
+    ).resolves.toEqual({ cancelados: 1, autorizadoPor: null });
 
-    expect(supabase.rpc).toHaveBeenCalledWith("cancelar_venta", {
-      p_pedido_id: "p1",
-      p_motivo: "cliente_cancela",
-      p_notas: "Prueba",
+    expect(fetchMock).toHaveBeenCalledWith("/api/pedidos/cancelar", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: expect.any(String),
+    });
+
+    expect(
+      JSON.parse(fetchMock.mock.calls[0][1].body as string),
+    ).toEqual({
+      id: "p1",
+      motivo: "cliente_cancela",
+      notas: "Prueba",
     });
   });
 
-  it("propaga errores del RPC", async () => {
-    mockFrom(() =>
-      qb("single", { id: "p1" }) as ReturnType<typeof supabase.from>,
-    );
-    vi.mocked(supabase.rpc).mockResolvedValue({
-      data: null,
-      error: new Error("La venta ya está cancelada"),
+  it("incluye las credenciales del admin cuando se autoriza", async () => {
+    respuestaOk();
+
+    await cancelarVenta("p1", {
+      motivo: "otro",
+      autorizacion: { adminId: "admin-1", password: "secreta" },
     });
+
+    expect(
+      JSON.parse(fetchMock.mock.calls[0][1].body as string),
+    ).toMatchObject({
+      id: "p1",
+      motivo: "otro",
+      adminId: "admin-1",
+      adminPassword: "secreta",
+    });
+  });
+
+  it("devuelve quién autorizó la cancelación", async () => {
+    respuestaOk(1, "admin@correo.com");
 
     await expect(
       cancelarVenta("p1", { motivo: "otro" }),
-    ).rejects.toThrow("La venta ya está cancelada");
+    ).resolves.toEqual({ cancelados: 1, autorizadoPor: "admin@correo.com" });
+  });
+
+  it("bloquea la cancelación sin conexión", async () => {
+    const onLine = vi.spyOn(navigator, "onLine", "get").mockReturnValue(false);
+
+    try {
+      await expect(cancelarVenta("p1", { motivo: "otro" })).rejects.toThrow(
+        "Sin conexión",
+      );
+      expect(fetchMock).not.toHaveBeenCalled();
+    } finally {
+      onLine.mockRestore();
+    }
+  });
+
+  it("traduce errores de red", async () => {
+    fetchMock.mockRejectedValue(new TypeError("Failed to fetch"));
+
+    await expect(cancelarVenta("p1", { motivo: "otro" })).rejects.toThrow(
+      "No se pudo conectar",
+    );
+  });
+
+  it("propaga errores del API", async () => {
+    fetchMock.mockResolvedValue({
+      ok: false,
+      json: async () => ({ error: "Credenciales de administrador inválidas" }),
+    });
+
+    await expect(cancelarVenta("p1", { motivo: "otro" })).rejects.toThrow(
+      "Credenciales de administrador inválidas",
+    );
   });
 });
 

@@ -491,32 +491,65 @@ export async function actualizarEstadoPedido(
   }
 }
 
+export interface AutorizacionAdmin {
+  adminId: string;
+  password: string;
+}
+
 export interface OpcionesCancelacionVenta {
   motivo: string;
   notas?: string | null;
+  autorizacion?: AutorizacionAdmin;
+}
+
+export interface ResultadoCancelacionVenta {
+  cancelados: number;
+  autorizadoPor?: string | null;
 }
 
 export async function cancelarVenta(
   id: string,
   opciones: OpcionesCancelacionVenta,
-): Promise<{ cancelados: number }> {
-  const column = UUID_RE.test(id) ? "id" : "numero_pedido";
-  const { data: pedido, error: fetchErr } = await supabase
-    .from("pedidos")
-    .select("id")
-    .eq(column, id)
-    .single();
+): Promise<ResultadoCancelacionVenta> {
+  if (typeof navigator !== "undefined" && navigator.onLine === false) {
+    throw new Error(
+      "Sin conexión. Para cancelar una venta se requiere internet y autorización de un administrador o superadmin.",
+    );
+  }
 
-  if (fetchErr || !pedido) throw new Error("Pedido no encontrado");
+  let res: Response;
+  try {
+    res = await fetch("/api/pedidos/cancelar", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        id,
+        motivo: opciones.motivo,
+        notas: opciones.notas ?? null,
+        adminId: opciones.autorizacion?.adminId,
+        adminPassword: opciones.autorizacion?.password,
+      }),
+    });
+  } catch {
+    throw new Error(
+      "No se pudo conectar. Verifica tu conexión e intenta de nuevo.",
+    );
+  }
 
-  const { data, error } = await supabase.rpc("cancelar_venta", {
-    p_pedido_id: pedido.id,
-    p_motivo: opciones.motivo,
-    p_notas: opciones.notas ?? null,
-  });
+  const data = (await res.json().catch(() => null)) as {
+    error?: string;
+    cancelados?: number;
+    autorizadoPor?: string | null;
+  } | null;
 
-  if (error) throw error;
-  return data as { cancelados: number };
+  if (!res.ok) {
+    throw new Error(data?.error || "No se pudo cancelar la venta.");
+  }
+
+  return {
+    cancelados: data?.cancelados ?? 0,
+    autorizadoPor: data?.autorizadoPor ?? null,
+  };
 }
 
 export async function registrarReembolso(

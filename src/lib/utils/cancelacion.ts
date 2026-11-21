@@ -35,7 +35,14 @@ export interface PerfilCancelacion {
 
 export interface ResultadoCancelacion {
   permitido: boolean;
+  requiereAutorizacion?: boolean;
   razon?: string;
+}
+
+export function puedeIntentarCancelar(
+  resultado: ResultadoCancelacion,
+): boolean {
+  return resultado.permitido || resultado.requiereAutorizacion === true;
 }
 
 export function tieneCfdiVigente(
@@ -103,6 +110,12 @@ export function puedeCancelarPedido(
         razon: "Solo puedes cancelar ventas de tu sucursal.",
       };
     }
+
+    return {
+      permitido: false,
+      requiereAutorizacion: true,
+      razon: "Se requiere autorización de un administrador o superadmin.",
+    };
   }
 
   if (rol === "admin" && pedido.estado === "entregado") {

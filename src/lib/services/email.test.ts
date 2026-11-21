@@ -18,7 +18,11 @@ vi.mock("@/lib/supabase/admin", () => ({
 }));
 
 import { Resend } from "resend";
-import { enviarFacturaPorCorreo, enviarTicketPorCorreo } from "./email";
+import {
+  enviarCancelacionVenta,
+  enviarFacturaPorCorreo,
+  enviarTicketPorCorreo,
+} from "./email";
 import type { Pedido } from "@/lib/supabase/types";
 
 const baseParams = {
@@ -184,5 +188,86 @@ describe("enviarTicketPorCorreo", () => {
     await expect(
       enviarTicketPorCorreo({ to: "ana@correo.com", pedido: pedidoBase }),
     ).rejects.toThrow("boom");
+  });
+});
+
+describe("enviarCancelacionVenta", () => {
+  const cancelacionBase = {
+    to: "super@correo.com",
+    numeroPedido: "PED-001",
+    clienteNombre: "Ana <script>",
+    total: 100,
+    montoPagado: 50,
+    motivo: "Cliente canceló",
+    notas: "<b>nota</b>",
+    solicitadoPor: "mostrador@correo.com",
+    autorizadoPor: "camila@picfoto.mx",
+    fecha: "2026-11-19 13:00",
+    cancelados: 2,
+    urlPedidos: "https://pos.picfoto.mx/admin/pedidos",
+    urlTicket: "https://pos.picfoto.mx/mostrador/ticket/PED-001",
+  };
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    sendMock.mockResolvedValue({
+      data: { id: "email-cancel-1" },
+      error: null,
+      headers: null,
+    });
+    insertMock.mockResolvedValue({ error: null });
+    process.env.RESEND_API_KEY = "test-key";
+    process.env.RESEND_FROM_EMAIL = "facturacion@picfoto.com";
+  });
+
+  afterEach(() => {
+    delete process.env.RESEND_API_KEY;
+    delete process.env.RESEND_FROM_EMAIL;
+  });
+
+  it("envía el aviso de cancelación con datos escapados", async () => {
+    await enviarCancelacionVenta(cancelacionBase);
+
+    const payload = sendMock.mock.calls[0][0];
+    expect(payload.to).toEqual(["super@correo.com"]);
+    expect(payload.subject).toContain("PED-001");
+    expect(payload.html).toContain("Ana &lt;script&gt;");
+    expect(payload.html).toContain("&lt;b&gt;nota&lt;/b&gt;");
+    expect(payload.html).toContain("camila@picfoto.mx");
+    expect(payload.html).toContain("reembolso pendiente");
+    expect(payload.html).toContain("https://pos.picfoto.mx/admin/pedidos");
+    expect(payload.html).toContain("Ver ticket cancelado");
+    expect(payload.html).toContain(
+      "https://pos.picfoto.mx/mostrador/ticket/PED-001",
+    );
+
+    expect(insertMock).toHaveBeenCalledWith({
+      resend_email_id: "email-cancel-1",
+      tipo: "cancelacion",
+      referencia_id: "PED-001",
+      destinatario: "super@correo.com",
+      asunto: payload.subject,
+    });
+  });
+
+  it("omite el aviso de reembolso cuando no hay monto pagado", async () => {
+    await enviarCancelacionVenta({
+      ...cancelacionBase,
+      montoPagado: 0,
+    });
+
+    expect(sendMock.mock.calls[0][0].html).not.toContain(
+      "reembolso pendiente",
+    );
+  });
+
+  it("ignora enlaces que no sean http(s)", async () => {
+    await enviarCancelacionVenta({
+      ...cancelacionBase,
+      urlPedidos: "javascript:alert(1)",
+      urlTicket: "javascript:alert(2)",
+    });
+
+    expect(sendMock.mock.calls[0][0].html).not.toContain("javascript:");
   });
 });
