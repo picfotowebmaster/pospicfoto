@@ -78,6 +78,28 @@ export interface FiltrosPedidos {
 export async function crearPedido(draft: PedidoDraft, cajeroId: string): Promise<string> {
   const entidad = await resolverEntidadEmisora(draft);
 
+  const { data: perfil } = await supabase
+    .from("profiles")
+    .select("rol, marca_id, sucursal_id")
+    .eq("id", cajeroId)
+    .maybeSingle();
+
+  if (perfil?.rol === "mostrador") {
+    if (!perfil.marca_id || !perfil.sucursal_id) {
+      throw new Error(
+        "Tu perfil no tiene marca o sucursal asignada. Contacta al administrador.",
+      );
+    }
+
+    if (entidad.marcaId !== perfil.marca_id) {
+      throw new Error("Solo puedes vender la marca asignada a tu perfil.");
+    }
+
+    if (entidad.sucursalId !== perfil.sucursal_id) {
+      throw new Error("Solo puedes vender en tu sucursal.");
+    }
+  }
+
   const { data: numData, error: numErr } = await supabase
     .rpc("generar_numero_pedido", {
       marca_codigo: entidad.marcaCodigo,

@@ -52,6 +52,8 @@ interface ReportesContablesProps {
   puedeVerTodo: boolean;
   sucursalId: string | null;
   sucursalNombre: string | null;
+  marcaId?: string | null;
+  marcaNombre?: string | null;
 }
 
 const PERIODOS: PeriodoKey[] = ["hoy", "semana", "mes", "anio", "personalizado"];
@@ -82,6 +84,8 @@ export function ReportesContables({
   puedeVerTodo,
   sucursalId,
   sucursalNombre,
+  marcaId = null,
+  marcaNombre = null,
 }: ReportesContablesProps) {
   const { signOut, profile, session } = useAuth();
   const {
@@ -112,6 +116,7 @@ export function ReportesContables({
     recargar,
   } = useReportesContables({
     sucursalFijo: puedeVerTodo ? undefined : sucursalId,
+    marcaFijo: puedeVerTodo ? undefined : marcaId,
     restringido: !puedeVerTodo,
   });
 
@@ -125,13 +130,19 @@ export function ReportesContables({
   }, [puedeVerTodo, sucursalNombre, sucursalEfectiva, sucursales]);
 
   const marcaEtiqueta = useMemo(() => {
-    if (!puedeVerTodo) return null;
+    if (!puedeVerTodo) {
+      return (
+        marcaNombre ??
+        marcas.find((marca) => marca.id === marcaId)?.nombre ??
+        "Sin marca"
+      );
+    }
     if (!marcaEfectiva) return "Todas las marcas";
     return (
       marcas.find((marca) => marca.id === marcaEfectiva)?.nombre ??
       "Marca seleccionada"
     );
-  }, [puedeVerTodo, marcaEfectiva, marcas]);
+  }, [puedeVerTodo, marcaNombre, marcaId, marcaEfectiva, marcas]);
 
   const datosVentas = useMemo(
     () =>

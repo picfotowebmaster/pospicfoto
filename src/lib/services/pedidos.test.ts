@@ -71,6 +71,46 @@ describe("crearPedido", () => {
     expect(result).toBe("PIC-PAL-00042");
   });
 
+  it("bloquea a mostrador que intenta vender otra marca", async () => {
+    mockFrom((table: string) => {
+      if (table === "profiles") {
+        return qb("maybeSingle", {
+          rol: "mostrador",
+          marca_id: "m1",
+          sucursal_id: "s1",
+        }) as ReturnType<typeof supabase.from>;
+      }
+      if (table === "marcas") return qb("single", { codigo: "FRX" }) as ReturnType<typeof supabase.from>;
+      if (table === "sucursales") return qb("single", { codigo: "PAL" }) as ReturnType<typeof supabase.from>;
+      return qb(null, null) as ReturnType<typeof supabase.from>;
+    });
+
+    await expect(
+      crearPedido({ ...mockDraft, marca_id: "m2" }, "cajero-1"),
+    ).rejects.toThrow("Solo puedes vender la marca asignada");
+  });
+
+  it("permite a mostrador vender su marca y sucursal", async () => {
+    mockFrom((table: string) => {
+      if (table === "profiles") {
+        return qb("maybeSingle", {
+          rol: "mostrador",
+          marca_id: "m1",
+          sucursal_id: "s1",
+        }) as ReturnType<typeof supabase.from>;
+      }
+      if (table === "marcas") return qb("single", { codigo: "PIC" }) as ReturnType<typeof supabase.from>;
+      if (table === "sucursales") return qb("single", { codigo: "PAL" }) as ReturnType<typeof supabase.from>;
+      if (table === "pedidos") return qb("single", { id: "p1", numero_pedido: "PIC-PAL-00042" }) as ReturnType<typeof supabase.from>;
+      return qb(null, null) as ReturnType<typeof supabase.from>;
+    });
+    vi.mocked(supabase.rpc).mockResolvedValue({ data: "PIC-PAL-00042", error: null });
+
+    await expect(crearPedido(mockDraft, "cajero-1")).resolves.toBe(
+      "PIC-PAL-00042",
+    );
+  });
+
   it("usa la fecha y hora de recepción del draft", async () => {
     const pedidoBuilders: ReturnType<typeof qb>[] = [];
     mockFrom((table: string) => {

@@ -28,14 +28,17 @@ import type { Marca, Sucursal } from "@/lib/supabase/types";
 
 interface OpcionesReportesContables {
   sucursalFijo?: string | null;
+  marcaFijo?: string | null;
   restringido?: boolean;
 }
 
 export function useReportesContables(
   opciones: OpcionesReportesContables = {},
 ) {
-  const { sucursalFijo, restringido = false } = opciones;
+  const { sucursalFijo, marcaFijo, restringido = false } = opciones;
   const sinSucursal = restringido && !sucursalFijo;
+  const sinMarca = restringido && !marcaFijo;
+  const sinAlcance = sinSucursal || sinMarca;
   const [periodo, setPeriodoState] = useState<PeriodoKey>("mes");
   const [desdeCustom, setDesdeCustomState] = useState("");
   const [hastaCustom, setHastaCustomState] = useState("");
@@ -54,13 +57,15 @@ export function useReportesContables(
   const sucursalEfectiva = restringido
     ? (sucursalFijo ?? null)
     : sucursalSeleccionada || null;
-  const marcaEfectiva = restringido ? null : marcaSeleccionada || null;
+  const marcaEfectiva = restringido
+    ? (marcaFijo ?? null)
+    : marcaSeleccionada || null;
 
   useEffect(() => {
-    if (sinSucursal) return;
+    if (sinAlcance) return;
     let ignore = false;
 
-    listarVendedores(sucursalEfectiva ?? undefined)
+    listarVendedores(sucursalEfectiva ?? undefined, marcaEfectiva ?? undefined)
       .then((data) => {
         if (!ignore) setVendedores(data);
       })
@@ -69,23 +74,24 @@ export function useReportesContables(
     return () => {
       ignore = true;
     };
-  }, [sucursalEfectiva, sinSucursal]);
+  }, [sucursalEfectiva, marcaEfectiva, sinAlcance]);
 
   useEffect(() => {
-    if (restringido) return;
     let ignore = false;
-
-    listarSucursales()
-      .then((data) => {
-        if (!ignore) setSucursales(data);
-      })
-      .catch(() => {});
 
     listarMarcas()
       .then((data) => {
         if (!ignore) setMarcas(data);
       })
       .catch(() => {});
+
+    if (!restringido) {
+      listarSucursales()
+        .then((data) => {
+          if (!ignore) setSucursales(data);
+        })
+        .catch(() => {});
+    }
 
     return () => {
       ignore = true;
@@ -106,7 +112,7 @@ export function useReportesContables(
     (desdeCustom !== "" && hastaCustom !== "" && desdeCustom <= hastaCustom);
 
   useEffect(() => {
-    if (!rangoValido || sinSucursal) return;
+    if (!rangoValido || sinAlcance) return;
     let ignore = false;
 
     obtenerPedidosReporte(
@@ -141,7 +147,7 @@ export function useReportesContables(
     trigger,
     sucursalEfectiva,
     marcaEfectiva,
-    sinSucursal,
+    sinAlcance,
   ]);
 
   const nombresVendedores = useMemo(
@@ -252,11 +258,11 @@ export function useReportesContables(
   );
 
   const recargar = useCallback(() => {
-    if (!rangoValido || sinSucursal) return;
+    if (!rangoValido || sinAlcance) return;
     setCargando(true);
     setError(null);
     setTrigger((valor) => valor + 1);
-  }, [rangoValido, sinSucursal]);
+  }, [rangoValido, sinAlcance]);
 
   return {
     periodo,
@@ -281,11 +287,14 @@ export function useReportesContables(
     rango,
     rangoValido,
     reporte,
-    cargando: sinSucursal ? false : cargando,
+    cargando: sinAlcance ? false : cargando,
     error: sinSucursal
       ? "No tienes una sucursal asignada. Contacta al administrador."
-      : error,
+      : sinMarca
+        ? "No tienes una marca asignada. Contacta al administrador."
+        : error,
     sinSucursal,
+    sinMarca,
     recargar,
   };
 }

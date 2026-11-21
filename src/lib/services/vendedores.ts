@@ -7,15 +7,21 @@ export interface Vendedor {
   email: string | null;
   rol: Rol;
   sucursal_id?: string | null;
+  marca_id?: string | null;
 }
 
 const ROLES_VENDEDOR: Rol[] = ["mostrador", "admin", "superadmin"];
 
 export async function listarVendedores(
   sucursalId?: string | null,
+  marcaId?: string | null,
 ): Promise<Vendedor[]> {
-  const { data, error } = sucursalId
-    ? await supabase.rpc("listar_vendedores", { p_sucursal_id: sucursalId })
+  const filtros: { p_sucursal_id?: string; p_marca_id?: string } = {};
+  if (sucursalId) filtros.p_sucursal_id = sucursalId;
+  if (marcaId) filtros.p_marca_id = marcaId;
+
+  const { data, error } = Object.keys(filtros).length
+    ? await supabase.rpc("listar_vendedores", filtros)
     : await supabase.rpc("listar_vendedores");
 
   if (!error) {
@@ -26,6 +32,7 @@ export async function listarVendedores(
         email: string | null;
         rol: Rol;
         sucursal_id?: string | null;
+        marca_id?: string | null;
       }[]
     ).map((fila) => ({
       id: fila.id,
@@ -33,15 +40,20 @@ export async function listarVendedores(
       email: fila.email ?? null,
       rol: fila.rol,
       sucursal_id: fila.sucursal_id ?? null,
+      marca_id: fila.marca_id ?? null,
     }));
   }
 
   let consulta = supabase
     .from("profiles")
-    .select("id, nombre, rol, sucursal_id");
+    .select("id, nombre, rol, sucursal_id, marca_id");
 
   if (sucursalId) {
     consulta = consulta.eq("sucursal_id", sucursalId);
+  }
+
+  if (marcaId) {
+    consulta = consulta.eq("marca_id", marcaId);
   }
 
   const { data: perfiles, error: errorPerfiles } = await consulta.order(
@@ -57,6 +69,7 @@ export async function listarVendedores(
       nombre: string | null;
       rol: Rol;
       sucursal_id?: string | null;
+      marca_id?: string | null;
     }[]
   ).map((fila) => ({
     id: fila.id,
@@ -64,6 +77,7 @@ export async function listarVendedores(
     email: null,
     rol: fila.rol,
     sucursal_id: fila.sucursal_id ?? null,
+    marca_id: fila.marca_id ?? null,
   }));
 }
 

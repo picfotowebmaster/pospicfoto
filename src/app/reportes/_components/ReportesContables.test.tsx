@@ -113,6 +113,8 @@ describe("ReportesContables", () => {
         puedeVerTodo={false}
         sucursalId="suc-1"
         sucursalNombre="Palma"
+        marcaId="mar-1"
+        marcaNombre="Picfoto"
       />,
     );
 
@@ -125,6 +127,7 @@ describe("ReportesContables", () => {
     expect(screen.getByText("PIC-CUB-00092")).toBeInTheDocument();
     expect(screen.getByText("$126.00")).toBeInTheDocument();
     expect(screen.getByText(/Sucursal: Palma/i)).toBeInTheDocument();
+    expect(screen.getByText(/Marca: Picfoto/i)).toBeInTheDocument();
     expect(screen.getByText(/Descargar movimientos CSV/i)).toBeInTheDocument();
     expect(screen.getByText(/Descargar corte CSV/i)).toBeInTheDocument();
     expect(screen.queryByText("Mis ventas")).not.toBeInTheDocument();
@@ -142,6 +145,8 @@ describe("ReportesContables", () => {
         puedeVerTodo
         sucursalId={null}
         sucursalNombre={null}
+        marcaId={null}
+        marcaNombre={null}
       />,
     );
 

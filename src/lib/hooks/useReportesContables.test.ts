@@ -91,7 +91,11 @@ describe("useReportesContables por sucursal", () => {
     ]);
 
     const { result } = renderHook(() =>
-      useReportesContables({ sucursalFijo: "suc-1", restringido: true }),
+      useReportesContables({
+        sucursalFijo: "suc-1",
+        marcaFijo: "mar-1",
+        restringido: true,
+      }),
     );
 
     await waitFor(() => {
@@ -101,14 +105,15 @@ describe("useReportesContables por sucursal", () => {
     expect(obtenerPedidosReporte).toHaveBeenCalledWith(
       expect.objectContaining({ desde: expect.any(String) }),
       "suc-1",
-      undefined,
+      "mar-1",
     );
-    expect(listarVendedores).toHaveBeenCalledWith("suc-1");
+    expect(listarVendedores).toHaveBeenCalledWith("suc-1", "mar-1");
     expect(listarSucursales).not.toHaveBeenCalled();
-    expect(listarMarcas).not.toHaveBeenCalled();
+    expect(listarMarcas).toHaveBeenCalled();
     expect(result.current.reporte.totalPedidos).toBe(2);
     expect(result.current.reporte.movimientos).toHaveLength(2);
     expect(result.current.sucursalEfectiva).toBe("suc-1");
+    expect(result.current.marcaEfectiva).toBe("mar-1");
   });
 
   it("no filtra por sucursal cuando el rol ve todo", async () => {
@@ -156,7 +161,7 @@ describe("useReportesContables por sucursal", () => {
         "suc-2",
         undefined,
       );
-      expect(listarVendedores).toHaveBeenLastCalledWith("suc-2");
+      expect(listarVendedores).toHaveBeenLastCalledWith("suc-2", undefined);
     });
   });
 
@@ -192,7 +197,11 @@ describe("useReportesContables por sucursal", () => {
     ]);
 
     const { result } = renderHook(() =>
-      useReportesContables({ sucursalFijo: "suc-1", restringido: true }),
+      useReportesContables({
+        sucursalFijo: "suc-1",
+        marcaFijo: "mar-1",
+        restringido: true,
+      }),
     );
 
     await waitFor(() => {
@@ -208,6 +217,22 @@ describe("useReportesContables por sucursal", () => {
       expect(result.current.reporte.totalPedidos).toBe(2);
       expect(result.current.reporte.porVendedor).toHaveLength(2);
     });
+  });
+
+  it("no consulta si el usuario restringido no tiene marca", async () => {
+    vi.mocked(obtenerPedidosReporte).mockClear();
+
+    const { result } = renderHook(() =>
+      useReportesContables({ sucursalFijo: "suc-1", restringido: true }),
+    );
+
+    await waitFor(() => {
+      expect(result.current.cargando).toBe(false);
+    });
+
+    expect(obtenerPedidosReporte).not.toHaveBeenCalled();
+    expect(result.current.sinMarca).toBe(true);
+    expect(result.current.error).toMatch(/marca asignada/i);
   });
 
   it("no consulta si el usuario restringido no tiene sucursal", async () => {
