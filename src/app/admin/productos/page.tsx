@@ -7,6 +7,7 @@ import { ConfirmModal } from "@/components/ui/ConfirmModal";
 import { useToast } from "@/components/ui/Toast";
 import { RUTAS_PRODUCCION } from "@/lib/utils/constantes";
 import type { AtributoValor, RutaProduccion } from "@/lib/supabase/types";
+import { ModalImportarPreciosCsv } from "../precios/_components/ModalImportarPreciosCsv";
 import {
   listarCatalogoAdmin,
   crearCategoria,
@@ -36,6 +37,7 @@ export default function ProductosPage() {
     | null
   >(null);
   const [guardando, setGuardando] = useState(false);
+  const [csvOpen, setCsvOpen] = useState(false);
 
   const cargar = useCallback(async () => {
     const data = await listarCatalogoAdmin();
@@ -293,7 +295,7 @@ export default function ProductosPage() {
             : ""}
         </h2>
 
-        <div className="flex gap-2">
+        <div className="flex flex-wrap gap-2">
           <input
             value={nuevoProducto}
             onChange={(e) => setNuevoProducto(e.target.value)}
@@ -314,6 +316,15 @@ export default function ProductosPage() {
           </select>
           <Button size="sm" onClick={handleAddProducto} disabled={!categoriaSel}>
             Agregar
+          </Button>
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={() => setCsvOpen(true)}
+            disabled={!categoriaSel}
+          >
+            <i className="fas fa-file-upload mr-1.5" />
+            Importar CSV
           </Button>
         </div>
 
@@ -528,6 +539,21 @@ export default function ProductosPage() {
             </div>
           </div>
         </div>
+      )}
+
+      {csvOpen && categoriaSel && (
+        <ModalImportarPreciosCsv
+          open
+          categoriaId={categoriaSel}
+          categoriaNombre={
+            catalogo?.categorias.find((c) => c.id === categoriaSel)?.nombre ??
+            "categoría"
+          }
+          onClose={() => setCsvOpen(false)}
+          onApplied={() => {
+            void cargar();
+          }}
+        />
       )}
 
       <ConfirmModal

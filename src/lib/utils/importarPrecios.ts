@@ -143,15 +143,16 @@ const ALIASES_TAMANO: Record<string, string> = {
   "14x11-2": "14x11",
 };
 
-function normalizarTamano(valor: string): string {
+export function normalizarTamano(valor: string): string {
   let s = normalizarTexto(valor);
   s = ALIASES_TAMANO[s] ?? s;
+  s = s.replace(/\s*[x×]\s*/gi, "x");
   s = s.replace(/(\d)-(\d)(?!\d)/g, "$1.$2");
   s = s.replace(/-/g, " ");
   return s.replace(/\s+/g, " ").trim();
 }
 
-function dimensionDe(valor: string): string | null {
+export function dimensionDe(valor: string): string | null {
   const match = normalizarTamano(valor).match(
     /(\d+(?:\.\d+)?)x(\d+(?:\.\d+)?)/,
   );

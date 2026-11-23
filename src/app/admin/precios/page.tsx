@@ -32,6 +32,7 @@ import {
 } from "../productos/actions";
 import {
   aplicarImportacion,
+  generarPlantillaPreciosCsv,
   guardarPreciosProducto,
   obtenerPreciosProducto,
   reactivarPreciosProducto,
@@ -40,6 +41,7 @@ import {
   type PrecioAdmin,
 } from "./actions";
 import { ModalImportarPrecios } from "./_components/ModalImportarPrecios";
+import { ModalImportarPreciosCsv } from "./_components/ModalImportarPreciosCsv";
 
 interface AtributoProducto {
   id: string;
@@ -170,12 +172,19 @@ function PreciosContent() {
     actual: 0,
     total: 0,
   });
+  const [plantillaCargando, setPlantillaCargando] = useState(false);
+  const [csvOpen, setCsvOpen] = useState(false);
 
   const productos = useMemo(
     () =>
       catalogo?.productos.filter((p) => p.categoria_id === categoriaSel) ?? [],
     [catalogo, categoriaSel],
   );
+
+  const categoriaActual =
+    catalogo?.categorias.find((c) => c.id === categoriaSel) ?? null;
+  const categoriaEsMarcos =
+    categoriaActual?.nombre.trim().toLowerCase() === "marcos";
 
   const atributosSinClave = useMemo(() => {
     const productoActual = catalogo?.productos.find((p) => p.id === productoSel);
@@ -505,6 +514,57 @@ function PreciosContent() {
     );
   }
 
+  async function descargarPlantilla() {
+    if (!categoriaSel || plantillaCargando) return;
+    setPlantillaCargando(true);
+    try {
+      const plantilla = await generarPlantillaPreciosCsv(categoriaSel);
+      descargarCsv(
+        plantilla.nombreArchivo,
+        "\uFEFF" + plantilla.contenido,
+      );
+      showSuccess(
+        `Plantilla descargada con ${plantilla.filas} precio(s). Llena "Precio nuevo" y vuelve a subirla.`,
+      );
+    } catch (err) {
+      showError(
+        err instanceof Error
+          ? err.message
+          : "Error al generar la plantilla de precios",
+      );
+    } finally {
+      setPlantillaCargando(false);
+    }
+  }
+
+  async function recargarCatalogo() {
+    try {
+      const data = await listarCatalogoAdmin();
+      setCatalogo(data);
+
+      if (productoSel) {
+        const sigueExistiendo = data.productos.some(
+          (producto) => producto.id === productoSel,
+        );
+        if (sigueExistiendo) {
+          await cargarProducto(productoSel, data);
+        } else {
+          setProductoSel("");
+          setAtributos([]);
+          setAtributosPrecio([]);
+          setPrecios([]);
+          setFilas([]);
+        }
+      }
+    } catch (err) {
+      showError(
+        err instanceof Error
+          ? err.message
+          : "No se pudo recargar el catálogo de precios",
+      );
+    }
+  }
+
   async function reactivarInactivos() {
     if (!productoSel || guardando) return;
     setGuardando(true);
@@ -654,15 +714,42 @@ function PreciosContent() {
           <p className="text-xs text-gray-500 dark:text-gray-400">
             {productos.length} producto(s) en esta categoría
           </p>
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={() => setConfirmarCategoria(true)}
-            disabled={importandoCategoria || productos.length === 0}
-          >
-            <i className="fas fa-cloud-download-alt mr-1.5" />
-            Importar toda la categoría
-          </Button>
+          <div className="flex flex-wrap items-center gap-2">
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={descargarPlantilla}
+              disabled={plantillaCargando || productos.length === 0}
+            >
+              {plantillaCargando ? (
+                <i className="fas fa-spinner fa-spin mr-1.5" />
+              ) : (
+                <i className="fas fa-file-download mr-1.5" />
+              )}
+              Descargar plantilla CSV
+            </Button>
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => setCsvOpen(true)}
+              disabled={
+                importandoCategoria ||
+                (!categoriaEsMarcos && productos.length === 0)
+              }
+            >
+              <i className="fas fa-file-upload mr-1.5" />
+              Importar precios CSV
+            </Button>
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => setConfirmarCategoria(true)}
+              disabled={importandoCategoria || productos.length === 0}
+            >
+              <i className="fas fa-cloud-download-alt mr-1.5" />
+              Importar toda la categoría
+            </Button>
+          </div>
         </div>
 
         {importandoCategoria && (
@@ -989,6 +1076,18 @@ function PreciosContent() {
         }}
         onAplicar={confirmarImportacion}
       />
+
+      {csvOpen && (
+        <ModalImportarPreciosCsv
+          open
+          categoriaId={categoriaSel}
+          categoriaNombre={categoriaActual?.nombre ?? "categoría"}
+          onClose={() => setCsvOpen(false)}
+          onApplied={() => {
+            void recargarCatalogo();
+          }}
+        />
+      )}
 
       <ConfirmModal
         open={confirmarCategoria}
