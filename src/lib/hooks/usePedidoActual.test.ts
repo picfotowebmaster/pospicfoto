@@ -41,6 +41,8 @@ describe("usePedidoActual", () => {
     expect(result.current.anticipo).toBe(0);
     expect(result.current.total).toBe(0);
     expect(result.current.metodoPago).toBe("Efectivo");
+    expect(result.current.anticipoManual).toBeNull();
+    expect(result.current.esAnticipoManual).toBe(false);
     expect(result.current.rutaDefault).toBe("R1");
     expect(result.current.marcaId).toBe("");
     expect(result.current.valido).toBe(false);
@@ -136,6 +138,77 @@ describe("usePedidoActual", () => {
     });
 
     expect(result.current.anticipo).toBe(700);
+  });
+
+  it("permite fijar el anticipo con un monto libre", () => {
+    const { result } = renderHook(() => usePedidoActual("suc-1", "ent-1"));
+
+    act(() => {
+      result.current.agregarLinea(helperLinea({ producto_nombre: "A", precio_unitario: 1000 }));
+    });
+
+    act(() => {
+      result.current.usarMontoManual();
+      result.current.setAnticipoManual(250.5);
+    });
+
+    expect(result.current.esAnticipoManual).toBe(true);
+    expect(result.current.anticipoManual).toBe(250.5);
+    expect(result.current.anticipo).toBe(250.5);
+  });
+
+  it("limita el monto libre al subtotal del pedido", () => {
+    const { result } = renderHook(() => usePedidoActual("suc-1", "ent-1"));
+
+    act(() => {
+      result.current.agregarLinea(helperLinea({ producto_nombre: "A", precio_unitario: 1000 }));
+      result.current.usarMontoManual();
+      result.current.setAnticipoManual(5000);
+    });
+
+    expect(result.current.anticipo).toBe(1000);
+  });
+
+  it("vuelve al modo porcentaje al elegir un preset", () => {
+    const { result } = renderHook(() => usePedidoActual("suc-1", "ent-1"));
+
+    act(() => {
+      result.current.agregarLinea(helperLinea({ producto_nombre: "A", precio_unitario: 1000 }));
+      result.current.usarMontoManual();
+      result.current.setAnticipoManual(200);
+    });
+
+    act(() => {
+      result.current.setPorcentajeAnticipo(50);
+    });
+
+    expect(result.current.esAnticipoManual).toBe(false);
+    expect(result.current.anticipoManual).toBeNull();
+    expect(result.current.anticipo).toBe(500);
+  });
+
+  it("restaura el monto libre guardado en el draft", async () => {
+    vi.mocked(getPedidoDraft).mockResolvedValue({
+      lineas: [
+        { id: "l1", producto_nombre: "Foto", cantidad: 1, precio_unitario: 1000, atributos: {}, ruta: "R1" },
+      ],
+      porcentajeAnticipo: 70,
+      anticipoManual: 123.45,
+    });
+
+    const { result } = renderHook(() => usePedidoActual("suc-1", "ent-1"));
+
+    act(() => {
+      result.current.restoreDraft();
+    });
+
+    await waitFor(() => {
+      expect(result.current.draftRestored).toBe(true);
+    });
+
+    expect(result.current.esAnticipoManual).toBe(true);
+    expect(result.current.anticipoManual).toBe(123.45);
+    expect(result.current.anticipo).toBe(123.45);
   });
 
   it("valida que el pedido este completo", () => {

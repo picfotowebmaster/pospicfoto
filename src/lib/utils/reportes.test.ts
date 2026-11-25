@@ -48,6 +48,50 @@ describe("construirResumenReporte", () => {
     ]);
   });
 
+  it("suma pagos divididos por método", () => {
+    const resumen = construirResumenReporte(
+      [
+        {
+          ...base,
+          total: 160,
+          anticipo: 100,
+          saldo_cobrado: true,
+          saldo_metodo_pago: "Transferencia",
+          saldo_cobrado_en: "2026-11-15T18:00:00.000Z",
+          pagos_pedido: [
+            {
+              tipo: "anticipo",
+              metodo_pago: "Efectivo",
+              monto: 60,
+              cobrado_en: "2026-11-10T18:00:00.000Z",
+            },
+            {
+              tipo: "anticipo",
+              metodo_pago: "Tarjeta",
+              monto: 40,
+              cobrado_en: "2026-11-10T18:00:00.000Z",
+            },
+            {
+              tipo: "saldo",
+              metodo_pago: "Transferencia",
+              monto: 60,
+              cobrado_en: "2026-11-15T18:00:00.000Z",
+            },
+          ],
+        },
+      ],
+      "2026-11-01",
+    );
+
+    expect(resumen.totalCobrado).toBe(160);
+    expect(resumen.saldoPendiente).toBe(0);
+    expect(
+      Object.fromEntries(
+        resumen.cobradoPorMetodo.map((m) => [m.metodo_pago, m.total]),
+      ),
+    ).toEqual({ Efectivo: 60, Tarjeta: 40, Transferencia: 60 });
+  });
+
   it("100% cobrado no genera saldo pendiente", () => {
     const resumen = construirResumenReporte(
       [{ ...base, anticipo: 100 }],

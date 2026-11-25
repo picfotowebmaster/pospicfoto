@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   construirReporteContable,
+  type MovimientoContable,
   type PedidoReporteContable,
 } from "./reportesContables";
 import {
@@ -173,34 +174,39 @@ describe("filasMovimientosContables", () => {
   });
 
   it("muestra reembolsos con importe negativo", () => {
-    const conReembolso = construirReporteContable(
-      [
-        {
-          ...pedido,
-          estado: "cancelado",
-          saldo_cobrado: false,
-          saldo_metodo_pago: null,
-          saldo_cobrado_en: null,
-          saldo_cobrado_por: null,
-          reembolso_estado: "realizado",
-          reembolso_monto: 58,
-          reembolso_realizado_en: "2026-11-20T18:00:00.000Z",
-          reembolso_realizado_por: "v1",
-        },
-      ],
-      { desde: "2026-11-01", hasta: "2026-11-30" },
-      "",
+    const movimientos: MovimientoContable[] = [
       {
-        nombresVendedores: nombres,
-        nombresSucursales: new Map([["suc-1", "Palma"]]),
-        nombresMarcas: new Map([["mar-1", "Picfoto"]]),
+        pedidoId: "p1",
+        numeroPedido: "PIC-PAL-00001",
+        clienteNombre: "Jessica Herrera",
+        clienteRfc: "XAXX010101000",
+        sucursalId: "suc-1",
+        sucursalNombre: "Palma",
+        marcaId: "mar-1",
+        marcaNombre: "Picfoto",
+        vendedorId: "v1",
+        vendedorNombre: "Jessica Herrera",
+        cobradoPorId: "v1",
+        cobradoPorNombre: "Jessica Herrera",
+        fechaVenta: "2026-11-10",
+        fechaCobro: "2026-11-20",
+        tipo: "Reembolso",
+        metodoPago: "Reembolso",
+        importe: -58,
+        subtotal: -50,
+        iva: -8,
+        total: 116,
+        estado: "cancelado",
+        facturaFolio: null,
+        facturaUuid: null,
+        facturaEstado: null,
       },
-    );
+    ];
 
-    const filas = filasMovimientosContables(conReembolso.movimientos, meta);
+    const filas = filasMovimientosContables(movimientos, meta);
     expect(filas).toContainEqual(
       expect.arrayContaining(["Reembolso", "Reembolso", "-58.00"]),
     );
-    expect(filas[filas.length - 1][11]).toBe("0.00");
+    expect(filas[filas.length - 1][11]).toBe("-58.00");
   });
 });

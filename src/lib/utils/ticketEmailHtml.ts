@@ -42,6 +42,12 @@ export function renderTicketHtml(
         minute: "2-digit",
       })
     : null;
+  const pagosAnticipo = (pedido.pagos_pedido ?? []).filter(
+    (p) => p.tipo === "anticipo",
+  );
+  const pagosSaldo = (pedido.pagos_pedido ?? []).filter(
+    (p) => p.tipo === "saldo",
+  );
   const nombre = emisor?.nombre_comercial || DATOS_EMPRESA.nombre;
   const razonSocial = emisor?.razon_social || DATOS_EMPRESA.nombre;
   const rfc = emisor?.rfc || DATOS_EMPRESA.rfc;
@@ -121,9 +127,33 @@ export function renderTicketHtml(
       <tr><td style="font-weight:bold;font-size:14px;">Total:</td><td style="text-align:right;font-weight:bold;font-size:14px;">${money(pedido.total)}</td></tr>
       <tr><td style="font-weight:bold;">Estado de pago:</td><td style="text-align:right;">${pagado ? "Pagado" : "Pendiente"}</td></tr>
       ${saldo > 0.01 ? `<tr><td style="font-weight:bold;">${pedido.saldo_cobrado ? "Saldo pagado:" : "Saldo pendiente:"}</td><td style="text-align:right;">${money(saldo)}</td></tr>` : ""}
-      ${pedido.saldo_cobrado && saldo > 0.01 && pedido.saldo_metodo_pago ? `<tr><td style="font-weight:bold;">Método saldo:</td><td style="text-align:right;">${esc(pedido.saldo_metodo_pago)}</td></tr>` : ""}
+      ${
+        pedido.saldo_cobrado && saldo > 0.01
+          ? pagosSaldo.length > 0
+            ? pagosSaldo
+                .map(
+                  (p) =>
+                    `<tr><td style="font-weight:bold;">Método saldo:</td><td style="text-align:right;">${esc(p.metodo_pago)} ${money(p.monto)}</td></tr>`,
+                )
+                .join("")
+            : pedido.saldo_metodo_pago
+              ? `<tr><td style="font-weight:bold;">Método saldo:</td><td style="text-align:right;">${esc(pedido.saldo_metodo_pago)}</td></tr>`
+              : ""
+          : ""
+      }
       ${pedido.saldo_cobrado && saldo > 0.01 && fechaLiquidacion ? `<tr><td style="font-weight:bold;">Fecha de pago:</td><td style="text-align:right;">${esc(fechaLiquidacion)}</td></tr>` : ""}
-      ${pedido.anticipo > 0 ? `<tr><td style="font-weight:bold;">Pago:</td><td style="text-align:right;">${esc(pedido.metodo_pago)}</td></tr>` : ""}
+      ${
+        pedido.anticipo > 0
+          ? pagosAnticipo.length > 0
+            ? pagosAnticipo
+                .map(
+                  (p) =>
+                    `<tr><td style="font-weight:bold;">Pago:</td><td style="text-align:right;">${esc(p.metodo_pago)} ${money(p.monto)}</td></tr>`,
+                )
+                .join("")
+            : `<tr><td style="font-weight:bold;">Pago:</td><td style="text-align:right;">${esc(pedido.metodo_pago)}</td></tr>`
+          : ""
+      }
     </table>
 
     <div style="border-top:1px dashed #9ca3af;margin-top:12px;padding-top:12px;text-align:center;">

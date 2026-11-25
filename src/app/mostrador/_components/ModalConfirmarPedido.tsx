@@ -2,7 +2,11 @@
 
 import { Button } from "@/components/ui/Button";
 import { RUTAS_PRODUCCION } from "@/lib/utils/constantes";
-import type { LineaPedidoDraft, MetodoPago } from "@/lib/supabase/types";
+import type {
+  LineaPedidoDraft,
+  MetodoPago,
+  PagoDraft,
+} from "@/lib/supabase/types";
 import { facturacionHabilitada } from "@/lib/config/features";
 
 interface ModalConfirmarPedidoProps {
@@ -17,8 +21,10 @@ interface ModalConfirmarPedidoProps {
   lineas: LineaPedidoDraft[];
   subtotal: number;
   anticipo: number;
+  anticipoEsManual?: boolean;
   total: number;
   metodoPago: MetodoPago;
+  pagosAnticipo: PagoDraft[];
   cargando: boolean;
   onConfirm: () => void;
   onCancel: () => void;
@@ -36,8 +42,10 @@ export function ModalConfirmarPedido({
   lineas,
   subtotal,
   anticipo,
+  anticipoEsManual = false,
   total,
   metodoPago,
+  pagosAnticipo,
   cargando,
   onConfirm,
   onCancel,
@@ -48,11 +56,13 @@ export function ModalConfirmarPedido({
   const porcentaje =
     total > 0 ? Math.round((anticipo / total) * 100) : 0;
   const etiquetaConfirmar =
-    porcentaje <= 0
+    anticipo <= 0
       ? "Confirmar pedido"
-      : porcentaje >= 100
+      : anticipo >= total
         ? "Confirmar y cobrar total"
-        : `Confirmar y cobrar ${porcentaje}%`;
+        : anticipoEsManual
+          ? `Confirmar y cobrar $${anticipo.toFixed(2)}`
+          : `Confirmar y cobrar ${porcentaje}%`;
   const fecha = fechaEntrega
     ? new Date(`${fechaEntrega}T${horaEntrega || "00:00"}`).toLocaleDateString("es-MX", {
         weekday: "long",
@@ -150,10 +160,28 @@ export function ModalConfirmarPedido({
             </div>
             <div className="flex justify-between text-gray-500 dark:text-gray-400">
               <span>
-                Anticipo {anticipo > 0 ? `(${metodoPago})` : "(sin cobro inicial)"}
+                Anticipo{" "}
+                {anticipo > 0
+                  ? pagosAnticipo.length > 1
+                    ? "(dividido)"
+                    : `(${metodoPago})`
+                  : "(sin cobro inicial)"}
               </span>
               <span>${anticipo.toFixed(2)}</span>
             </div>
+            {pagosAnticipo.length > 1 &&
+              pagosAnticipo.map((pago, index) => (
+                <div
+                  key={index}
+                  className="flex justify-between text-[11px] text-gray-400 dark:text-gray-500 pl-3"
+                >
+                  <span>
+                    <i className="fas fa-angle-right mr-1" />
+                    {pago.metodo}
+                  </span>
+                  <span>${pago.monto.toFixed(2)}</span>
+                </div>
+              ))}
             <div className="flex justify-between font-bold text-gray-900 dark:text-gray-100 border-t border-gray-200 dark:border-gray-700 pt-1.5">
               <span>Total</span>
               <span>${total.toFixed(2)}</span>

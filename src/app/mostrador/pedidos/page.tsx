@@ -13,7 +13,7 @@ import { ModalCancelarPedido } from "@/components/pedidos/ModalCancelarPedido";
 import { useHistorialPedidos } from "@/lib/hooks/useHistorialPedidos";
 import { useAuth } from "@/lib/hooks/useAuth";
 import { useOffline } from "@/lib/offline/useOffline";
-import { liquidarSaldo } from "@/lib/services/pedidos";
+import { liquidarSaldoConPagos } from "@/lib/services/pedidos";
 import { vendedoresParaFiltro } from "@/lib/services/vendedores";
 import { ESTADOS_PEDIDO } from "@/lib/utils/constantes";
 import {
@@ -22,7 +22,7 @@ import {
   type MotivoCancelacionPedido,
 } from "@/lib/utils/cancelacion";
 import { cancelarVenta } from "@/lib/services/pedidos";
-import type { MetodoPago, Pedido } from "@/lib/supabase/types";
+import type { PagoDraft, Pedido } from "@/lib/supabase/types";
 
 function formatearFecha(fecha: string): string {
   const d = new Date(`${fecha}T00:00:00`);
@@ -78,10 +78,10 @@ export default function PedidosMostradorPage() {
     habilitado,
   });
 
-  async function confirmarLiquidacion(metodo: MetodoPago) {
+  async function confirmarLiquidacion(pagos: PagoDraft[]) {
     if (!liquidando) return;
     const numero = liquidando.numero_pedido || liquidando.id;
-    await liquidarSaldo(liquidando.id, metodo, session?.user.id ?? null);
+    await liquidarSaldoConPagos(liquidando.id, pagos, session?.user.id ?? null);
     setLiquidando(null);
     showSuccess("Saldo liquidado. Ticket actualizado.");
     router.push(`/mostrador/ticket/${numero}`);

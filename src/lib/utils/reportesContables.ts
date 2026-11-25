@@ -5,6 +5,14 @@ export interface RangoReporte {
   hasta: string;
 }
 
+export interface PagoReporte {
+  tipo: "anticipo" | "saldo";
+  metodo_pago: string;
+  monto: number;
+  cobrado_por?: string | null;
+  cobrado_en?: string | null;
+}
+
 export interface PedidoReporteContable {
   id: string;
   numero_pedido?: string | null;
@@ -31,6 +39,82 @@ export interface PedidoReporteContable {
   factura_uuid?: string | null;
   factura_estado?: string | null;
   factura_fecha?: string | null;
+  pagos_pedido?: PagoReporte[] | null;
+}
+
+interface PagoCalculado {
+  tipo: "Anticipo" | "Saldo";
+  metodo: string;
+  monto: number;
+  fecha: string;
+  cobradoPorId: string | null;
+}
+
+function pagosDelPedido(pedido: PedidoReporteContable): PagoCalculado[] {
+  const resultado: PagoCalculado[] = [];
+  const registrados = pedido.pagos_pedido ?? [];
+  const anticipos = registrados.filter(
+    (p) => p.tipo === "anticipo" && redondear2(p.monto) > 0.01,
+  );
+  const saldos = registrados.filter(
+    (p) => p.tipo === "saldo" && redondear2(p.monto) > 0.01,
+  );
+
+  const anticipo = redondear2(Number(pedido.anticipo ?? 0));
+  if (anticipos.length > 0) {
+    for (const pago of anticipos) {
+      resultado.push({
+        tipo: "Anticipo",
+        metodo: pago.metodo_pago || pedido.metodo_pago || "Efectivo",
+        monto: redondear2(pago.monto),
+        fecha:
+          fechaDia(pedido.fecha_recepcion) || fechaDia(pago.cobrado_en),
+        cobradoPorId: pago.cobrado_por ?? pedido.cajero_id ?? null,
+      });
+    }
+  } else if (anticipo > 0.01) {
+    resultado.push({
+      tipo: "Anticipo",
+      metodo: pedido.metodo_pago ?? "Efectivo",
+      monto: anticipo,
+      fecha: fechaDia(pedido.fecha_recepcion),
+      cobradoPorId: pedido.cajero_id ?? null,
+    });
+  }
+
+  const total = redondear2(Number(pedido.total ?? 0));
+  const saldo = Math.max(0, redondear2(total - Number(pedido.anticipo ?? 0)));
+  if (saldos.length > 0) {
+    for (const pago of saldos) {
+      resultado.push({
+        tipo: "Saldo",
+        metodo:
+          pago.metodo_pago ||
+          pedido.saldo_metodo_pago ||
+          pedido.metodo_pago ||
+          "Efectivo",
+        monto: redondear2(pago.monto),
+        fecha:
+          fechaDia(pago.cobrado_en) ||
+          fechaDia(pedido.saldo_cobrado_en) ||
+          fechaDia(pedido.fecha_recepcion),
+        cobradoPorId: pago.cobrado_por ?? pedido.saldo_cobrado_por ?? null,
+      });
+    }
+  } else if (saldo > 0.01 && pedido.saldo_cobrado) {
+    resultado.push({
+      tipo: "Saldo",
+      metodo:
+        pedido.saldo_metodo_pago ?? pedido.metodo_pago ?? "Efectivo",
+      monto: saldo,
+      fecha:
+        fechaDia(pedido.saldo_cobrado_en) ||
+        fechaDia(pedido.fecha_recepcion),
+      cobradoPorId: pedido.saldo_cobrado_por ?? null,
+    });
+  }
+
+  return resultado;
 }
 
 export interface MovimientoContable {
@@ -132,18 +216,7 @@ function coincideMetodo(
   metodoPago: string,
 ): boolean {
   if (!metodoPago) return true;
-
-  const anticipo = Number(pedido.anticipo ?? 0);
-  const metodoAnticipo = pedido.metodo_pago ?? "Efectivo";
-  if (anticipo > 0.01 && metodoAnticipo === metodoPago) return true;
-
-  if (pedido.saldo_cobrado) {
-    const metodoSaldo =
-      pedido.saldo_metodo_pago ?? pedido.metodo_pago ?? "Efectivo";
-    if (metodoSaldo === metodoPago) return true;
-  }
-
-  return false;
+  return pagosDelPedido(pedido).some((pago) => pago.metodo === metodoPago);
 }
 
 function saldoPendientePedido(pedido: PedidoReporteContable): number {
@@ -236,6 +309,7 @@ export function construirReporteContable(
     importe: number,
     total: number,
     desglose: { subtotal: number; iva: number },
+    cobradoPorIdOverride?: string | null,
   ) {
     const redondeado = redondear2(importe);
     const esReembolso = tipo === "Reembolso";
@@ -257,9 +331,10 @@ export function construirReporteContable(
     const vendedorNombre = nombreDe(vendedorId, nombres, "Sin vendedor");
     const cobradoPorId = esReembolso
       ? (pedido.reembolso_realizado_por ?? null)
-      : tipo === "Anticipo"
-        ? vendedorId
-        : (pedido.saldo_cobrado_por ?? null);
+      : (cobradoPorIdOverride ??
+        (tipo === "Anticipo"
+          ? vendedorId
+          : (pedido.saldo_cobrado_por ?? null)));
     const cobradoPorNombre = esReembolso
       ? nombreDe(cobradoPorId, nombres, "Sin registro")
       : tipo === "Anticipo"
@@ -314,16 +389,18 @@ export function construirReporteContable(
   }
 
   for (const pedido of pedidos) {
-    const cancelado = pedido.estado === "cancelado";
+    // Los pedidos cancelados se excluyen por completo de ventas y cobros,
+    // igual que en el resumen de reportes.ts. Así una venta cancelada no
+    // aparece como "cobrada" mientras su reembolso siga pendiente.
+    if (pedido.estado === "cancelado") continue;
+
     const total = redondear2(Number(pedido.total ?? 0));
-    const anticipo = redondear2(Number(pedido.anticipo ?? 0));
-    const saldo = Math.max(0, redondear2(total - anticipo));
     const desglose = desglosarIva(total);
     const vendidoEnRango = dentroDeRango(pedido.fecha_recepcion, rango);
     const coincide = coincideMetodo(pedido, metodoPago);
     const coincideV = coincideVendedor(pedido);
 
-    if (!cancelado && vendidoEnRango && coincide && coincideV) {
+    if (vendidoEnRango && coincide && coincideV) {
       totalVendido = redondear2(totalVendido + total);
       totalPedidos += 1;
       const resumenVendedor = entradaVendedor(pedido.cajero_id ?? null);
@@ -345,43 +422,19 @@ export function construirReporteContable(
       }
     }
 
-    const metodoAnticipo = pedido.metodo_pago ?? "Efectivo";
-    if (
-      anticipo > 0.01 &&
-      vendidoEnRango &&
-      coincideV &&
-      (!metodoPago || metodoAnticipo === metodoPago)
-    ) {
-      sumarCobro(
-        pedido,
-        "Anticipo",
-        fechaDia(pedido.fecha_recepcion),
-        metodoAnticipo,
-        anticipo,
-        total,
-        desglose,
-      );
-    }
-
-    if (saldo > 0.01 && pedido.saldo_cobrado) {
-      const fechaSaldo =
-        fechaDia(pedido.saldo_cobrado_en) || fechaDia(pedido.fecha_recepcion);
-      const metodoSaldo =
-        pedido.saldo_metodo_pago ?? pedido.metodo_pago ?? "Efectivo";
-
-      if (
-        dentroDeRango(fechaSaldo, rango) &&
-        coincideV &&
-        (!metodoPago || metodoSaldo === metodoPago)
-      ) {
+    if (coincideV) {
+      for (const pago of pagosDelPedido(pedido)) {
+        if (metodoPago && pago.metodo !== metodoPago) continue;
+        if (!dentroDeRango(pago.fecha, rango)) continue;
         sumarCobro(
           pedido,
-          "Saldo",
-          fechaSaldo,
-          metodoSaldo,
-          saldo,
+          pago.tipo,
+          pago.fecha,
+          pago.metodo,
+          pago.monto,
           total,
           desglose,
+          pago.cobradoPorId,
         );
       }
     }

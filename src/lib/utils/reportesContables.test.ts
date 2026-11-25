@@ -95,7 +95,57 @@ describe("construirReporteContable", () => {
     expect(efectivo.movimientos[0].tipo).toBe("Saldo");
   });
 
-  it("excluye ventas canceladas pero conserva el efectivo cobrado", () => {
+  it("registra pagos divididos y filtra por método", () => {
+    const dividido = pedido({
+      anticipo: 100,
+      total: 116,
+      saldo_cobrado: true,
+      saldo_metodo_pago: "Transferencia",
+      saldo_cobrado_en: "2026-11-20T18:00:00.000Z",
+      pagos_pedido: [
+        {
+          tipo: "anticipo",
+          metodo_pago: "Efectivo",
+          monto: 60,
+          cobrado_por: "v1",
+          cobrado_en: "2026-11-10T18:00:00.000Z",
+        },
+        {
+          tipo: "anticipo",
+          metodo_pago: "Tarjeta",
+          monto: 40,
+          cobrado_por: "v1",
+          cobrado_en: "2026-11-10T18:00:00.000Z",
+        },
+        {
+          tipo: "saldo",
+          metodo_pago: "Transferencia",
+          monto: 16,
+          cobrado_por: "v2",
+          cobrado_en: "2026-11-20T18:00:00.000Z",
+        },
+      ],
+    });
+
+    const reporte = construirReporteContable([dividido], NOVIEMBRE);
+    expect(reporte.totalCobrado).toBe(116);
+    expect(
+      Object.fromEntries(
+        reporte.cobradoPorMetodo.map((m) => [m.metodo_pago, m.total]),
+      ),
+    ).toEqual({ Efectivo: 60, Tarjeta: 40, Transferencia: 16 });
+
+    const tarjeta = construirReporteContable([dividido], NOVIEMBRE, "Tarjeta");
+    expect(tarjeta.totalCobrado).toBe(40);
+    expect(tarjeta.movimientos).toHaveLength(1);
+    expect(tarjeta.movimientos[0]).toMatchObject({
+      tipo: "Anticipo",
+      metodoPago: "Tarjeta",
+      importe: 40,
+    });
+  });
+
+  it("excluye por completo los pedidos cancelados", () => {
     const reporte = construirReporteContable(
       [pedido({ estado: "cancelado" })],
       NOVIEMBRE,
@@ -103,16 +153,13 @@ describe("construirReporteContable", () => {
 
     expect(reporte.totalVendido).toBe(0);
     expect(reporte.totalPedidos).toBe(0);
-    expect(reporte.totalCobrado).toBe(58);
+    expect(reporte.totalCobrado).toBe(0);
     expect(reporte.saldoPendiente).toBe(0);
-    expect(reporte.movimientos).toHaveLength(1);
-    expect(reporte.movimientos[0]).toMatchObject({
-      tipo: "Anticipo",
-      importe: 58,
-    });
+    expect(reporte.movimientos).toHaveLength(0);
+    expect(reporte.cobradoPorMetodo).toEqual([]);
   });
 
-  it("resta los reembolsos realizados del cobrado neto", () => {
+  it("no cuenta cobros ni reembolsos de pedidos cancelados", () => {
     const reporte = construirReporteContable(
       [
         pedido({
@@ -139,25 +186,12 @@ describe("construirReporteContable", () => {
 
     expect(reporte.totalVendido).toBe(0);
     expect(reporte.totalCobrado).toBe(0);
-    expect(reporte.totalReembolsado).toBe(116);
-    expect(reporte.movimientos.map((m) => m.tipo)).toEqual([
-      "Anticipo",
-      "Saldo",
-      "Reembolso",
-    ]);
-    expect(reporte.movimientos[2]).toMatchObject({
-      tipo: "Reembolso",
-      importe: -116,
-      cobradoPorNombre: "Jessica Herrera",
-      fechaCobro: "2026-11-20",
-    });
-    expect(reporte.cobradoPorMetodo).toEqual([
-      { metodo_pago: "Tarjeta", count: 1, total: 58 },
-      { metodo_pago: "Efectivo", count: 1, total: 58 },
-    ]);
+    expect(reporte.totalReembolsado).toBe(0);
+    expect(reporte.movimientos).toEqual([]);
+    expect(reporte.cobradoPorMetodo).toEqual([]);
   });
 
-  it("ignora reembolsos realizados fuera del periodo", () => {
+  it("excluye pedidos cancelados sin importar la fecha del reembolso", () => {
     const reporte = construirReporteContable(
       [
         pedido({
@@ -171,7 +205,8 @@ describe("construirReporteContable", () => {
     );
 
     expect(reporte.totalReembolsado).toBe(0);
-    expect(reporte.totalCobrado).toBe(58);
+    expect(reporte.totalCobrado).toBe(0);
+    expect(reporte.movimientos).toEqual([]);
   });
 
   it("resuelve el nombre de la sucursal del movimiento", () => {

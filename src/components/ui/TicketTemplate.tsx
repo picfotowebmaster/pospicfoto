@@ -1,7 +1,7 @@
 import React from "react";
 import { DATOS_EMPRESA, POLITICAS } from "@/lib/utils/constantes";
 import { pedidoPagado } from "@/lib/utils/fiscal";
-import type { EntidadEmisora } from "@/lib/supabase/types";
+import type { EntidadEmisora, PagoPedido } from "@/lib/supabase/types";
 
 export interface TicketDetalle {
   id: string;
@@ -29,6 +29,7 @@ export interface TicketPedido {
   saldo_cobrado_en?: string | null;
   vendedor_nombre?: string | null;
   detalle_pedidos?: TicketDetalle[];
+  pagos_pedido?: PagoPedido[] | null;
 }
 
 interface TicketTemplateProps {
@@ -61,6 +62,12 @@ export function TicketTemplate({ pedido, emisor, nota }: TicketTemplateProps) {
   const telefonos = emisor?.telefonos || DATOS_EMPRESA.telefono;
   const correo = emisor?.email || DATOS_EMPRESA.correo;
   const logo = emisor?.logo_url || "/icons/icon-128.png";
+  const pagosAnticipo = (pedido.pagos_pedido ?? []).filter(
+    (p) => p.tipo === "anticipo",
+  );
+  const pagosSaldo = (pedido.pagos_pedido ?? []).filter(
+    (p) => p.tipo === "saldo",
+  );
 
   return (
     <div className="ticket-container max-w-[72mm] mx-auto font-mono text-[10px] leading-tight text-black bg-white">
@@ -173,22 +180,36 @@ export function TicketTemplate({ pedido, emisor, nota }: TicketTemplateProps) {
             <span>${saldo.toFixed(2)}</span>
           </div>
         )}
-        {pedido.saldo_cobrado && saldo > 0.01 && (
-          <div>
-            <span className="font-bold">Método saldo:</span>{" "}
-            {pedido.saldo_metodo_pago || "—"}
-          </div>
-        )}
+        {pedido.saldo_cobrado && saldo > 0.01 && pagosSaldo.length > 0
+          ? pagosSaldo.map((pago) => (
+              <div key={pago.id}>
+                <span className="font-bold">Método saldo:</span>{" "}
+                {pago.metodo_pago} ${pago.monto.toFixed(2)}
+              </div>
+            ))
+          : pedido.saldo_cobrado && saldo > 0.01 && (
+              <div>
+                <span className="font-bold">Método saldo:</span>{" "}
+                {pedido.saldo_metodo_pago || "—"}
+              </div>
+            )}
         {pedido.saldo_cobrado && saldo > 0.01 && fechaLiquidacion && (
           <div>
             <span className="font-bold">Fecha de pago:</span> {fechaLiquidacion}
           </div>
         )}
-        {pedido.anticipo > 0 && (
-          <div>
-            <span className="font-bold">Pago:</span> {pedido.metodo_pago}
-          </div>
-        )}
+        {pedido.anticipo > 0 && pagosAnticipo.length > 0
+          ? pagosAnticipo.map((pago) => (
+              <div key={pago.id}>
+                <span className="font-bold">Pago:</span> {pago.metodo_pago} $
+                {pago.monto.toFixed(2)}
+              </div>
+            ))
+          : pedido.anticipo > 0 && (
+              <div>
+                <span className="font-bold">Pago:</span> {pedido.metodo_pago}
+              </div>
+            )}
       </div>
 
       <div className="text-[8px] text-center border-t border-dashed border-gray-400 pt-1">

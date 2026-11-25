@@ -59,7 +59,7 @@ FOR EACH ROW EXECUTE FUNCTION handle_new_user();
 -- =============================================
 -- 5. PEDIDOS
 -- =============================================
-CREATE TYPE metodo_pago_enum AS ENUM ('Efectivo','Tarjeta','Transferencia');
+CREATE TYPE metodo_pago_enum AS ENUM ('Efectivo','Tarjeta','Transferencia','Depósito');
 CREATE TYPE estado_pedido_enum AS ENUM (
   'pendiente','en_taller','en_corte','listo','entregado'
 );

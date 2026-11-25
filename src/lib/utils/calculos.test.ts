@@ -1,5 +1,10 @@
 import { describe, it, expect } from "vitest";
-import { sumarLineas, calcularAnticipo, generarIdLocal } from "./calculos";
+import {
+  sumarLineas,
+  calcularAnticipo,
+  normalizarAnticipoManual,
+  generarIdLocal,
+} from "./calculos";
 
 describe("sumarLineas", () => {
   it("retorna 0 para array vacio", () => {
@@ -56,6 +61,32 @@ describe("calcularAnticipo", () => {
   it("maneja porcentajes con decimales", () => {
     const result = calcularAnticipo(1000, 33.33);
     expect(result).toBe(333.3);
+  });
+});
+
+describe("normalizarAnticipoManual", () => {
+  it("acepta un monto libre dentro del total", () => {
+    expect(normalizarAnticipoManual(345.67, 1000)).toBe(345.67);
+  });
+
+  it("redondea a 2 decimales", () => {
+    expect(normalizarAnticipoManual(100.005, 1000)).toBe(100.01);
+  });
+
+  it("limita montos negativos a 0", () => {
+    expect(normalizarAnticipoManual(-50, 1000)).toBe(0);
+  });
+
+  it("no permite superar el total", () => {
+    expect(normalizarAnticipoManual(1500, 1000)).toBe(1000);
+  });
+
+  it("maneja subtotal cero", () => {
+    expect(normalizarAnticipoManual(200, 0)).toBe(0);
+  });
+
+  it("maneja valores no numericos", () => {
+    expect(normalizarAnticipoManual(Number.NaN, 1000)).toBe(0);
   });
 });
 

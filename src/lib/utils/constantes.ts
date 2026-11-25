@@ -20,6 +20,7 @@ export const ANTICIPO_POR_DEFECTO = 70;
 
 export const ANTICIPO_OPCIONES = [
   { label: "Sin anticipo", value: 0 },
+  { label: "50% de anticipo", value: 50 },
   { label: "70% de anticipo", value: 70 },
   { label: "100% (Total)", value: 100 },
 ];

@@ -29,7 +29,21 @@ function mapearFormaPago(metodoPago: string | null | undefined): string {
   return "01";
 }
 
-function mapearFormaPagoFinal(principal: Record<string, unknown>): string {
+function mapearFormaPagoFinal(
+  principal: Record<string, unknown>,
+  pagos: { tipo: string; metodo_pago: string }[] = [],
+): string {
+  const metodosDistintos = new Set(
+    pagos
+      .map((pago) => pago.metodo_pago)
+      .filter((metodo): metodo is string => Boolean(metodo)),
+  );
+
+  if (metodosDistintos.size > 1) return "99";
+  if (metodosDistintos.size === 1) {
+    return mapearFormaPago([...metodosDistintos][0]);
+  }
+
   const metodoAnticipo = principal.metodo_pago as string | null | undefined;
   const metodoSaldo = principal.saldo_metodo_pago as string | null | undefined;
   const anticipo = Number(principal.anticipo ?? 0);
@@ -138,6 +152,11 @@ export async function POST(request: NextRequest) {
   if (!principal) {
     return NextResponse.json({ error: "Pedido no encontrado" }, { status: 404 });
   }
+
+  const { data: pagosPrincipal } = await admin
+    .from("pagos_pedido")
+    .select("tipo, metodo_pago")
+    .eq("pedido_id", principal.id as string);
 
   let entidad: EntidadEmisora | null = null;
   if (principal.entidad_emisora_id) {
@@ -298,7 +317,10 @@ export async function POST(request: NextRequest) {
     cpExpedicion: configFacturacion.cpExpedicion,
     folio: folioFactura,
     serie: serieFactura,
-    formaPago: mapearFormaPagoFinal(principal),
+    formaPago: mapearFormaPagoFinal(
+      principal,
+      (pagosPrincipal ?? []) as { tipo: string; metodo_pago: string }[],
+    ),
     metodoPago: "PUE",
     receptor,
     global: false,

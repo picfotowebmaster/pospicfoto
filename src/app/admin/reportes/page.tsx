@@ -86,7 +86,7 @@ export default function ReportesPage() {
           supabase
             .from("pedidos")
             .select(
-              "fecha_recepcion, total, anticipo, metodo_pago, saldo_cobrado, saldo_metodo_pago, saldo_cobrado_en, estado",
+              "fecha_recepcion, total, anticipo, metodo_pago, saldo_cobrado, saldo_metodo_pago, saldo_cobrado_en, estado, pagos_pedido(tipo, metodo_pago, monto, cobrado_en)",
             )
             .or(
               `fecha_recepcion.gte.${start},saldo_cobrado_en.gte.${start}T00:00:00`,

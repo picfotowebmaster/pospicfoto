@@ -70,7 +70,7 @@ export async function POST(request: NextRequest) {
 
   const { data: porNumero } = await admin
     .from("pedidos")
-    .select("*, detalle_pedidos(*)")
+    .select("*, detalle_pedidos(*), pagos_pedido(*)")
     .eq("numero_pedido", id)
     .maybeSingle();
 
@@ -79,7 +79,7 @@ export async function POST(request: NextRequest) {
   } else if (UUID_RE.test(id)) {
     const { data: porId } = await admin
       .from("pedidos")
-      .select("*, detalle_pedidos(*)")
+      .select("*, detalle_pedidos(*), pagos_pedido(*)")
       .eq("id", id)
       .maybeSingle();
     pedido = (porId as unknown as Pedido) ?? null;

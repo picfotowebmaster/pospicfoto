@@ -2,14 +2,15 @@
 
 import { useState } from "react";
 import { Button } from "@/components/ui/Button";
-import { METODOS_PAGO } from "@/lib/utils/constantes";
-import type { MetodoPago } from "@/lib/supabase/types";
+import { PagosEditor } from "./PagosEditor";
+import { validarPagos } from "@/lib/utils/pagos";
+import type { PagoDraft } from "@/lib/supabase/types";
 
 interface LiquidarSaldoModalProps {
   numeroPedido?: string | null;
   clienteNombre: string;
   saldo: number;
-  onConfirm: (metodo: MetodoPago) => Promise<void>;
+  onConfirm: (pagos: PagoDraft[]) => Promise<void>;
   onClose: () => void;
 }
 
@@ -20,15 +21,20 @@ export function LiquidarSaldoModal({
   onConfirm,
   onClose,
 }: LiquidarSaldoModalProps) {
-  const [metodo, setMetodo] = useState<MetodoPago>("Efectivo");
+  const [pagos, setPagos] = useState<PagoDraft[]>([
+    { metodo: "Efectivo", monto: saldo },
+  ]);
   const [procesando, setProcesando] = useState(false);
   const [error, setError] = useState("");
 
+  const validacion = validarPagos(pagos, saldo);
+
   async function handleConfirm() {
+    if (!validacion.valido) return;
     setProcesando(true);
     setError("");
     try {
-      await onConfirm(metodo);
+      await onConfirm(pagos);
     } catch (err: unknown) {
       setError(
         err instanceof Error ? err.message : "Error al liquidar el saldo.",
@@ -66,35 +72,20 @@ export function LiquidarSaldoModal({
         </div>
 
         <div className="p-5 space-y-4">
-          <div className="bg-amber-50 border border-amber-200 rounded-xl p-4 text-center">
-            <p className="text-xs font-medium text-amber-700 uppercase tracking-wide">
+          <div className="bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 rounded-xl p-4 text-center">
+            <p className="text-xs font-medium text-amber-700 dark:text-amber-300 uppercase tracking-wide">
               Saldo a cobrar
             </p>
-            <p className="text-3xl font-bold text-amber-700 mt-1">
+            <p className="text-3xl font-bold text-amber-700 dark:text-amber-300 mt-1">
               ${saldo.toFixed(2)}
             </p>
           </div>
 
           <div>
             <label className="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1">
-              Método de pago
+              Método(s) de pago
             </label>
-            <div className="flex gap-2">
-              {METODOS_PAGO.map((m) => (
-                <button
-                  type="button"
-                  key={m.value}
-                  onClick={() => setMetodo(m.value)}
-                  className={`flex-1 px-3 py-2 text-sm rounded-lg border font-medium transition-colors cursor-pointer ${
-                    metodo === m.value
-                      ? "bg-blue-600 text-white border-blue-600"
-                      : "bg-white text-gray-600 border-gray-300 hover:bg-gray-50 dark:bg-gray-800 dark:text-gray-300 dark:border-gray-600"
-                  }`}
-                >
-                  {m.label}
-                </button>
-              ))}
-            </div>
+            <PagosEditor pagos={pagos} total={saldo} onChange={setPagos} />
           </div>
 
           <p className="text-[11px] text-gray-500 dark:text-gray-400">
@@ -116,7 +107,7 @@ export function LiquidarSaldoModal({
           <Button
             variant="success"
             onClick={handleConfirm}
-            disabled={procesando}
+            disabled={procesando || !validacion.valido}
           >
             {procesando ? (
               <span className="inline-flex items-center gap-1">

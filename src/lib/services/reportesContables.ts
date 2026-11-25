@@ -2,7 +2,7 @@ import { supabase } from "../supabase/client";
 import type { PedidoReporteContable, RangoReporte } from "../utils/reportesContables";
 
 const CAMPOS =
-  "id, numero_pedido, cliente_nombre, cliente_rfc, cajero_id, sucursal_id, marca_id, fecha_recepcion, estado, subtotal, anticipo, total, metodo_pago, saldo_cobrado, saldo_metodo_pago, saldo_cobrado_en, saldo_cobrado_por, reembolso_estado, reembolso_monto, reembolso_realizado_en, reembolso_realizado_por, factura_folio, factura_uuid, factura_estado, factura_fecha";
+  "id, numero_pedido, cliente_nombre, cliente_rfc, cajero_id, sucursal_id, marca_id, fecha_recepcion, estado, subtotal, anticipo, total, metodo_pago, saldo_cobrado, saldo_metodo_pago, saldo_cobrado_en, saldo_cobrado_por, reembolso_estado, reembolso_monto, reembolso_realizado_en, reembolso_realizado_por, factura_folio, factura_uuid, factura_estado, factura_fecha, pagos_pedido(tipo, metodo_pago, monto, cobrado_por, cobrado_en)";
 
 const TAMANO_LOTE = 1000;
 

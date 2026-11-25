@@ -3,7 +3,11 @@
 import React, { useEffect, useRef, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { TicketTemplate } from "@/components/ui/TicketTemplate";
-import { cancelarVenta, fetchPedido, liquidarSaldo } from "@/lib/services/pedidos";
+import {
+  cancelarVenta,
+  fetchPedido,
+  liquidarSaldoConPagos,
+} from "@/lib/services/pedidos";
 import { supabase } from "@/lib/supabase/client";
 import { Button } from "@/components/ui/Button";
 import { useToast } from "@/components/ui/Toast";
@@ -24,9 +28,10 @@ import {
   resolverNombresVendedor,
   type PerfilVendedor,
 } from "@/lib/utils/vendedorTicket";
+import { resumenMetodoPago } from "@/lib/utils/pagos";
 import type {
   EntidadEmisora,
-  MetodoPago,
+  PagoDraft,
   Pedido,
 } from "@/lib/supabase/types";
 
@@ -61,7 +66,7 @@ export default function TicketPage() {
         if (principal.factura_numero && principal.factura_numero !== principal.numero_pedido) {
           const { data } = await supabase
             .from("pedidos")
-            .select("*, detalle_pedidos(*)")
+            .select("*, detalle_pedidos(*), pagos_pedido(*)")
             .eq("factura_numero", principal.factura_numero)
             .order("created_at", { ascending: true });
           setPedidos((data ?? []) as Pedido[]);
@@ -72,7 +77,7 @@ export default function TicketPage() {
         try {
           const { data } = await supabase
             .from("pedidos")
-            .select("*, detalle_pedidos(*)")
+            .select("*, detalle_pedidos(*), pagos_pedido(*)")
             .eq("factura_numero", id)
             .order("created_at", { ascending: true });
           if (data && data.length > 0) {
@@ -219,21 +224,39 @@ export default function TicketPage() {
     !pedidoPrincipal?.saldo_cobrado &&
     saldoPendiente > 0.01;
 
-  async function handleLiquidar(metodo: MetodoPago) {
+  async function handleLiquidar(pagos: PagoDraft[]) {
     if (!pedidoPrincipal) return;
-    await liquidarSaldo(pedidoPrincipal.id, metodo, session?.user.id ?? null);
+    const cobradoPorId = session?.user.id ?? null;
+    await liquidarSaldoConPagos(pedidoPrincipal.id, pagos, cobradoPorId);
 
     const ahora = new Date().toISOString();
+    const metodoPrincipal = resumenMetodoPago(pagos);
+    const pagosSaldo = pagos.map((pago, index) => ({
+      id: `${pedidoPrincipal.id}-saldo-${index}`,
+      pedido_id: pedidoPrincipal.id,
+      tipo: "saldo" as const,
+      metodo_pago: pago.metodo,
+      monto: pago.monto,
+      cobrado_por: cobradoPorId,
+      cobrado_en: ahora,
+    }));
+
     setPedidos((prev) =>
       prev.map((pedido) =>
         pedido.id === pedidoPrincipal.id
           ? {
               ...pedido,
               saldo_cobrado: true,
-              saldo_metodo_pago: metodo,
+              saldo_metodo_pago: metodoPrincipal,
               saldo_cobrado_en: ahora,
-              saldo_cobrado_por: session?.user.id ?? null,
+              saldo_cobrado_por: cobradoPorId,
               fecha_pago_total: ahora,
+              pagos_pedido: [
+                ...(pedido.pagos_pedido ?? []).filter(
+                  (pago) => pago.tipo !== "saldo",
+                ),
+                ...pagosSaldo,
+              ],
             }
           : pedido,
       ),
@@ -413,17 +436,19 @@ export default function TicketPage() {
       )}
       <div className="ticket-print-area">
         {pedidos.length === 1 ? (
-          <TicketTemplate
-            pedido={pedidos[0]}
-            emisor={
-              pedidos[0].entidad_emisora_id
-                ? emisores.get(pedidos[0].entidad_emisora_id) ?? null
-                : null
-            }
-          />
+          <div className="ticket-print-item">
+            <TicketTemplate
+              pedido={pedidos[0]}
+              emisor={
+                pedidos[0].entidad_emisora_id
+                  ? emisores.get(pedidos[0].entidad_emisora_id) ?? null
+                  : null
+              }
+            />
+          </div>
         ) : (
           <div>
-            <div className="ticket-container max-w-[72mm] mx-auto font-mono text-[10px] leading-tight text-black bg-white mb-4">
+            <div className="ticket-container max-w-[72mm] mx-auto font-mono text-[10px] leading-tight text-black bg-white mb-4 no-print">
               <div className="text-center p-2 border border-dashed border-gray-400 rounded">
                 <div className="font-bold text-xs">FACTURA: {id}</div>
                 <div className="text-[8px] text-gray-500 mt-1">
@@ -432,8 +457,8 @@ export default function TicketPage() {
               </div>
             </div>
             {pedidos.map((p, i) => (
-              <div key={p.id}>
-                {i > 0 && <div className="border-t-4 border-dashed border-gray-300 my-4 max-w-[72mm] mx-auto" />}
+              <div key={p.id} className="ticket-print-item">
+                {i > 0 && <div className="border-t-4 border-dashed border-gray-300 my-4 max-w-[72mm] mx-auto no-print" />}
                 <TicketTemplate
                   pedido={p}
                   emisor={

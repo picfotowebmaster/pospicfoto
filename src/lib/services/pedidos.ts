@@ -1,9 +1,57 @@
 import { supabase } from "../supabase/client";
-import type { PedidoDraft, Pedido, MetodoPago, RutaProduccion, LineaPedidoDraft, PrioridadPedido, DatosFiscalesPedido } from "../supabase/types";
+import type {
+  PedidoDraft,
+  Pedido,
+  MetodoPago,
+  RutaProduccion,
+  LineaPedidoDraft,
+  PrioridadPedido,
+  DatosFiscalesPedido,
+  PagoDraft,
+  TipoPagoPedido,
+} from "../supabase/types";
 import { upsertHistorial } from "./historial";
 import { guardarClienteFiscal } from "./clientesFiscales";
 import { guardarCliente } from "./clientes";
 import { fechaNegocio, horaNegocio } from "../utils/fechas";
+import {
+  normalizarPagos,
+  redondear2,
+  repartirPagosProporcional,
+  resumenMetodoPago,
+  sumarPagos,
+} from "../utils/pagos";
+
+function pagosParaAnticipo(draft: {
+  anticipo: number;
+  metodo_pago: MetodoPago;
+  pagos_anticipo?: PagoDraft[];
+}): PagoDraft[] {
+  const normalizados = normalizarPagos(draft.pagos_anticipo ?? []);
+  if (normalizados.length > 0) return normalizados;
+  const monto = redondear2(draft.anticipo);
+  return monto > 0 ? [{ metodo: draft.metodo_pago, monto }] : [];
+}
+
+async function insertarPagosPedido(
+  pedidoId: string,
+  tipo: TipoPagoPedido,
+  pagos: PagoDraft[],
+  cobradoPorId: string | null,
+  cobradoEn = new Date().toISOString(),
+): Promise<void> {
+  const filas = normalizarPagos(pagos).map((pago) => ({
+    pedido_id: pedidoId,
+    tipo,
+    metodo_pago: pago.metodo,
+    monto: pago.monto,
+    cobrado_por: cobradoPorId,
+    cobrado_en: cobradoEn,
+  }));
+  if (filas.length === 0) return;
+  const { error } = await supabase.from("pagos_pedido").insert(filas);
+  if (error) throw error;
+}
 
 interface EntidadResuelta {
   marcaId: string;
@@ -108,6 +156,11 @@ export async function crearPedido(draft: PedidoDraft, cajeroId: string): Promise
 
   if (numErr) throw numErr;
 
+  const pagosAnticipo = pagosParaAnticipo(draft);
+  const metodoPagoPrincipal = resumenMetodoPago(pagosAnticipo, draft.metodo_pago);
+  const anticipoFinal =
+    pagosAnticipo.length > 0 ? sumarPagos(pagosAnticipo) : draft.anticipo;
+
   const { data: pedido, error: pedidoErr } = await supabase
     .from("pedidos")
     .insert({
@@ -124,16 +177,16 @@ export async function crearPedido(draft: PedidoDraft, cajeroId: string): Promise
       fecha_recepcion: draft.fecha_recepcion ?? fechaNegocio(),
       hora_recepcion: draft.hora_recepcion ?? horaNegocio(),
       fecha_pago_total:
-        draft.total > 0 && draft.anticipo >= draft.total
+        draft.total > 0 && anticipoFinal >= draft.total
           ? new Date().toISOString()
           : null,
       fecha_entrega: draft.fecha_entrega,
       hora_entrega: draft.hora_entrega,
       requiere_correccion: draft.requiere_correccion,
       subtotal: draft.subtotal,
-      anticipo: draft.anticipo,
+      anticipo: anticipoFinal,
       total: draft.total,
-      metodo_pago: draft.metodo_pago,
+      metodo_pago: metodoPagoPrincipal,
       ruta: draft.ruta,
       area_actual: "mostrador",
       sucursal_id: entidad.sucursalId,
@@ -145,6 +198,8 @@ export async function crearPedido(draft: PedidoDraft, cajeroId: string): Promise
     .single();
 
   if (pedidoErr) throw pedidoErr;
+
+  await insertarPagosPedido(pedido.id, "anticipo", pagosAnticipo, cajeroId);
 
   const detalles = draft.lineas.map((l) => ({
     pedido_id: pedido.id,
@@ -183,13 +238,17 @@ export async function crearPedido(draft: PedidoDraft, cajeroId: string): Promise
     email: draft.cliente_email,
     pedidoId: pedido.id,
     total: draft.total,
-  }).catch(() => {});
+  }).catch((error) =>
+    console.error("No se pudo guardar el cliente del pedido", error),
+  );
 
   await guardarClienteFiscal({
     ...draft,
     email: draft.cliente_email,
     telefono: draft.cliente_telefono,
-  }).catch(() => {});
+  }).catch((error) =>
+    console.error("No se pudieron guardar los datos fiscales del cliente", error),
+  );
 
   return pedido.numero_pedido;
 }
@@ -218,6 +277,7 @@ async function insertarSubPedido(
   },
   lineas: LineaPedidoDraft[],
   facturaNumero: string,
+  pagosAnticipo: PagoDraft[],
 ): Promise<string> {
   const { data: numData, error: numErr } = await supabase
     .rpc("generar_numero_pedido", {
@@ -226,6 +286,8 @@ async function insertarSubPedido(
     });
 
   if (numErr) throw numErr;
+
+  const metodoPagoPrincipal = resumenMetodoPago(pagosAnticipo, draft.metodo_pago);
 
   const { data: pedido, error: pedidoErr } = await supabase
     .from("pedidos")
@@ -252,7 +314,7 @@ async function insertarSubPedido(
       subtotal: draft.subtotal,
       anticipo: draft.anticipo,
       total: draft.total,
-      metodo_pago: draft.metodo_pago,
+      metodo_pago: metodoPagoPrincipal,
       ruta: draft.ruta,
       area_actual: "mostrador",
       sucursal_id: draft.sucursal_id,
@@ -265,6 +327,8 @@ async function insertarSubPedido(
     .single();
 
   if (pedidoErr) throw pedidoErr;
+
+  await insertarPagosPedido(pedido.id, "anticipo", pagosAnticipo, cajeroId);
 
   const detalles = lineas.map((l) => ({
     pedido_id: pedido.id,
@@ -303,7 +367,9 @@ async function insertarSubPedido(
     email: draft.cliente_email,
     pedidoId: pedido.id,
     total: draft.total,
-  }).catch(() => {});
+  }).catch((error) =>
+    console.error("No se pudo guardar el cliente del pedido", error),
+  );
 
   return pedido.numero_pedido;
 }
@@ -322,6 +388,7 @@ export interface DraftAgrupado extends DatosFiscalesPedido {
   anticipo: number;
   total: number;
   metodo_pago: MetodoPago;
+  pagos_anticipo?: PagoDraft[];
   sucursal_id: string;
   marca_id: string;
   entidad_emisora_id?: string;
@@ -361,6 +428,7 @@ export async function crearPedidoAgrupado(draft: DraftAgrupado, cajeroId: string
         anticipo: draft.anticipo,
         total: draft.total,
         metodo_pago: draft.metodo_pago,
+        pagos_anticipo: draft.pagos_anticipo,
         ruta,
         sucursal_id: entidad.sucursalId,
         marca_id: entidad.marcaId,
@@ -382,9 +450,25 @@ export async function crearPedidoAgrupado(draft: DraftAgrupado, cajeroId: string
 
   const pedidoIds: string[] = [];
 
-  for (const ruta of rutas) {
+  const factores = rutas.map((ruta) => {
     const lineasRuta = groups[ruta];
-    const factor = lineasRuta.reduce((s, l) => s + l.cantidad * l.precio_unitario, 0) / draft.subtotal;
+    const subtotalRuta = lineasRuta.reduce(
+      (s, l) => s + l.cantidad * l.precio_unitario,
+      0,
+    );
+    return draft.subtotal > 0 ? subtotalRuta / draft.subtotal : 0;
+  });
+  const pagosPorRuta = repartirPagosProporcional(
+    pagosParaAnticipo(draft),
+    factores,
+  );
+
+  for (let index = 0; index < rutas.length; index++) {
+    const ruta = rutas[index];
+    const lineasRuta = groups[ruta];
+    const factor = factores[index];
+    const pagosRuta = pagosPorRuta[index];
+    const anticipoRuta = sumarPagos(pagosRuta);
 
     const pedidoId = await insertarSubPedido(
       cajeroId,
@@ -411,11 +495,12 @@ export async function crearPedidoAgrupado(draft: DraftAgrupado, cajeroId: string
         marca_id: entidad.marcaId,
         entidad_emisora_id: entidad.entidadEmisoraId,
         subtotal: Math.round(draft.subtotal * factor * 100) / 100,
-        anticipo: Math.round(draft.anticipo * factor * 100) / 100,
+        anticipo: anticipoRuta,
         total: Math.round(draft.total * factor * 100) / 100,
       },
       lineasRuta,
       facturaNumero,
+      pagosRuta,
     );
     pedidoIds.push(pedidoId);
   }
@@ -424,7 +509,9 @@ export async function crearPedidoAgrupado(draft: DraftAgrupado, cajeroId: string
     ...draft,
     email: draft.cliente_email,
     telefono: draft.cliente_telefono,
-  }).catch(() => {});
+  }).catch((error) =>
+    console.error("No se pudieron guardar los datos fiscales del cliente", error),
+  );
 
   return { facturaNumero, pedidoIds };
 }
@@ -435,7 +522,7 @@ export async function fetchPedido(id: string): Promise<Pedido> {
   const column = UUID_RE.test(id) ? "id" : "numero_pedido";
   const { data, error } = await supabase
     .from("pedidos")
-    .select("*, detalle_pedidos(*)")
+    .select("*, detalle_pedidos(*), pagos_pedido(*)")
     .eq(column, id)
     .single();
 
@@ -631,6 +718,32 @@ export async function actualizarPedido(
 
   if (pedidoErr) throw pedidoErr;
 
+  let actualizadoPor: string | null = null;
+  try {
+    const authResult = await supabase.auth.getUser();
+    actualizadoPor = authResult?.data?.user?.id ?? null;
+  } catch {
+    actualizadoPor = null;
+  }
+
+  const { error: deletePagosErr } = await supabase
+    .from("pagos_pedido")
+    .delete()
+    .eq("pedido_id", id)
+    .eq("tipo", "anticipo");
+
+  if (deletePagosErr) throw deletePagosErr;
+
+  await insertarPagosPedido(
+    id,
+    "anticipo",
+    pagosParaAnticipo({
+      anticipo: data.anticipo,
+      metodo_pago: data.metodo_pago,
+    }),
+    actualizadoPor,
+  );
+
   const { error: deleteErr } = await supabase
     .from("detalle_pedidos")
     .delete()
@@ -714,6 +827,24 @@ function aplicarFiltros(query: any, filtros: FiltrosPedidos) {
 
 export { buscarClientes } from "./clientes";
 export type { ClienteHistorial } from "./clientes";
+
+export async function liquidarSaldoConPagos(
+  id: string,
+  pagos: PagoDraft[],
+  cobradoPorId: string | null,
+): Promise<void> {
+  const normalizados = normalizarPagos(pagos);
+  const { error } = await supabase.rpc("registrar_pagos_saldo", {
+    p_pedido_id: id,
+    p_pagos: normalizados.map((pago) => ({
+      metodo: pago.metodo,
+      monto: pago.monto,
+    })),
+    p_cobrado_por: cobradoPorId,
+  });
+
+  if (error) throw error;
+}
 
 export async function liquidarSaldo(
   id: string,

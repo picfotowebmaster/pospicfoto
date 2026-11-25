@@ -13,6 +13,7 @@ import {
   actualizarCorreccion,
   buscarClientes,
   liquidarSaldo,
+  liquidarSaldoConPagos,
   contarPedidos,
 } from "./pedidos";
 import type { PedidoDraft } from "@/lib/supabase/types";
@@ -69,6 +70,60 @@ describe("crearPedido", () => {
 
     const result = await crearPedido(mockDraft, "cajero-1");
     expect(result).toBe("PIC-PAL-00042");
+  });
+
+  it("registra anticipo dividido y usa el método dominante", async () => {
+    const pedidosBuilder = qb("single", {
+      id: "p1",
+      numero_pedido: "PIC-PAL-00042",
+    });
+    const pagosInsert = vi.fn().mockResolvedValue({ error: null });
+
+    mockFrom((table: string) => {
+      if (table === "marcas")
+        return qb("single", { codigo: "PIC" }) as ReturnType<typeof supabase.from>;
+      if (table === "sucursales")
+        return qb("single", { codigo: "PAL" }) as ReturnType<typeof supabase.from>;
+      if (table === "pedidos")
+        return pedidosBuilder as ReturnType<typeof supabase.from>;
+      if (table === "pagos_pedido")
+        return { insert: pagosInsert } as unknown as ReturnType<typeof supabase.from>;
+      return qb(null, null) as ReturnType<typeof supabase.from>;
+    });
+    vi.mocked(supabase.rpc).mockResolvedValue({
+      data: "PIC-PAL-00042",
+      error: null,
+    });
+
+    await crearPedido(
+      {
+        ...mockDraft,
+        anticipo: 70,
+        pagos_anticipo: [
+          { metodo: "Efectivo", monto: 30 },
+          { metodo: "Tarjeta", monto: 40 },
+        ],
+      },
+      "cajero-1",
+    );
+
+    expect(pedidosBuilder.insert).toHaveBeenCalledWith(
+      expect.objectContaining({ metodo_pago: "Tarjeta", anticipo: 70 }),
+    );
+    expect(pagosInsert).toHaveBeenCalledWith([
+      expect.objectContaining({
+        pedido_id: "p1",
+        tipo: "anticipo",
+        metodo_pago: "Efectivo",
+        monto: 30,
+      }),
+      expect.objectContaining({
+        pedido_id: "p1",
+        tipo: "anticipo",
+        metodo_pago: "Tarjeta",
+        monto: 40,
+      }),
+    ]);
   });
 
   it("bloquea a mostrador que intenta vender otra marca", async () => {
@@ -534,6 +589,43 @@ describe("liquidarSaldo", () => {
     await expect(liquidarSaldo("p1", "Efectivo", null)).rejects.toThrow(
       "El saldo ya fue cobrado o el pedido no existe.",
     );
+  });
+});
+
+describe("liquidarSaldoConPagos", () => {
+  beforeEach(() => vi.clearAllMocks());
+
+  it("envía los pagos divididos al RPC", async () => {
+    vi.mocked(supabase.rpc).mockResolvedValue({ data: null, error: null });
+
+    await liquidarSaldoConPagos(
+      "p1",
+      [
+        { metodo: "Efectivo", monto: 30 },
+        { metodo: "Tarjeta", monto: 20 },
+      ],
+      "usuario-1",
+    );
+
+    expect(supabase.rpc).toHaveBeenCalledWith("registrar_pagos_saldo", {
+      p_pedido_id: "p1",
+      p_pagos: [
+        { metodo: "Efectivo", monto: 30 },
+        { metodo: "Tarjeta", monto: 20 },
+      ],
+      p_cobrado_por: "usuario-1",
+    });
+  });
+
+  it("propaga el error del RPC", async () => {
+    vi.mocked(supabase.rpc).mockResolvedValue({
+      data: null,
+      error: new Error("La suma de pagos no coincide con el saldo"),
+    });
+
+    await expect(
+      liquidarSaldoConPagos("p1", [{ metodo: "Efectivo", monto: 10 }], null),
+    ).rejects.toThrow("La suma de pagos no coincide con el saldo");
   });
 });
 

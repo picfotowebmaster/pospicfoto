@@ -8,6 +8,15 @@ import {
 import type { Cliente } from "@/lib/supabase/types";
 
 const DEBOUNCE_MS = 300;
+const MAX_REINTENTOS = 2;
+
+function esErrorDeRed(error: unknown): boolean {
+  const mensaje =
+    error instanceof Error
+      ? error.message
+      : String((error as { message?: unknown })?.message ?? error ?? "");
+  return /failed to fetch|networkerror|load failed|fetch failed/i.test(mensaje);
+}
 
 export function useClientesAdmin() {
   const [clientes, setClientes] = useState<Cliente[]>([]);
@@ -49,6 +58,7 @@ export function useClientesAdmin() {
 
   useEffect(() => {
     let ignore = false;
+    let reintento: ReturnType<typeof setTimeout> | null = null;
 
     const filtros: FiltrosClientesAdmin = {
       busqueda: busquedaAplicada,
@@ -56,28 +66,53 @@ export function useClientesAdmin() {
       porPagina,
     };
 
-    listarClientesAdmin(filtros)
-      .then((resultado) => {
-        if (ignore) return;
-        setClientes(resultado.clientes);
-        setTotal(resultado.total);
-        setError(null);
-        setCargando(false);
-      })
-      .catch((err: unknown) => {
-        if (ignore) return;
-        const mensaje =
-          (err instanceof Error && err.message) ||
-          ((err as Record<string, unknown>)?.message as string) ||
-          "Error al cargar clientes";
-        setError(mensaje);
-        setCargando(false);
-      });
+    const cargar = (intento: number) => {
+      listarClientesAdmin(filtros)
+        .then((resultado) => {
+          if (ignore) return;
+          setClientes(resultado.clientes);
+          setTotal(resultado.total);
+          setError(null);
+          setCargando(false);
+        })
+        .catch((err: unknown) => {
+          if (ignore) return;
+
+          if (intento < MAX_REINTENTOS && esErrorDeRed(err)) {
+            reintento = setTimeout(() => cargar(intento + 1), 800 * (intento + 1));
+            return;
+          }
+
+          const mensaje =
+            (intento >= MAX_REINTENTOS && esErrorDeRed(err)) ||
+            (typeof navigator !== "undefined" && navigator.onLine === false)
+              ? "No se pudo conectar con el servidor. Revisa tu conexión e intenta de nuevo."
+              : (err instanceof Error && err.message) ||
+                ((err as Record<string, unknown>)?.message as string) ||
+                "Error al cargar clientes";
+          setError(mensaje);
+          setCargando(false);
+        });
+    };
+
+    cargar(0);
 
     return () => {
       ignore = true;
+      if (reintento) clearTimeout(reintento);
     };
   }, [busquedaAplicada, pagina, porPagina, trigger]);
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const alReconectar = () => {
+      setCargando(true);
+      setError(null);
+      setTrigger((valor) => valor + 1);
+    };
+    window.addEventListener("online", alReconectar);
+    return () => window.removeEventListener("online", alReconectar);
+  }, []);
 
   const setBusqueda = useCallback((valor: string) => {
     setBusquedaState(valor);

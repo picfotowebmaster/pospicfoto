@@ -1,9 +1,30 @@
 "use client";
 
 import { useState, useCallback, useEffect, useRef, useMemo } from "react";
-import type { LineaPedidoDraft, MetodoPago, RutaProduccion } from "@/lib/supabase/types";
-import { sumarLineas, calcularAnticipo, generarIdLocal } from "@/lib/utils/calculos";
+import type {
+  LineaPedidoDraft,
+  MetodoPago,
+  PagoDraft,
+  RutaProduccion,
+} from "@/lib/supabase/types";
+import {
+  sumarLineas,
+  calcularAnticipo,
+  normalizarAnticipoManual,
+  generarIdLocal,
+} from "@/lib/utils/calculos";
 import { ANTICIPO_POR_DEFECTO } from "@/lib/utils/constantes";
+import {
+  escalarPagos,
+  resumenMetodoPago,
+  TOLERANCIA_PAGO,
+  validarPagos,
+} from "@/lib/utils/pagos";
+
+interface PagosDivididosState {
+  base: number;
+  pagos: PagoDraft[];
+}
 import { cpValido, rfcValido } from "@/lib/utils/fiscal";
 import { savePedidoDraft, getPedidoDraft, clearPedidoDraft } from "@/lib/offline/db";
 import { facturacionHabilitada } from "@/lib/config/features";
@@ -47,8 +68,11 @@ export function usePedidoActual(
     setCliente((prev) => ({ ...prev, ...cambios }));
   }, []);
   const [lineas, setLineas] = useState<LineaPedidoDraft[]>([]);
-  const [porcentajeAnticipo, setPorcentajeAnticipo] = useState(ANTICIPO_POR_DEFECTO);
+  const [porcentajeAnticipo, setPorcentajeAnticipoState] = useState(ANTICIPO_POR_DEFECTO);
+  const [anticipoManual, setAnticipoManualState] = useState<number | null>(null);
   const [metodoPago, setMetodoPago] = useState<MetodoPago>("Efectivo");
+  const [pagosDivididos, setPagosDivididos] =
+    useState<PagosDivididosState | null>(null);
   const [rutaDefault, setRutaDefault] = useState<RutaProduccion>("R1");
   const [marcaId, setMarcaId] = useState("");
   const marcaIdActual = marcaEntidadId || marcaId;
@@ -60,7 +84,9 @@ export function usePedidoActual(
       cliente,
       lineas,
       porcentajeAnticipo,
+      anticipoManual,
       metodoPago,
+      pagosAnticipo: pagosDivididos,
       ruta: rutaDefault,
       marcaId: marcaIdActual,
       entidadEmisoraId,
@@ -69,7 +95,9 @@ export function usePedidoActual(
       cliente,
       lineas,
       porcentajeAnticipo,
+      anticipoManual,
       metodoPago,
+      pagosDivididos,
       rutaDefault,
       marcaIdActual,
       entidadEmisoraId,
@@ -98,8 +126,26 @@ export function usePedidoActual(
           }));
         }
         if (d.lineas) setLineas(d.lineas as LineaPedidoDraft[]);
-        if (typeof d.porcentajeAnticipo === "number") setPorcentajeAnticipo(d.porcentajeAnticipo as number);
+        if (typeof d.porcentajeAnticipo === "number") {
+          setPorcentajeAnticipoState(d.porcentajeAnticipo);
+        }
+        if (typeof d.anticipoManual === "number") {
+          setAnticipoManualState(d.anticipoManual);
+        } else if (d.anticipoManual === null) {
+          setAnticipoManualState(null);
+        }
         if (typeof d.metodoPago === "string") setMetodoPago(d.metodoPago as MetodoPago);
+        if (Array.isArray(d.pagosAnticipo)) {
+          setPagosDivididos({ base: 0, pagos: d.pagosAnticipo as PagoDraft[] });
+        } else if (
+          d.pagosAnticipo &&
+          typeof d.pagosAnticipo === "object" &&
+          Array.isArray((d.pagosAnticipo as PagosDivididosState).pagos)
+        ) {
+          setPagosDivididos(d.pagosAnticipo as PagosDivididosState);
+        } else if (d.pagosAnticipo === null) {
+          setPagosDivididos(null);
+        }
         if (typeof d.ruta === "string") setRutaDefault(d.ruta as RutaProduccion);
         if (!marcaEntidadId && typeof d.marcaId === "string") {
           setMarcaId(d.marcaId as string);
@@ -112,8 +158,66 @@ export function usePedidoActual(
   }, [marcaEntidadId]);
 
   const subtotal = sumarLineas(lineas);
-  const anticipo = calcularAnticipo(subtotal, porcentajeAnticipo);
+  const anticipo =
+    anticipoManual !== null
+      ? normalizarAnticipoManual(anticipoManual, subtotal)
+      : calcularAnticipo(subtotal, porcentajeAnticipo);
   const total = subtotal;
+
+  const setPorcentajeAnticipo = useCallback((porcentaje: number) => {
+    setPorcentajeAnticipoState(porcentaje);
+    setAnticipoManualState(null);
+  }, []);
+
+  const usarMontoManual = useCallback(() => {
+    setAnticipoManualState((prev) => prev ?? anticipo);
+  }, [anticipo]);
+
+  const setAnticipoManual = useCallback((monto: number) => {
+    const valor = Number(monto);
+    setAnticipoManualState(Number.isFinite(valor) ? valor : 0);
+  }, []);
+
+  const pagosAnticipo = useMemo<PagoDraft[]>(() => {
+    if (anticipo <= 0) return [];
+    if (!pagosDivididos) return [{ metodo: metodoPago, monto: anticipo }];
+    if (Math.abs(pagosDivididos.base - anticipo) <= TOLERANCIA_PAGO) {
+      return pagosDivididos.pagos;
+    }
+    return escalarPagos(pagosDivididos.pagos, anticipo);
+  }, [anticipo, metodoPago, pagosDivididos]);
+
+  const dividirPago = pagosDivididos !== null;
+  const validacionPagos = validarPagos(pagosAnticipo, anticipo);
+
+  const activarPagoDividido = useCallback(() => {
+    setPagosDivididos(
+      (prev) =>
+        prev ?? {
+          base: anticipo,
+          pagos: anticipo > 0 ? [{ metodo: metodoPago, monto: anticipo }] : [],
+        },
+    );
+  }, [anticipo, metodoPago]);
+
+  const desactivarPagoDividido = useCallback(() => {
+    if (pagosDivididos && pagosDivididos.pagos.length > 0) {
+      setMetodoPago(resumenMetodoPago(pagosDivididos.pagos, metodoPago));
+    }
+    setPagosDivididos(null);
+  }, [pagosDivididos, metodoPago]);
+
+  const actualizarPagosDivididos = useCallback(
+    (pagos: PagoDraft[]) => {
+      setPagosDivididos({ base: anticipo, pagos });
+    },
+    [anticipo],
+  );
+
+  const cambiarMetodoPago = useCallback((metodo: MetodoPago) => {
+    setMetodoPago(metodo);
+    setPagosDivididos(null);
+  }, []);
 
   const agregarLinea = useCallback((linea: Omit<LineaPedidoDraft, "id">) => {
     const nueva: LineaPedidoDraft = { ...linea, id: generarIdLocal() };
@@ -137,8 +241,10 @@ export function usePedidoActual(
   const limpiar = useCallback(() => {
     setCliente({ ...CLIENTE_VACIO });
     setLineas([]);
-    setPorcentajeAnticipo(ANTICIPO_POR_DEFECTO);
+    setPorcentajeAnticipoState(ANTICIPO_POR_DEFECTO);
+    setAnticipoManualState(null);
     setMetodoPago("Efectivo");
+    setPagosDivididos(null);
     setRutaDefault("R1");
     clearPedidoDraft().catch(() => {});
   }, []);
@@ -178,6 +284,7 @@ export function usePedidoActual(
     entidadEmisoraId !== "" &&
     marcaIdActual !== "" &&
     facturaValida &&
+    (anticipo <= 0 || validacionPagos.valido) &&
     lineas.length > 0 &&
     lineas.every(
       (l) =>
@@ -202,6 +309,9 @@ export function usePedidoActual(
     if (cliente.regimenFiscal === "") pendientes.push("Régimen fiscal");
     if (cliente.usoCfdi === "") pendientes.push("Uso de CFDI");
     if (!cpValido(cliente.cpFiscal)) pendientes.push("CP fiscal");
+  }
+  if (anticipo > 0 && dividirPago && !validacionPagos.valido) {
+    pendientes.push("El pago dividido debe sumar el anticipo");
   }
   if (lineas.length === 0) pendientes.push("Al menos un producto");
   else if (
@@ -229,8 +339,18 @@ export function usePedidoActual(
     total,
     porcentajeAnticipo,
     setPorcentajeAnticipo,
+    anticipoManual,
+    esAnticipoManual: anticipoManual !== null,
+    usarMontoManual,
+    setAnticipoManual,
     metodoPago,
-    setMetodoPago,
+    setMetodoPago: cambiarMetodoPago,
+    pagosAnticipo,
+    dividirPago,
+    activarPagoDividido,
+    desactivarPagoDividido,
+    setPagosAnticipo: actualizarPagosDivididos,
+    validacionPagos,
     rutaDefault,
     setRutaDefault,
     rutasUnicas,

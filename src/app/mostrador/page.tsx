@@ -43,6 +43,17 @@ import type {
 import type { TicketPedido } from "@/components/ui/TicketTemplate";
 type AtributoConValores = Atributo & { valores: AtributoValor[] };
 
+function mensajeErrorPedido(err: unknown): string {
+  if (typeof err === "object" && err !== null && "code" in err) {
+    const code = (err as { code?: string }).code;
+    if (code === "22P02") {
+      return "El método de pago seleccionado no está habilitado. Contacta al administrador.";
+    }
+  }
+  if (err instanceof Error && err.message) return err.message;
+  return "Error al crear el pedido. Intenta de nuevo.";
+}
+
 function MostradorContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -302,6 +313,7 @@ function MostradorContent() {
       anticipo: pedido.anticipo,
       total: pedido.total,
       metodo_pago: pedido.metodoPago,
+      pagos_anticipo: pedido.pagosAnticipo,
       sucursal_id: sucursalId,
       marca_id: pedido.marcaId,
       entidad_emisora_id: entidad.id,
@@ -331,6 +343,13 @@ function MostradorContent() {
           metodo_pago: draft.metodo_pago,
           vendedor_nombre: profile?.nombre?.trim() || null,
           saldo_cobrado: false,
+          pagos_pedido: (draft.pagos_anticipo ?? []).map((pago, index) => ({
+            id: `${queueId}-pago-${index}`,
+            pedido_id: queueId,
+            tipo: "anticipo" as const,
+            metodo_pago: pago.metodo,
+            monto: pago.monto,
+          })),
           detalle_pedidos: draft.lineas.map((linea, index) => ({
             id: `${queueId}-${index}`,
             producto_nombre: linea.producto_nombre,
@@ -374,7 +393,7 @@ function MostradorContent() {
       router.push(`/mostrador/ticket/${result.facturaNumero}`);
     } catch (err) {
       console.error("Error al crear pedido:", err);
-      showError("Error al crear el pedido. Intenta de nuevo.");
+      showError(mensajeErrorPedido(err));
       setPagarCargando(false);
     }
   }
@@ -566,9 +585,18 @@ function MostradorContent() {
             anticipo={pedido.anticipo}
             total={pedido.total}
             porcentajeAnticipo={pedido.porcentajeAnticipo}
+            anticipoManual={pedido.anticipoManual}
+            esAnticipoManual={pedido.esAnticipoManual}
             metodoPago={pedido.metodoPago}
+            pagosAnticipo={pedido.pagosAnticipo}
+            dividirPago={pedido.dividirPago}
             onPorcentajeChange={pedido.setPorcentajeAnticipo}
+            onUsarMontoManual={pedido.usarMontoManual}
+            onAnticipoManualChange={pedido.setAnticipoManual}
             onMetodoPagoChange={pedido.setMetodoPago}
+            onPagosChange={pedido.setPagosAnticipo}
+            onActivarPagoDividido={pedido.activarPagoDividido}
+            onDesactivarPagoDividido={pedido.desactivarPagoDividido}
           />
 
           <div className="bg-white rounded-xl shadow p-4 flex flex-col gap-3">
@@ -636,8 +664,10 @@ function MostradorContent() {
         lineas={pedido.lineas}
         subtotal={pedido.subtotal}
         anticipo={pedido.anticipo}
+        anticipoEsManual={pedido.esAnticipoManual}
         total={pedido.total}
         metodoPago={pedido.metodoPago}
+        pagosAnticipo={pedido.pagosAnticipo}
         cargando={pagarCargando}
         onConfirm={() => {
           handlePagar().finally(() => setConfirmando(false));

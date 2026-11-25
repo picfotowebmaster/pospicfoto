@@ -1,5 +1,23 @@
 export type MetodoPago = "Efectivo" | "Tarjeta" | "Transferencia" | "Depósito";
 
+export type TipoPagoPedido = "anticipo" | "saldo";
+
+export interface PagoPedido {
+  id: string;
+  pedido_id: string;
+  tipo: TipoPagoPedido;
+  metodo_pago: MetodoPago;
+  monto: number;
+  cobrado_por?: string | null;
+  cobrado_en?: string | null;
+  created_at?: string;
+}
+
+export interface PagoDraft {
+  metodo: MetodoPago;
+  monto: number;
+}
+
 export type EstadoPedido =
   | "pendiente"
   | "en_taller"
@@ -263,6 +281,7 @@ export interface Pedido {
   created_at: string;
   updated_at: string;
   detalle_pedidos?: DetallePedido[];
+  pagos_pedido?: PagoPedido[];
 }
 
 export interface PedidoComentario {
@@ -372,6 +391,7 @@ export interface PedidoDraft extends DatosFiscalesPedido {
   anticipo: number;
   total: number;
   metodo_pago: MetodoPago;
+  pagos_anticipo?: PagoDraft[];
   ruta: RutaProduccion;
   sucursal_id: string;
   marca_id: string;

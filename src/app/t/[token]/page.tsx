@@ -70,7 +70,7 @@ export default async function TicketPublicoPage({
 
   const { data: principal } = await admin
     .from("pedidos")
-    .select("*, detalle_pedidos(*)")
+    .select("*, detalle_pedidos(*), pagos_pedido(*)")
     .eq("id", enlace.pedido_id)
     .maybeSingle();
 
@@ -85,7 +85,7 @@ export default async function TicketPublicoPage({
   ) {
     const { data } = await admin
       .from("pedidos")
-      .select("*, detalle_pedidos(*)")
+      .select("*, detalle_pedidos(*), pagos_pedido(*)")
       .eq("factura_numero", pedido.factura_numero)
       .order("created_at", { ascending: true });
 
@@ -152,10 +152,12 @@ export default async function TicketPublicoPage({
 
       <div className="ticket-print-area">
         {pedidos.length === 1 ? (
-          <TicketTemplate pedido={pedidos[0]} emisor={emisor} />
+          <div className="ticket-print-item">
+            <TicketTemplate pedido={pedidos[0]} emisor={emisor} />
+          </div>
         ) : (
           <div>
-            <div className="ticket-container max-w-[72mm] mx-auto font-mono text-[10px] leading-tight text-black bg-white mb-4">
+            <div className="ticket-container max-w-[72mm] mx-auto font-mono text-[10px] leading-tight text-black bg-white mb-4 no-print">
               <div className="text-center p-2 border border-dashed border-gray-400 rounded">
                 <div className="font-bold text-xs">
                   FACTURA: {pedido.factura_numero}
@@ -166,9 +168,9 @@ export default async function TicketPublicoPage({
               </div>
             </div>
             {pedidos.map((p, i) => (
-              <div key={p.id}>
+              <div key={p.id} className="ticket-print-item">
                 {i > 0 && (
-                  <div className="border-t-4 border-dashed border-gray-300 my-4 max-w-[72mm] mx-auto" />
+                  <div className="border-t-4 border-dashed border-gray-300 my-4 max-w-[72mm] mx-auto no-print" />
                 )}
                 <TicketTemplate
                   pedido={p}

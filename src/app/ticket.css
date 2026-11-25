@@ -41,6 +41,16 @@
     padding: 0 !important;
   }
 
+  .ticket-print-item {
+    break-inside: avoid;
+    page-break-inside: avoid;
+  }
+
+  .ticket-print-item + .ticket-print-item {
+    break-before: page;
+    page-break-before: always;
+  }
+
   .ticket-container {
     width: 72mm !important;
     max-width: 72mm !important;
@@ -51,6 +61,8 @@
     overflow-wrap: anywhere;
     font-size: 11px !important;
     line-height: 1.3 !important;
+    break-inside: avoid;
+    page-break-inside: avoid;
   }
 
   .ticket-container * {
