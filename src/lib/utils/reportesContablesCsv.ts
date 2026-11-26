@@ -108,6 +108,7 @@ export function filasResumenContable(
       (metodo) => metodo.metodo_pago === "Efectivo",
     )?.total ?? 0);
   const efectivoEnCaja = Math.round((cobradoEfectivo - totalGastos) * 100) / 100;
+  const aplicaEfectivo = !meta.metodoPago || meta.metodoPago === "Efectivo";
 
   return [
     ...filasMeta(meta),
@@ -125,10 +126,14 @@ export function filasResumenContable(
     ["Reembolsos realizados", dinero(reporte.totalReembolsado)],
     ["Cobrado neto", dinero(reporte.totalCobrado)],
     [],
-    ["Efectivo cobrado", dinero(cobradoEfectivo)],
-    ["Gastos de caja", dinero(totalGastos)],
-    ["Efectivo en caja", dinero(efectivoEnCaja)],
-    [],
+    ...(aplicaEfectivo
+      ? [
+          ["Efectivo cobrado", dinero(cobradoEfectivo)],
+          ["Gastos de caja", dinero(totalGastos)],
+          ["Efectivo en caja", dinero(efectivoEnCaja)],
+          [],
+        ]
+      : []),
     ["Resumen por vendedor"],
     ["Vendedor", "Pedidos", "Vendido", "Cobrado"],
     ...reporte.porVendedor.map((vendedor) => [
@@ -169,17 +174,21 @@ export function filasResumenContable(
       totalMovimientosMetodo,
       dinero(totalCobradoMetodo),
     ],
-    [],
-    ["Gastos de caja del periodo"],
-    ["Fecha", "Concepto", "Categoría", "Monto", "Registrado por"],
-    ...gastosActivos.map((gasto) => [
-      gasto.fecha,
-      gasto.concepto,
-      gasto.categoria ?? "",
-      dinero(gasto.monto),
-      gasto.registrado_por_nombre ?? "",
-    ]),
-    ["Totales", "", "", dinero(totalGastos), ""],
+    ...(aplicaEfectivo
+      ? [
+          [],
+          ["Gastos de caja del periodo"],
+          ["Fecha", "Concepto", "Categoría", "Monto", "Registrado por"],
+          ...gastosActivos.map((gasto) => [
+            gasto.fecha,
+            gasto.concepto,
+            gasto.categoria ?? "",
+            dinero(gasto.monto),
+            gasto.registrado_por_nombre ?? "",
+          ]),
+          ["Totales", "", "", dinero(totalGastos), ""],
+        ]
+      : []),
   ];
 }
 

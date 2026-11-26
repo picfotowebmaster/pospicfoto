@@ -207,6 +207,20 @@ describe("filasResumenContable con gastos de caja", () => {
       "",
     ]);
   });
+
+  it("omite efectivo y gastos cuando el filtro no es Efectivo", () => {
+    const filas = filasResumenContable(
+      reporte,
+      { ...meta, metodoPago: "Tarjeta" },
+      gastos,
+      250,
+    );
+
+    expect(filas).not.toContainEqual(["Efectivo cobrado", "250.00"]);
+    expect(filas).not.toContainEqual(["Gastos de caja", "50.00"]);
+    expect(filas).not.toContainEqual(["Efectivo en caja", "200.00"]);
+    expect(filas).not.toContainEqual(["Gastos de caja del periodo"]);
+  });
 });
 
 describe("filasMovimientosContables", () => {

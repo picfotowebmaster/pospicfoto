@@ -163,4 +163,82 @@ describe("ReportesContables", () => {
     expect(screen.getByText("$888.00")).toBeInTheDocument();
     expect(screen.getByLabelText(/Vendedor/i)).toBeInTheDocument();
   });
+
+  it("bloquea la exportación si fallan los gastos de caja", () => {
+    const base = reporteVacio({ errorGastos: "fallo de red" });
+    base.reporte = {
+      ...base.reporte,
+      porDia: [
+        {
+          fecha: "2026-11-01",
+          pedidos: 1,
+          vendido: 100,
+          cobrado: 100,
+          saldoPendiente: 0,
+        },
+      ],
+    } as unknown as typeof base.reporte;
+    mockUseReportes.mockReturnValue(base);
+
+    render(
+      <ReportesContables
+        rol="mostrador"
+        puedeVerTodo={false}
+        sucursalId="suc-1"
+        sucursalNombre="Palma"
+        marcaId="mar-1"
+        marcaNombre="Picfoto"
+      />,
+    );
+
+    expect(
+      screen.getByRole("button", { name: /Descargar corte CSV/i }),
+    ).toBeDisabled();
+    expect(
+      screen.getByRole("button", { name: /Descargar gastos CSV/i }),
+    ).toBeDisabled();
+    expect(screen.getByRole("alert")).toHaveTextContent(
+      /No se pudieron cargar los gastos/i,
+    );
+  });
+
+  it("permite exportar el corte si solo hay gastos y no ventas", () => {
+    const base = reporteVacio();
+    base.reporte = {
+      ...base.reporte,
+      porDia: [],
+    } as unknown as typeof base.reporte;
+    base.gastos = [
+      {
+        id: "g1",
+        sucursal_id: "suc-1",
+        concepto: "Tinta",
+        categoria: "Insumos",
+        monto: 30,
+        fecha: "2026-11-01",
+        registrado_por: "u1",
+        registrado_por_nombre: "Jessica",
+        created_at: "2026-11-01T10:00:00.000Z",
+        anulado: false,
+      },
+    ] as unknown as typeof base.gastos;
+    base.totalGastos = 30;
+    base.cobradoEfectivoCaja = 100;
+    mockUseReportes.mockReturnValue(base);
+
+    render(
+      <ReportesContables
+        rol="admin"
+        puedeVerTodo
+        sucursalId={null}
+        sucursalNombre={null}
+        marcaId={null}
+        marcaNombre={null}
+      />,
+    );
+
+    expect(
+      screen.getByRole("button", { name: /Descargar corte CSV/i }),
+    ).toBeEnabled();
+  });
 });

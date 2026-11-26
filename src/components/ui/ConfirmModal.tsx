@@ -7,9 +7,11 @@ interface ConfirmModalProps {
   open: boolean;
   title: string;
   message: string;
+  error?: string | null;
   confirmLabel?: string;
   cancelLabel?: string;
   variant?: "danger" | "primary" | "warning";
+  confirmDisabled?: boolean;
   onConfirm: () => void;
   onCancel: () => void;
 }
@@ -18,9 +20,11 @@ export function ConfirmModal({
   open,
   title,
   message,
+  error = null,
   confirmLabel = "Confirmar",
   cancelLabel = "Cancelar",
   variant = "danger",
+  confirmDisabled = false,
   onConfirm,
   onCancel,
 }: ConfirmModalProps) {
@@ -73,6 +77,14 @@ export function ConfirmModal({
           <div className="flex-1 min-w-0">
             <h3 className="text-lg font-bold text-gray-900 dark:text-gray-100">{title}</h3>
             <p className="text-sm text-gray-600 dark:text-gray-400 mt-1">{message}</p>
+            {error && (
+              <p
+                role="alert"
+                className="text-sm text-red-600 dark:text-red-400 mt-2"
+              >
+                {error}
+              </p>
+            )}
           </div>
         </div>
         <div className="flex justify-end gap-3 mt-6">
@@ -83,7 +95,8 @@ export function ConfirmModal({
             ref={confirmRef}
             type="button"
             onClick={onConfirm}
-            className={`px-4 py-2 text-sm font-medium text-white rounded-lg transition-colors cursor-pointer ${variantStyles[variant]}`}
+            disabled={confirmDisabled}
+            className={`px-4 py-2 text-sm font-medium text-white rounded-lg transition-colors cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed ${variantStyles[variant]}`}
           >
             {confirmLabel}
           </button>

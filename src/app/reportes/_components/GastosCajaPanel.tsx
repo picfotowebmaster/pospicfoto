@@ -49,6 +49,7 @@ export function GastosCajaPanel({
   const [anulandoId, setAnulandoId] = useState<string | null>(null);
   const [gastoAAnular, setGastoAAnular] = useState<GastoCaja | null>(null);
   const [mostrarAnulados, setMostrarAnulados] = useState(false);
+  const [errorAnular, setErrorAnular] = useState<string | null>(null);
 
   const sucursalEfectiva = sucursalFijaId ?? sucursalId;
   const monto = Number(montoTexto);
@@ -104,11 +105,16 @@ export function GastosCajaPanel({
   }
 
   async function handleAnular() {
-    if (!gastoAAnular) return;
+    if (!gastoAAnular || anulandoId) return;
+    setErrorAnular(null);
     setAnulandoId(gastoAAnular.id);
     try {
       await onAnular(gastoAAnular.id);
       setGastoAAnular(null);
+    } catch (err) {
+      setErrorAnular(
+        err instanceof Error ? err.message : "No se pudo anular el gasto.",
+      );
     } finally {
       setAnulandoId(null);
     }
@@ -162,10 +168,14 @@ export function GastosCajaPanel({
         >
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
             <div>
-              <label className="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1">
+              <label
+                htmlFor="gasto-fecha"
+                className="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1"
+              >
                 Fecha
               </label>
               <input
+                id="gasto-fecha"
                 type="date"
                 value={fecha}
                 onChange={(e) => setFecha(e.target.value)}
@@ -173,10 +183,14 @@ export function GastosCajaPanel({
               />
             </div>
             <div>
-              <label className="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1">
+              <label
+                htmlFor="gasto-concepto"
+                className="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1"
+              >
                 Concepto *
               </label>
               <input
+                id="gasto-concepto"
                 type="text"
                 value={concepto}
                 onChange={(e) => setConcepto(e.target.value)}
@@ -185,10 +199,14 @@ export function GastosCajaPanel({
               />
             </div>
             <div>
-              <label className="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1">
+              <label
+                htmlFor="gasto-categoria"
+                className="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1"
+              >
                 Categoría
               </label>
               <select
+                id="gasto-categoria"
                 value={categoria}
                 onChange={(e) => setCategoria(e.target.value)}
                 className="w-full border border-gray-300 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-100 rounded-lg px-2.5 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
@@ -202,10 +220,14 @@ export function GastosCajaPanel({
               </select>
             </div>
             <div>
-              <label className="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1">
+              <label
+                htmlFor="gasto-monto"
+                className="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1"
+              >
                 Monto *
               </label>
               <input
+                id="gasto-monto"
                 type="number"
                 min={0}
                 step={0.01}
@@ -220,10 +242,14 @@ export function GastosCajaPanel({
 
           {!sucursalFijaId && (
             <div className="max-w-xs">
-              <label className="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1">
+              <label
+                htmlFor="gasto-sucursal"
+                className="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1"
+              >
                 Sucursal *
               </label>
               <select
+                id="gasto-sucursal"
                 value={sucursalId}
                 onChange={(e) => setSucursalId(e.target.value)}
                 className="w-full border border-gray-300 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-100 rounded-lg px-2.5 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
@@ -239,7 +265,12 @@ export function GastosCajaPanel({
           )}
 
           {errorForm && (
-            <p className="text-xs text-red-600 dark:text-red-400">{errorForm}</p>
+            <p
+              role="alert"
+              className="text-xs text-red-600 dark:text-red-400"
+            >
+              {errorForm}
+            </p>
           )}
 
           <div className="flex justify-end gap-2">
@@ -336,7 +367,11 @@ export function GastosCajaPanel({
                         <Button
                           size="sm"
                           variant="ghost"
-                          onClick={() => setGastoAAnular(gasto)}
+                          aria-label={`Anular gasto ${gasto.concepto}`}
+                          onClick={() => {
+                            setErrorAnular(null);
+                            setGastoAAnular(gasto);
+                          }}
                           disabled={anulandoId === gasto.id}
                         >
                           Anular
@@ -364,9 +399,14 @@ export function GastosCajaPanel({
         open={gastoAAnular !== null}
         title="Anular gasto"
         message={`¿Anular el gasto "${gastoAAnular?.concepto ?? ""}"? Dejará de contar en el corte.`}
+        error={errorAnular}
         confirmLabel="Anular"
+        confirmDisabled={anulandoId !== null}
         onConfirm={() => void handleAnular()}
-        onCancel={() => setGastoAAnular(null)}
+        onCancel={() => {
+          setGastoAAnular(null);
+          setErrorAnular(null);
+        }}
       />
     </div>
   );

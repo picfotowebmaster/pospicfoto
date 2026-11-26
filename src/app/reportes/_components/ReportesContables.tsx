@@ -170,6 +170,23 @@ export function ReportesContables({
   const mostrarEfectivoEnCaja =
     metodoPago === "" || metodoPago === "Efectivo";
 
+  const hayErrorGastos = Boolean(errorGastos);
+  const bloqueaExportacion = hayErrorGastos || gastosCargando;
+  const sinDatosCorte =
+    reporte.porDia.length === 0 && gastosActivos.length === 0;
+
+  const textoGastos = gastosCargando
+    ? "…"
+    : hayErrorGastos
+      ? "—"
+      : formatoMoneda.format(totalGastos);
+
+  const textoEfectivoEnCaja = gastosCargando
+    ? "…"
+    : hayErrorGastos
+      ? "—"
+      : formatoMoneda.format(efectivoEnCaja);
+
   const datosVentas = useMemo(
     () =>
       reporte.porDia.map((dia) => ({
@@ -218,6 +235,7 @@ export function ReportesContables({
   const sufijoMetodo = metodoPago ? `-${slug(metodoPago)}` : "";
 
   function exportarResumen() {
+    if (bloqueaExportacion || sinDatosCorte) return;
     descargarCSV(
       `corte-${sufijoSucursal}-${sufijoMarca}${sufijoMetodo}-${rango.desde}-${rango.hasta}.csv`,
       filasResumenContable(reporte, meta, gastosActivos, cobradoEfectivoCaja),
@@ -225,6 +243,7 @@ export function ReportesContables({
   }
 
   function exportarGastos() {
+    if (bloqueaExportacion || gastos.length === 0) return;
     descargarCSV(
       `corte-gastos-${sufijoSucursal}-${sufijoMarca}-${rango.desde}-${rango.hasta}.csv`,
       filasGastosCaja(gastos, meta),
@@ -453,6 +472,21 @@ export function ReportesContables({
             </div>
           )}
 
+          {errorGastos && (
+            <div
+              role="alert"
+              className="bg-red-50 dark:bg-red-900/30 text-red-600 dark:text-red-400 text-sm px-4 py-3 rounded-lg flex items-center justify-between gap-3"
+            >
+              <span>
+                No se pudieron cargar los gastos de caja: {errorGastos}. No
+                exportes el corte hasta recargar.
+              </span>
+              <Button size="sm" variant="ghost" onClick={recargar}>
+                Reintentar
+              </Button>
+            </div>
+          )}
+
           {!rangoValido ? (
             <div className="text-gray-400 dark:text-gray-500 text-sm text-center py-8">
               Selecciona un rango de fechas válido para generar el reporte.
@@ -510,7 +544,7 @@ export function ReportesContables({
                         Gastos
                       </p>
                       <p className="text-xl font-bold text-red-600 dark:text-red-400 mt-1">
-                        {formatoMoneda.format(totalGastos)}
+                        {textoGastos}
                       </p>
                     </div>
                     {mostrarEfectivoEnCaja && (
@@ -525,7 +559,7 @@ export function ReportesContables({
                               : "text-emerald-600 dark:text-emerald-400"
                           }`}
                         >
-                          {formatoMoneda.format(efectivoEnCaja)}
+                          {textoEfectivoEnCaja}
                         </p>
                       </div>
                     )}
@@ -844,7 +878,7 @@ export function ReportesContables({
                     size="sm"
                     variant="ghost"
                     onClick={exportarResumen}
-                    disabled={reporte.porDia.length === 0}
+                    disabled={bloqueaExportacion || sinDatosCorte}
                   >
                     <i className="fas fa-file-csv mr-1" />
                     Descargar corte CSV
@@ -861,7 +895,7 @@ export function ReportesContables({
                     size="sm"
                     variant="ghost"
                     onClick={exportarGastos}
-                    disabled={gastos.length === 0}
+                    disabled={bloqueaExportacion || gastos.length === 0}
                   >
                     <i className="fas fa-file-csv mr-1" />
                     Descargar gastos CSV
