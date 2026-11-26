@@ -53,6 +53,9 @@ export function LineaPedido({
     editData?.producto_nombre || "",
   );
   const [cantidad, setCantidad] = useState(editData?.cantidad || 1);
+  const [cantidadTexto, setCantidadTexto] = useState(
+    String(editData?.cantidad || 1),
+  );
   const productoInicial =
     catalogo?.productos.find((p) => p.id === (editData?.producto_id || "")) ??
     null;
@@ -359,8 +362,19 @@ export function LineaPedido({
             <input
               type="number"
               min={1}
-              value={cantidad}
-              onChange={(e) => setCantidad(Math.max(1, Number(e.target.value)))}
+              value={cantidadTexto}
+              onChange={(e) => {
+                const raw = e.target.value;
+                setCantidadTexto(raw);
+                const n = parseInt(raw, 10);
+                if (!Number.isNaN(n) && n >= 1) setCantidad(n);
+              }}
+              onBlur={() => {
+                const n = parseInt(cantidadTexto, 10);
+                const final = !Number.isNaN(n) && n >= 1 ? n : 1;
+                setCantidad(final);
+                setCantidadTexto(String(final));
+              }}
               className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
             />
           </div>
