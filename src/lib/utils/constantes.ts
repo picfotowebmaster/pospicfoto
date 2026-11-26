@@ -32,6 +32,16 @@ export const METODOS_PAGO = [
   { label: "Depósito", value: "Depósito" as const },
 ];
 
+export const CATEGORIAS_GASTO = [
+  "Insumos",
+  "Servicios",
+  "Renta",
+  "Limpieza",
+  "Transporte",
+  "Mantenimiento",
+  "Otros",
+] as const;
+
 export { REGIMENES_FISCALES, USOS_CFDI } from "./fiscalCatalogos";
 
 export const ESTADOS_PEDIDO = [

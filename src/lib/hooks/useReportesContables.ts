@@ -24,7 +24,14 @@ import {
   indexarMarcas,
   listarMarcas,
 } from "@/lib/services/marcas";
-import type { Marca, Sucursal } from "@/lib/supabase/types";
+import {
+  anularGastoCaja,
+  crearGastoCaja,
+  listarGastosCaja,
+  type NuevoGastoCaja,
+} from "@/lib/services/gastos";
+import { obtenerCobradoEfectivoCaja } from "@/lib/services/caja";
+import type { GastoCaja, Marca, Sucursal } from "@/lib/supabase/types";
 
 interface OpcionesReportesContables {
   sucursalFijo?: string | null;
@@ -50,9 +57,14 @@ export function useReportesContables(
   const [sucursalSeleccionada, setSucursalSeleccionadaState] = useState("");
   const [marcaSeleccionada, setMarcaSeleccionadaState] = useState("");
   const [pedidos, setPedidos] = useState<PedidoReporteContable[]>([]);
+  const [gastos, setGastos] = useState<GastoCaja[]>([]);
+  const [cobradoEfectivoCaja, setCobradoEfectivoCaja] = useState(0);
   const [cargando, setCargando] = useState(true);
+  const [gastosCargando, setGastosCargando] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [errorGastos, setErrorGastos] = useState<string | null>(null);
   const [trigger, setTrigger] = useState(0);
+  const [gastosTrigger, setGastosTrigger] = useState(0);
 
   const sucursalEfectiva = restringido
     ? (sucursalFijo ?? null)
@@ -150,6 +162,51 @@ export function useReportesContables(
     sinAlcance,
   ]);
 
+  useEffect(() => {
+    if (!rangoValido || sinAlcance) return;
+    let ignore = false;
+
+    Promise.all([
+      listarGastosCaja(
+        { desde: rango.desde, hasta: rango.hasta },
+        sucursalEfectiva ?? undefined,
+      ),
+      obtenerCobradoEfectivoCaja(
+        { desde: rango.desde, hasta: rango.hasta },
+        sucursalEfectiva ?? undefined,
+      ),
+    ])
+      .then(([dataGastos, dataEfectivo]) => {
+        if (ignore) return;
+        setGastos(dataGastos);
+        setCobradoEfectivoCaja(dataEfectivo);
+        setErrorGastos(null);
+        setGastosCargando(false);
+      })
+      .catch((err: unknown) => {
+        if (ignore) return;
+        const mensaje =
+          (err instanceof Error && err.message) ||
+          ((err as Record<string, unknown>)?.message as string) ||
+          "Error al cargar los gastos de caja.";
+        setErrorGastos(mensaje);
+        setGastos([]);
+        setCobradoEfectivoCaja(0);
+        setGastosCargando(false);
+      });
+
+    return () => {
+      ignore = true;
+    };
+  }, [
+    rango.desde,
+    rango.hasta,
+    rangoValido,
+    sucursalEfectiva,
+    sinAlcance,
+    gastosTrigger,
+  ]);
+
   const nombresVendedores = useMemo(
     () => indexarVendedores(vendedores),
     [vendedores],
@@ -183,6 +240,26 @@ export function useReportesContables(
     ],
   );
 
+  const totalGastos = useMemo(
+    () =>
+      gastos
+        .filter((gasto) => !gasto.anulado)
+        .reduce((suma, gasto) => suma + Number(gasto.monto ?? 0), 0),
+    [gastos],
+  );
+
+  const crearGasto = useCallback(async (gasto: NuevoGastoCaja) => {
+    await crearGastoCaja(gasto);
+    setGastosCargando(true);
+    setGastosTrigger((valor) => valor + 1);
+  }, []);
+
+  const anularGasto = useCallback(async (id: string) => {
+    await anularGastoCaja(id);
+    setGastosCargando(true);
+    setGastosTrigger((valor) => valor + 1);
+  }, []);
+
   const setPeriodo = useCallback(
     (opcion: PeriodoKey) => {
       if (opcion === periodo) return;
@@ -190,6 +267,7 @@ export function useReportesContables(
       setPeriodoState(opcion);
       setError(null);
       setCargando(true);
+      setGastosCargando(true);
 
       if (
         opcion === "personalizado" &&
@@ -210,6 +288,7 @@ export function useReportesContables(
       const valido =
         valor !== "" && hastaCustom !== "" && valor <= hastaCustom;
       setCargando(valido);
+      setGastosCargando(valido);
       if (!valido) setPedidos([]);
     },
     [hastaCustom],
@@ -222,6 +301,7 @@ export function useReportesContables(
       const valido =
         valor !== "" && desdeCustom !== "" && desdeCustom <= valor;
       setCargando(valido);
+      setGastosCargando(valido);
       if (!valido) setPedidos([]);
     },
     [desdeCustom],
@@ -242,6 +322,7 @@ export function useReportesContables(
       setVendedorIdState("");
       setError(null);
       setCargando(rangoValido);
+      setGastosCargando(rangoValido);
     },
     [restringido, rangoValido],
   );
@@ -253,6 +334,7 @@ export function useReportesContables(
       setVendedorIdState("");
       setError(null);
       setCargando(rangoValido);
+      setGastosCargando(rangoValido);
     },
     [restringido, rangoValido],
   );
@@ -260,8 +342,10 @@ export function useReportesContables(
   const recargar = useCallback(() => {
     if (!rangoValido || sinAlcance) return;
     setCargando(true);
+    setGastosCargando(true);
     setError(null);
     setTrigger((valor) => valor + 1);
+    setGastosTrigger((valor) => valor + 1);
   }, [rangoValido, sinAlcance]);
 
   return {
@@ -296,5 +380,12 @@ export function useReportesContables(
     sinSucursal,
     sinMarca,
     recargar,
+    gastos,
+    totalGastos,
+    cobradoEfectivoCaja,
+    gastosCargando: sinAlcance ? false : gastosCargando,
+    errorGastos,
+    crearGasto,
+    anularGasto,
   };
 }

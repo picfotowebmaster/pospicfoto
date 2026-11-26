@@ -398,6 +398,21 @@ export interface PedidoDraft extends DatosFiscalesPedido {
   entidad_emisora_id?: string;
 }
 
+export interface GastoCaja {
+  id: string;
+  sucursal_id: string;
+  concepto: string;
+  categoria: string | null;
+  monto: number;
+  fecha: string;
+  registrado_por: string | null;
+  registrado_por_nombre?: string | null;
+  created_at: string;
+  anulado: boolean;
+  anulado_por?: string | null;
+  anulado_en?: string | null;
+}
+
 export interface ProductionArea {
   id: string;
   nombre: string;

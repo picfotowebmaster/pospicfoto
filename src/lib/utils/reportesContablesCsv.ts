@@ -4,6 +4,7 @@ import type {
   MovimientoDiaReporte,
   ReporteContable,
 } from "./reportesContables";
+import type { GastoCaja } from "@/lib/supabase/types";
 
 export interface MetaReporteContable {
   desde: string;
@@ -44,6 +45,8 @@ function filaTotales(columnas: number, indiceImporte: number, total: number): Ce
 export function filasResumenContable(
   reporte: ReporteContable,
   meta: MetaReporteContable,
+  gastos: GastoCaja[] = [],
+  cobradoEfectivoCaja?: number,
 ): CeldaCSV[][] {
   const encabezado: CeldaCSV[] = [
     "Fecha",
@@ -94,6 +97,18 @@ export function filasResumenContable(
     0,
   );
 
+  const gastosActivos = gastos.filter((gasto) => !gasto.anulado);
+  const totalGastos = gastosActivos.reduce(
+    (suma, gasto) => suma + Number(gasto.monto ?? 0),
+    0,
+  );
+  const cobradoEfectivo =
+    cobradoEfectivoCaja ??
+    (reporte.cobradoPorMetodo.find(
+      (metodo) => metodo.metodo_pago === "Efectivo",
+    )?.total ?? 0);
+  const efectivoEnCaja = Math.round((cobradoEfectivo - totalGastos) * 100) / 100;
+
   return [
     ...filasMeta(meta),
     encabezado,
@@ -109,6 +124,10 @@ export function filasResumenContable(
     ["Cobrado bruto", dinero(reporte.totalCobrado + reporte.totalReembolsado)],
     ["Reembolsos realizados", dinero(reporte.totalReembolsado)],
     ["Cobrado neto", dinero(reporte.totalCobrado)],
+    [],
+    ["Efectivo cobrado", dinero(cobradoEfectivo)],
+    ["Gastos de caja", dinero(totalGastos)],
+    ["Efectivo en caja", dinero(efectivoEnCaja)],
     [],
     ["Resumen por vendedor"],
     ["Vendedor", "Pedidos", "Vendido", "Cobrado"],
@@ -150,6 +169,41 @@ export function filasResumenContable(
       totalMovimientosMetodo,
       dinero(totalCobradoMetodo),
     ],
+    [],
+    ["Gastos de caja del periodo"],
+    ["Fecha", "Concepto", "Categoría", "Monto", "Registrado por"],
+    ...gastosActivos.map((gasto) => [
+      gasto.fecha,
+      gasto.concepto,
+      gasto.categoria ?? "",
+      dinero(gasto.monto),
+      gasto.registrado_por_nombre ?? "",
+    ]),
+    ["Totales", "", "", dinero(totalGastos), ""],
+  ];
+}
+
+export function filasGastosCaja(
+  gastos: GastoCaja[],
+  meta: MetaReporteContable,
+): CeldaCSV[][] {
+  const totalGastos = gastos
+    .filter((gasto) => !gasto.anulado)
+    .reduce((suma, gasto) => suma + Number(gasto.monto ?? 0), 0);
+
+  return [
+    ...filasMeta(meta),
+    ["Gastos de caja del periodo"],
+    ["Fecha", "Concepto", "Categoría", "Monto", "Estado", "Registrado por"],
+    ...gastos.map((gasto) => [
+      gasto.fecha,
+      gasto.concepto,
+      gasto.categoria ?? "",
+      dinero(gasto.monto),
+      gasto.anulado ? "Anulado" : "Activo",
+      gasto.registrado_por_nombre ?? "",
+    ]),
+    ["Totales", "", "", dinero(totalGastos), "", ""],
   ];
 }
 

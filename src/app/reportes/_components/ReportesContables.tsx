@@ -17,9 +17,11 @@ import {
 } from "@/lib/utils/periodos";
 import { ZONA_NEGOCIO } from "@/lib/utils/fechas";
 import {
+  filasGastosCaja,
   filasMovimientosContables,
   filasResumenContable,
 } from "@/lib/utils/reportesContablesCsv";
+import { GastosCajaPanel } from "./GastosCajaPanel";
 
 const VentasChart = dynamic(
   () =>
@@ -114,6 +116,13 @@ export function ReportesContables({
     cargando,
     error,
     recargar,
+    gastos,
+    totalGastos,
+    cobradoEfectivoCaja,
+    gastosCargando,
+    errorGastos,
+    crearGasto,
+    anularGasto,
   } = useReportesContables({
     sucursalFijo: puedeVerTodo ? undefined : sucursalId,
     marcaFijo: puedeVerTodo ? undefined : marcaId,
@@ -143,6 +152,23 @@ export function ReportesContables({
       "Marca seleccionada"
     );
   }, [puedeVerTodo, marcaNombre, marcaId, marcaEfectiva, marcas]);
+
+  const puedeCrearGasto =
+    rol === "mostrador" || rol === "admin" || rol === "superadmin";
+  const puedeAnularGasto = rol === "admin" || rol === "superadmin";
+
+  const gastosActivos = useMemo(
+    () => gastos.filter((gasto) => !gasto.anulado),
+    [gastos],
+  );
+
+  const efectivoEnCaja = useMemo(
+    () => Math.round((cobradoEfectivoCaja - totalGastos) * 100) / 100,
+    [cobradoEfectivoCaja, totalGastos],
+  );
+
+  const mostrarEfectivoEnCaja =
+    metodoPago === "" || metodoPago === "Efectivo";
 
   const datosVentas = useMemo(
     () =>
@@ -194,7 +220,14 @@ export function ReportesContables({
   function exportarResumen() {
     descargarCSV(
       `corte-${sufijoSucursal}-${sufijoMarca}${sufijoMetodo}-${rango.desde}-${rango.hasta}.csv`,
-      filasResumenContable(reporte, meta),
+      filasResumenContable(reporte, meta, gastosActivos, cobradoEfectivoCaja),
+    );
+  }
+
+  function exportarGastos() {
+    descargarCSV(
+      `corte-gastos-${sufijoSucursal}-${sufijoMarca}-${rango.desde}-${rango.hasta}.csv`,
+      filasGastosCaja(gastos, meta),
     );
   }
 
@@ -431,7 +464,7 @@ export function ReportesContables({
           ) : (
             <>
                 <div className="space-y-4">
-                  <div className="grid grid-cols-2 lg:grid-cols-5 gap-3">
+                  <div className="grid grid-cols-2 md:grid-cols-4 xl:grid-cols-7 gap-3">
                     <div className="bg-gray-50 dark:bg-gray-800 rounded-xl p-3">
                       <p className="text-[11px] font-medium text-gray-500 dark:text-gray-400 uppercase">
                         Vendido
@@ -472,6 +505,30 @@ export function ReportesContables({
                         {formatoMoneda.format(reporte.ticketPromedio)}
                       </p>
                     </div>
+                    <div className="bg-gray-50 dark:bg-gray-800 rounded-xl p-3">
+                      <p className="text-[11px] font-medium text-gray-500 dark:text-gray-400 uppercase">
+                        Gastos
+                      </p>
+                      <p className="text-xl font-bold text-red-600 dark:text-red-400 mt-1">
+                        {formatoMoneda.format(totalGastos)}
+                      </p>
+                    </div>
+                    {mostrarEfectivoEnCaja && (
+                      <div className="bg-gray-50 dark:bg-gray-800 rounded-xl p-3">
+                        <p className="text-[11px] font-medium text-gray-500 dark:text-gray-400 uppercase">
+                          Efectivo en caja
+                        </p>
+                        <p
+                          className={`text-xl font-bold mt-1 ${
+                            efectivoEnCaja < 0
+                              ? "text-red-600 dark:text-red-400"
+                              : "text-emerald-600 dark:text-emerald-400"
+                          }`}
+                        >
+                          {formatoMoneda.format(efectivoEnCaja)}
+                        </p>
+                      </div>
+                    )}
                   </div>
 
                   {reporte.totalReembolsado > 0 && (
@@ -485,6 +542,19 @@ export function ReportesContables({
                       neto: {formatoMoneda.format(reporte.totalCobrado)}
                     </p>
                   )}
+
+                  <GastosCajaPanel
+                    gastos={gastos}
+                    totalGastos={totalGastos}
+                    cargando={gastosCargando}
+                    error={errorGastos}
+                    puedeCrear={puedeCrearGasto}
+                    puedeAnular={puedeAnularGasto}
+                    sucursalFijaId={sucursalEfectiva}
+                    sucursales={sucursales}
+                    onCrear={crearGasto}
+                    onAnular={anularGasto}
+                  />
 
                   <div className="grid grid-cols-1 xl:grid-cols-2 gap-4">
                     <VentasChart
@@ -786,6 +856,15 @@ export function ReportesContables({
                   >
                     <i className="fas fa-file-csv mr-1" />
                     Descargar movimientos CSV
+                  </Button>
+                  <Button
+                    size="sm"
+                    variant="ghost"
+                    onClick={exportarGastos}
+                    disabled={gastos.length === 0}
+                  >
+                    <i className="fas fa-file-csv mr-1" />
+                    Descargar gastos CSV
                   </Button>
                 </div>
               </div>

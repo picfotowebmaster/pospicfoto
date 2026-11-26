@@ -5,9 +5,11 @@ import {
   type PedidoReporteContable,
 } from "./reportesContables";
 import {
+  filasGastosCaja,
   filasMovimientosContables,
   filasResumenContable,
 } from "./reportesContablesCsv";
+import type { GastoCaja } from "@/lib/supabase/types";
 
 const pedido: PedidoReporteContable = {
   id: "p1",
@@ -109,6 +111,101 @@ describe("filasResumenContable", () => {
     expect(filas).toContainEqual(["Cobrado por método"]);
     expect(filas).toContainEqual(["Tarjeta", 1, "58.00"]);
     expect(filas).toContainEqual(["Transferencia", 1, "58.00"]);
+  });
+});
+
+describe("filasResumenContable con gastos de caja", () => {
+  const gastos: GastoCaja[] = [
+    {
+      id: "g1",
+      sucursal_id: "suc-1",
+      concepto: "Compra de tinta",
+      categoria: "Insumos",
+      monto: 30,
+      fecha: "2026-11-10",
+      registrado_por: "v1",
+      registrado_por_nombre: "Jessica Herrera",
+      created_at: "2026-11-10T15:00:00.000Z",
+      anulado: false,
+    },
+    {
+      id: "g2",
+      sucursal_id: "suc-1",
+      concepto: "Limpieza",
+      categoria: null,
+      monto: 20,
+      fecha: "2026-11-11",
+      registrado_por: "v1",
+      registrado_por_nombre: "Jessica Herrera",
+      created_at: "2026-11-11T15:00:00.000Z",
+      anulado: false,
+    },
+    {
+      id: "g3",
+      sucursal_id: "suc-1",
+      concepto: "Gasto anulado",
+      categoria: null,
+      monto: 99,
+      fecha: "2026-11-12",
+      registrado_por: "v1",
+      registrado_por_nombre: "Jessica Herrera",
+      created_at: "2026-11-12T15:00:00.000Z",
+      anulado: true,
+    },
+  ];
+
+  it("agrega resumen de efectivo y detalle solo de gastos activos", () => {
+    const filas = filasResumenContable(reporte, meta, gastos, 250);
+
+    expect(filas).toContainEqual(["Efectivo cobrado", "250.00"]);
+    expect(filas).toContainEqual(["Gastos de caja", "50.00"]);
+    expect(filas).toContainEqual(["Efectivo en caja", "200.00"]);
+    expect(filas).toContainEqual(["Gastos de caja del periodo"]);
+    expect(filas).toContainEqual([
+      "2026-11-10",
+      "Compra de tinta",
+      "Insumos",
+      "30.00",
+      "Jessica Herrera",
+    ]);
+    expect(filas).not.toContainEqual([
+      "2026-11-12",
+      "Gasto anulado",
+      "",
+      "99.00",
+      "Jessica Herrera",
+    ]);
+    expect(filas).toContainEqual(["Totales", "", "", "50.00", ""]);
+  });
+
+  it("genera el CSV dedicado de gastos con estado y total activo", () => {
+    const filas = filasGastosCaja(gastos, meta);
+
+    expect(filas[0]).toEqual(["Reporte contable de corte"]);
+    expect(filas).toContainEqual([
+      "Fecha",
+      "Concepto",
+      "Categoría",
+      "Monto",
+      "Estado",
+      "Registrado por",
+    ]);
+    expect(filas).toContainEqual([
+      "2026-11-12",
+      "Gasto anulado",
+      "",
+      "99.00",
+      "Anulado",
+      "Jessica Herrera",
+    ]);
+    expect(filas[filas.length - 1]).toEqual([
+      "Totales",
+      "",
+      "",
+      "50.00",
+      "",
+      "",
+    ]);
   });
 });
 

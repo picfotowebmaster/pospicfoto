@@ -425,7 +425,7 @@ function MostradorContent() {
             onClick={() => router.push("/reportes")}
           >
             <i className="fas fa-chart-column mr-1.5" />
-            Reportes
+            Corte
           </Button>
           <Button
             variant="primary"

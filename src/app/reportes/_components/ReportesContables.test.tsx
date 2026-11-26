@@ -63,6 +63,13 @@ function reporteVacio(overrides = {}) {
     cargando: false,
     error: null,
     recargar: vi.fn(),
+    gastos: [],
+    totalGastos: 0,
+    cobradoEfectivoCaja: 0,
+    gastosCargando: false,
+    errorGastos: null,
+    crearGasto: vi.fn(),
+    anularGasto: vi.fn(),
     ...overrides,
   };
 }
