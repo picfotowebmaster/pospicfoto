@@ -153,10 +153,17 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: "Pedido no encontrado" }, { status: 404 });
   }
 
-  const { data: pagosPrincipal } = await admin
+  const { data: pagosPrincipal, error: pagosPrincipalError } = await admin
     .from("pagos_pedido")
     .select("tipo, metodo_pago")
     .eq("pedido_id", principal.id as string);
+
+  if (pagosPrincipalError) {
+    console.error(
+      "No se pudieron leer los pagos del pedido para la factura:",
+      pagosPrincipalError,
+    );
+  }
 
   let entidad: EntidadEmisora | null = null;
   if (principal.entidad_emisora_id) {

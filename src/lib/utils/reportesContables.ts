@@ -68,7 +68,7 @@ function pagosDelPedido(pedido: PedidoReporteContable): PagoCalculado[] {
         metodo: pago.metodo_pago || pedido.metodo_pago || "Efectivo",
         monto: redondear2(pago.monto),
         fecha:
-          fechaDia(pedido.fecha_recepcion) || fechaDia(pago.cobrado_en),
+          fechaDia(pago.cobrado_en) || fechaDia(pedido.fecha_recepcion),
         cobradoPorId: pago.cobrado_por ?? pedido.cajero_id ?? null,
       });
     }

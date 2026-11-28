@@ -152,4 +152,31 @@ describe("construirResumenReporte", () => {
     expect(resumen.totalCobrado).toBe(0);
     expect(resumen.saldoPendiente).toBe(0);
   });
+
+  it("atribuye el anticipo a su fecha de cobro aunque difiera de la recepción", () => {
+    const resumen = construirResumenReporte(
+      [
+        {
+          ...base,
+          fecha_recepcion: "2026-10-28",
+          anticipo: 58,
+          pagos_pedido: [
+            {
+              tipo: "anticipo",
+              metodo_pago: "Efectivo",
+              monto: 58,
+              cobrado_en: "2026-11-02T18:00:00.000Z",
+            },
+          ],
+        },
+      ],
+      "2026-11-01",
+    );
+
+    expect(resumen.totalVendido).toBe(0);
+    expect(resumen.totalCobrado).toBe(58);
+    expect(resumen.cobradoPorDia).toEqual([
+      { fecha_recepcion: "2026-11-02", count: 1, total: 58 },
+    ]);
+  });
 });

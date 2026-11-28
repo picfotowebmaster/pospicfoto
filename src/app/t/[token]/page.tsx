@@ -15,6 +15,9 @@ import { BotonImprimir } from "./BotonImprimir";
 
 export const dynamic = "force-dynamic";
 
+const SELECT_COMPLETO = "*, detalle_pedidos(*), pagos_pedido(*)";
+const SELECT_BASICO = "*, detalle_pedidos(*)";
+
 const BASE_URL =
   process.env.NEXT_PUBLIC_APP_URL?.trim() || "https://pos.picfoto.mx";
 
@@ -68,11 +71,26 @@ export default async function TicketPublicoPage({
 
   const admin = createAdminClient();
 
-  const { data: principal } = await admin
+  const consultaPrincipal = await admin
     .from("pedidos")
-    .select("*, detalle_pedidos(*), pagos_pedido(*)")
+    .select(SELECT_COMPLETO)
     .eq("id", enlace.pedido_id)
     .maybeSingle();
+
+  let principal = consultaPrincipal.data;
+
+  if (consultaPrincipal.error) {
+    console.error(
+      "No se pudo cargar el ticket con pagos_pedido; se reintenta sin el detalle de pagos:",
+      consultaPrincipal.error,
+    );
+    const { data: basico } = await admin
+      .from("pedidos")
+      .select(SELECT_BASICO)
+      .eq("id", enlace.pedido_id)
+      .maybeSingle();
+    principal = basico;
+  }
 
   if (!principal) notFound();
 
@@ -83,11 +101,26 @@ export default async function TicketPublicoPage({
     pedido.factura_numero &&
     pedido.factura_numero !== pedido.numero_pedido
   ) {
-    const { data } = await admin
+    const consultaFactura = await admin
       .from("pedidos")
-      .select("*, detalle_pedidos(*), pagos_pedido(*)")
+      .select(SELECT_COMPLETO)
       .eq("factura_numero", pedido.factura_numero)
       .order("created_at", { ascending: true });
+
+    let data = consultaFactura.data;
+
+    if (consultaFactura.error) {
+      console.error(
+        "No se pudieron cargar los pedidos de la factura con pagos_pedido; se reintenta sin el detalle de pagos:",
+        consultaFactura.error,
+      );
+      const { data: basico } = await admin
+        .from("pedidos")
+        .select(SELECT_BASICO)
+        .eq("factura_numero", pedido.factura_numero)
+        .order("created_at", { ascending: true });
+      data = basico;
+    }
 
     if (data && data.length > 0) {
       pedidos = data as unknown as Pedido[];

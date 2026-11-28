@@ -67,7 +67,7 @@ function pagosCobrados(
       resultado.push({
         metodo: pago.metodo_pago || pedido.metodo_pago || "Efectivo",
         monto: redondear2(pago.monto),
-        fecha: pedido.fecha_recepcion || fechaDePago(pago.cobrado_en),
+        fecha: fechaDePago(pago.cobrado_en) || pedido.fecha_recepcion,
       });
     }
   } else if (anticipo > 0.01) {

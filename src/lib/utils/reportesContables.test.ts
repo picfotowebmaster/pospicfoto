@@ -415,4 +415,59 @@ describe("construirReporteContable", () => {
     expect(reporte.totalPedidos).toBe(1);
     expect(reporte.porVendedor[0].vendedorNombre).toBe("Sin vendedor");
   });
+
+  it("atribuye el anticipo a la fecha real de cobro registrada", () => {
+    const conAnticipoTardio = pedido({
+      fecha_recepcion: "2026-10-28",
+      pagos_pedido: [
+        {
+          tipo: "anticipo",
+          metodo_pago: "Efectivo",
+          monto: 58,
+          cobrado_por: "v1",
+          cobrado_en: "2026-11-02T18:00:00.000Z",
+        },
+      ],
+    });
+
+    const noviembre = construirReporteContable(
+      [conAnticipoTardio],
+      NOVIEMBRE,
+    );
+
+    expect(noviembre.totalVendido).toBe(0);
+    expect(noviembre.totalCobrado).toBe(58);
+    expect(noviembre.movimientos[0]).toMatchObject({
+      tipo: "Anticipo",
+      fechaCobro: "2026-11-02",
+    });
+  });
+
+  it("prefiere la fecha de cobro sobre la recepción para el anticipo", () => {
+    const reporte = construirReporteContable(
+      [
+        pedido({
+          fecha_recepcion: "2026-11-10",
+          pagos_pedido: [
+            {
+              tipo: "anticipo",
+              metodo_pago: "Tarjeta",
+              monto: 58,
+              cobrado_por: "v1",
+              cobrado_en: "2026-11-12T18:00:00.000Z",
+            },
+          ],
+        }),
+      ],
+      NOVIEMBRE,
+    );
+
+    expect(reporte.movimientos[0]).toMatchObject({
+      tipo: "Anticipo",
+      fechaCobro: "2026-11-12",
+    });
+    expect(
+      reporte.porDia.find((dia) => dia.fecha === "2026-11-12")?.cobrado,
+    ).toBe(58);
+  });
 });
