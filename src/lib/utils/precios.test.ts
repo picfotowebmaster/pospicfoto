@@ -62,6 +62,7 @@ describe("resolverPrecio", () => {
       precio: null,
       completo: false,
       regla: null,
+      valores_ids: [],
     });
   });
 
@@ -74,7 +75,12 @@ describe("resolverPrecio", () => {
       resolverPrecio(sinPrecio, {
         "Impresión Tamaño": '20x30"',
       }),
-    ).toEqual({ precio: null, completo: true, regla: null });
+    ).toEqual({
+      precio: null,
+      completo: true,
+      regla: null,
+      valores_ids: ["v-20x30"],
+    });
   });
 
   it("ignora reglas inactivas", () => {
@@ -279,6 +285,7 @@ describe("resolverPrecio con precio base", () => {
       precio: null,
       completo: true,
       regla: null,
+      valores_ids: ["v-20"],
     });
   });
 
@@ -291,6 +298,7 @@ describe("resolverPrecio con precio base", () => {
       precio: null,
       completo: true,
       regla: null,
+      valores_ids: ["v-20"],
     });
   });
 });

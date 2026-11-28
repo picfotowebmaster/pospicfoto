@@ -2,6 +2,9 @@ import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { supabase } from "@/lib/supabase/client";
 import {
   crearPedido,
+  crearPedidoAgrupado,
+  validarPreciosLineas,
+  PrecioDesactualizadoError,
   fetchPedido,
   fetchPedidosPorEstado,
   cancelarVenta,
@@ -262,6 +265,182 @@ describe("crearPedido", () => {
     });
     vi.mocked(supabase.rpc).mockResolvedValue({ data: "PIC-PAL-00042", error: null });
     await expect(crearPedido(mockDraft, "cajero-1")).rejects.toThrow("Insert error");
+  });
+});
+
+describe("crearPedidoAgrupado", () => {
+  beforeEach(() => vi.clearAllMocks());
+
+  it("usa un folio de venta propio y un número de pedido por ruta", async () => {
+    let insertos = 0;
+    const numeros = ["PIC-CUB-01000", "PIC-CUB-01001"];
+
+    mockFrom((table: string) => {
+      if (table === "marcas")
+        return qb("single", { codigo: "PIC" }) as ReturnType<typeof supabase.from>;
+      if (table === "sucursales")
+        return qb("single", { codigo: "CUB" }) as ReturnType<typeof supabase.from>;
+      if (table === "pedidos") {
+        const numero = numeros[insertos] ?? `PIC-CUB-01${insertos}`;
+        insertos += 1;
+        return qb("single", {
+          id: `p${insertos}`,
+          numero_pedido: numero,
+        }) as ReturnType<typeof supabase.from>;
+      }
+      return qb(null, null) as ReturnType<typeof supabase.from>;
+    });
+
+    let siguientePedido = 1000;
+    vi.mocked(supabase.rpc).mockImplementation(((
+      fn: string,
+    ) => {
+      if (fn === "generar_folio_venta") {
+        return Promise.resolve({ data: "VTA-PIC-CUB-00001", error: null });
+      }
+      if (fn === "generar_numero_pedido") {
+        const data = `PIC-CUB-0${siguientePedido}`;
+        siguientePedido += 1;
+        return Promise.resolve({ data, error: null });
+      }
+      return Promise.resolve({ data: null, error: null });
+    }) as never);
+
+    const resultado = await crearPedidoAgrupado(
+      {
+        cliente_nombre: "Ana",
+        cliente_telefono: "5551234567",
+        fecha_entrega: "2026-12-01",
+        hora_entrega: "10:00",
+        requiere_correccion: false,
+        lineas: [
+          {
+            id: "l1",
+            producto_nombre: "Foto 4x6",
+            cantidad: 1,
+            precio_unitario: 100,
+            atributos: {},
+            ruta: "R1",
+          },
+          {
+            id: "l2",
+            producto_nombre: "Marco 8x10",
+            cantidad: 1,
+            precio_unitario: 200,
+            atributos: {},
+            ruta: "R2",
+          },
+        ],
+        subtotal: 300,
+        anticipo: 100,
+        total: 300,
+        metodo_pago: "Efectivo",
+        sucursal_id: "s1",
+        marca_id: "m1",
+      },
+      "cajero-1",
+    );
+
+    expect(resultado.facturaNumero).toBe("VTA-PIC-CUB-00001");
+    expect(resultado.pedidoIds).toHaveLength(2);
+
+    const llamadas = vi.mocked(supabase.rpc).mock.calls as unknown as [
+      string,
+      unknown,
+    ][];
+    const foliosVenta = llamadas.filter(
+      ([fn]) => fn === "generar_folio_venta",
+    );
+    const numerosPedido = llamadas.filter(
+      ([fn]) => fn === "generar_numero_pedido",
+    );
+
+    expect(foliosVenta).toEqual([
+      [
+        "generar_folio_venta",
+        { marca_codigo: "PIC", sucursal_codigo: "CUB" },
+      ],
+    ]);
+    expect(numerosPedido).toHaveLength(2);
+    for (const llamada of numerosPedido) {
+      expect(llamada[1]).toEqual({
+        marca_codigo: "PIC",
+        sucursal_codigo: "CUB",
+      });
+    }
+  });
+});
+
+describe("validarPreciosLineas", () => {
+  beforeEach(() => vi.clearAllMocks());
+
+  const lineaBase = {
+    id: "l1",
+    producto_nombre: "Foto 4x6",
+    cantidad: 1,
+    precio_unitario: 100,
+    precio_lista: 100,
+    descuento_id: null,
+    atributos: {},
+    valores_ids: ["v1"],
+    ruta: "R1" as const,
+    producto_id: "p1",
+  };
+
+  it("no lanza si el precio es el mismo", async () => {
+    vi.mocked(supabase.rpc).mockResolvedValue({
+      data: 100,
+      error: null,
+    } as never);
+
+    await expect(validarPreciosLineas([lineaBase])).resolves.toBeUndefined();
+    expect(supabase.rpc).toHaveBeenCalledWith("precio_actual", {
+      p_producto_id: "p1",
+      p_valores_ids: ["v1"],
+    });
+  });
+
+  it("lanza PrecioDesactualizadoError si el precio cambió", async () => {
+    vi.mocked(supabase.rpc).mockResolvedValue({
+      data: 120,
+      error: null,
+    } as never);
+
+    await expect(
+      validarPreciosLineas([lineaBase]),
+    ).rejects.toBeInstanceOf(PrecioDesactualizadoError);
+  });
+
+  it("lanza si la combinación ya no tiene precio", async () => {
+    vi.mocked(supabase.rpc).mockResolvedValue({
+      data: null,
+      error: null,
+    } as never);
+
+    await expect(
+      validarPreciosLineas([lineaBase]),
+    ).rejects.toBeInstanceOf(PrecioDesactualizadoError);
+  });
+
+  it("no valida precios manuales", async () => {
+    await validarPreciosLineas([{ ...lineaBase, precio_unitario: 80 }]);
+
+    expect(supabase.rpc).not.toHaveBeenCalled();
+  });
+
+  it("no valida líneas sin valores_ids", async () => {
+    await validarPreciosLineas([{ ...lineaBase, valores_ids: null }]);
+
+    expect(supabase.rpc).not.toHaveBeenCalled();
+  });
+
+  it("no bloquea si la RPC falla", async () => {
+    vi.mocked(supabase.rpc).mockResolvedValue({
+      data: null,
+      error: new Error("rpc"),
+    } as never);
+
+    await expect(validarPreciosLineas([lineaBase])).resolves.toBeUndefined();
   });
 });
 

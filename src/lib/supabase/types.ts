@@ -324,6 +324,7 @@ export interface LineaPedidoDraft {
   descuento_valor?: number | null;
   descuento_monto?: number | null;
   atributos: Record<string, string>;
+  valores_ids?: string[] | null;
   ruta: RutaProduccion;
   categoria_id?: string | null;
   producto_id?: string | null;

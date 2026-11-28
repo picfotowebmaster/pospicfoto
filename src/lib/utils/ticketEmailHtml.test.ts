@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { renderTicketHtml } from "./ticketEmailHtml";
+import { renderTicketHtml, renderTicketsHtml } from "./ticketEmailHtml";
 import type { EntidadEmisora, Pedido } from "@/lib/supabase/types";
 
 const pedido = {
@@ -139,5 +139,94 @@ describe("renderTicketHtml", () => {
     expect(html).toContain("EPM180424491");
     expect(html).toContain("ventas@framex.mx");
     expect(html).toContain("https://pos.picfoto.mx/icons/framex-icon.png");
+  });
+});
+
+describe("renderTicketsHtml", () => {
+  it("delega en renderTicketHtml cuando hay un solo pedido", () => {
+    const html = renderTicketsHtml([pedido], null, undefined, "https://pos.test/t/abc");
+    expect(html).toContain("PED-50");
+    expect(html).toContain("Ver ticket en línea");
+    expect(html).not.toContain("rutas de producción distintas");
+  });
+
+  it("incluye el encabezado de factura y los N tickets cuando hay varios", () => {
+    const segundo = {
+      ...pedido,
+      id: "def67890-0000-0000-0000-000000000000",
+      numero_pedido: "PED-51",
+      factura_numero: "FAC-77",
+      detalle_pedidos: [
+        {
+          id: "d2",
+          pedido_id: "def67890-0000-0000-0000-000000000000",
+          producto_nombre: "Marco 20x30",
+          cantidad: 1,
+          precio_unitario: 200,
+          importe_linea: 200,
+          atributos: {},
+        },
+      ],
+    } as unknown as Pedido;
+
+    const html = renderTicketsHtml(
+      [{ ...pedido, factura_numero: "FAC-77" } as unknown as Pedido, segundo],
+      null,
+      undefined,
+      "https://pos.test/t/abc",
+    );
+
+    expect(html).toContain("FACTURA: FAC-77");
+    expect(html).toContain("2 pedidos con rutas de producción distintas");
+    expect(html).toContain("PED-50");
+    expect(html).toContain("PED-51");
+    expect(html).toContain("Marco 20x30");
+    expect(html).toContain("Ver ticket en línea");
+  });
+
+  it("usa el emisor correspondiente a cada pedido", () => {
+    const emisorA: EntidadEmisora = {
+      id: "e-a",
+      codigo: "A",
+      nombre_comercial: "Emisor A",
+      razon_social: "Emisor A SA",
+      rfc: "AAA010101AAA",
+      regimen_fiscal: "Régimen General",
+      direccion: "Calle A",
+      telefonos: "555",
+      email: "a@a.mx",
+      sitio_web: null,
+      logo_url: null,
+      marca_id: null,
+      sucursal_id: null,
+      cp_expedicion: "06000",
+      serie_factura: "A",
+      facturacion_key: "A",
+      activo: true,
+      orden: 1,
+    };
+    const emisorB: EntidadEmisora = { ...emisorA, id: "e-b", nombre_comercial: "Emisor B", rfc: "BBB010101BBB" };
+
+    const emisores = new Map<string, EntidadEmisora>([
+      ["e-a", emisorA],
+      ["e-b", emisorB],
+    ]);
+
+    const html = renderTicketsHtml(
+      [
+        { ...pedido, factura_numero: "FAC-9", entidad_emisora_id: "e-a" } as unknown as Pedido,
+        {
+          ...pedido,
+          id: "otro",
+          numero_pedido: "PED-52",
+          factura_numero: "FAC-9",
+          entidad_emisora_id: "e-b",
+        } as unknown as Pedido,
+      ],
+      emisores,
+    );
+
+    expect(html).toContain("Emisor A");
+    expect(html).toContain("Emisor B");
   });
 });

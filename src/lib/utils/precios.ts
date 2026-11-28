@@ -8,6 +8,7 @@ export interface PrecioResuelto {
   precio: number | null;
   completo: boolean;
   regla: ProductoPrecio | null;
+  valores_ids: string[];
 }
 
 export function esTablaPreciosFaltante(error: unknown): boolean {
@@ -72,7 +73,12 @@ export function resolverPrecio(
       (v) => v.valor === atributos[atributo.nombre],
     );
     if (!valor) {
-      return { precio: null, completo: false, regla: null };
+      return {
+        precio: null,
+        completo: false,
+        regla: null,
+        valores_ids: valoresSeleccionados,
+      };
     }
     valoresSeleccionados.push(valor.id);
   }
@@ -86,6 +92,7 @@ export function resolverPrecio(
     precio: regla?.precio ?? null,
     completo: true,
     regla,
+    valores_ids: valoresSeleccionados,
   };
 }
 

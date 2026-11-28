@@ -7,7 +7,12 @@
 DELETE FROM pedido_movimientos;
 DELETE FROM detalle_pedidos;
 DELETE FROM pedidos;
-ALTER SEQUENCE pedido_global_seq RESTART WITH 1;
+DO $$
+BEGIN
+  IF to_regclass('public.folios_correlativos') IS NOT NULL THEN
+    DELETE FROM public.folios_correlativos;
+  END IF;
+END $$;
 ALTER SEQUENCE IF EXISTS factura_folio_seq RESTART WITH 1;
 
 DO $$

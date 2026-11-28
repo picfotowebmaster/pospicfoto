@@ -1,7 +1,7 @@
 import { Resend } from "resend";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { NOMBRE_EMPRESA } from "@/lib/utils/constantes";
-import { renderTicketHtml } from "@/lib/utils/ticketEmailHtml";
+import { renderTicketsHtml } from "@/lib/utils/ticketEmailHtml";
 import type { EntidadEmisora, Pedido } from "@/lib/supabase/types";
 
 export type TipoEnvioCorreo =
@@ -39,8 +39,8 @@ interface EnviarFacturaParams {
 
 interface EnviarTicketParams {
   to: string;
-  pedido: Pedido;
-  emisor?: EntidadEmisora | null;
+  pedidos: Pedido[];
+  emisores?: Map<string, EntidadEmisora> | null;
   baseUrl?: string;
   urlTicket?: string | null;
 }
@@ -249,20 +249,31 @@ export async function enviarFacturaGlobalPorCorreo({
 
 export async function enviarTicketPorCorreo({
   to,
-  pedido,
-  emisor,
+  pedidos,
+  emisores,
   baseUrl,
   urlTicket,
 }: EnviarTicketParams): Promise<string | null> {
-  const numeroTicket = pedido.numero_pedido || pedido.id.slice(0, 8).toUpperCase();
-  const nombreEmisor = emisor?.nombre_comercial || NOMBRE_EMPRESA;
+  const principal = pedidos[0];
+  if (!principal) {
+    throw new Error("No hay pedidos para enviar");
+  }
+
+  const numeroTicket =
+    principal.factura_numero ||
+    principal.numero_pedido ||
+    principal.id.slice(0, 8).toUpperCase();
+  const primerEmisor = principal.entidad_emisora_id
+    ? emisores?.get(principal.entidad_emisora_id)
+    : null;
+  const nombreEmisor = primerEmisor?.nombre_comercial || NOMBRE_EMPRESA;
 
   return enviarCorreo({
     to,
     subject: `Tu ticket ${numeroTicket} - ${nombreEmisor}`,
-    html: renderTicketHtml(pedido, emisor, baseUrl, urlTicket),
+    html: renderTicketsHtml(pedidos, emisores, baseUrl, urlTicket),
     tipo: "ticket",
-    referenciaId: pedido.id,
+    referenciaId: principal.id,
   });
 }
 

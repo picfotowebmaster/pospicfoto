@@ -1,4 +1,10 @@
-import { enqueuePedido, getPendingPedidos, updatePedidoSyncStatus, removeSyncedPedido } from "./db";
+import {
+  enqueuePedido,
+  getPendingPedidos,
+  getAllQueuedPedidos,
+  updatePedidoSyncStatus,
+  removeSyncedPedido,
+} from "./db";
 import { crearPedido } from "@/lib/services/pedidos";
 import type { PedidoDraft } from "@/lib/supabase/types";
 
@@ -49,6 +55,8 @@ export async function syncQueue(cajeroId: string): Promise<{ synced: number; fai
 }
 
 export async function getQueueCount(): Promise<number> {
-  const pending = await getPendingPedidos();
-  return pending.length;
+  // Incluye pendientes y fallidos: un pedido con precio cambiado debe
+  // seguir visible para revisión, no desaparecer del contador.
+  const queued = await getAllQueuedPedidos();
+  return queued.length;
 }

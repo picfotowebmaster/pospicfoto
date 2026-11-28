@@ -24,6 +24,46 @@ function urlAbsoluta(valor: string | null | undefined, baseUrl?: string): string
   return `${base}${ruta}`;
 }
 
+function emisorDe(
+  pedido: Pedido,
+  emisores?: Map<string, EntidadEmisora> | null,
+): EntidadEmisora | null {
+  if (!pedido.entidad_emisora_id || !emisores) return null;
+  return emisores.get(pedido.entidad_emisora_id) ?? null;
+}
+
+export function renderTicketsHtml(
+  pedidos: Pedido[],
+  emisores?: Map<string, EntidadEmisora> | null,
+  baseUrl?: string,
+  urlTicket?: string | null,
+): string {
+  if (pedidos.length <= 1) {
+    const unico = pedidos[0];
+    if (!unico) return "";
+    return renderTicketHtml(unico, emisorDe(unico, emisores), baseUrl, urlTicket);
+  }
+
+  const factura = pedidos.find((p) => p.factura_numero)?.factura_numero ?? "";
+  const encabezado = `
+    <div style="text-align:center;border:1px dashed #9ca3af;border-radius:8px;padding:10px;margin-bottom:16px;">
+      ${factura ? `<div style="font-size:13px;font-weight:bold;color:#111827;">FACTURA: ${esc(factura)}</div>` : ""}
+      <div style="font-size:11px;color:#6b7280;margin-top:4px;">Esta factura contiene ${pedidos.length} pedidos con rutas de producción distintas.</div>
+      ${urlTicket ? `<div style="margin-top:10px;"><a href="${esc(urlTicket)}" style="display:inline-block;background:#2563eb;color:#ffffff;text-decoration:none;font-weight:bold;font-size:13px;padding:10px 18px;border-radius:8px;">Ver ticket en línea</a></div>` : ""}
+    </div>`;
+
+  const tickets = pedidos
+    .map(
+      (pedido, indice) => `
+      <div style="${indice > 0 ? "border-top:2px dashed #9ca3af;margin-top:20px;padding-top:20px;" : ""}">
+        ${renderTicketHtml(pedido, emisorDe(pedido, emisores), baseUrl, null)}
+      </div>`,
+    )
+    .join("");
+
+  return `<div style="font-family: Arial, sans-serif; max-width: 480px; margin: 0 auto; color:#1f2937;">${encabezado}${tickets}</div>`;
+}
+
 export function renderTicketHtml(
   pedido: Pedido,
   emisor?: EntidadEmisora | null,

@@ -108,6 +108,88 @@ async function resolverEntidadEmisora(draft: {
   };
 }
 
+export interface CambioPrecio {
+  lineaId: string;
+  productoNombre: string;
+  precioAnterior: number;
+  precioActual: number | null;
+}
+
+export class PrecioDesactualizadoError extends Error {
+  readonly cambios: CambioPrecio[];
+
+  constructor(cambios: CambioPrecio[]) {
+    const detalle = cambios
+      .map(
+        (cambio) =>
+          `${cambio.productoNombre} ($${cambio.precioAnterior.toFixed(2)} → ${
+            cambio.precioActual === null
+              ? "sin precio"
+              : `$${cambio.precioActual.toFixed(2)}`
+          })`,
+      )
+      .join(", ");
+    super(
+      `El precio cambió para: ${detalle}. Revisa la línea y vuelve a intentar.`,
+    );
+    this.name = "PrecioDesactualizadoError";
+    this.cambios = cambios;
+  }
+}
+
+function esPrecioManual(linea: LineaPedidoDraft): boolean {
+  return (
+    linea.descuento_id == null &&
+    linea.precio_lista != null &&
+    Number(linea.precio_unitario) !== Number(linea.precio_lista)
+  );
+}
+
+export async function validarPreciosLineas(
+  lineas: LineaPedidoDraft[],
+): Promise<void> {
+  const cambios: CambioPrecio[] = [];
+
+  for (const linea of lineas) {
+    if (!linea.producto_id) continue;
+    if (linea.precio_lista == null) continue;
+    if (linea.valores_ids === undefined || linea.valores_ids === null) continue;
+    if (esPrecioManual(linea)) continue;
+
+    const { data, error } = await supabase.rpc("precio_actual", {
+      p_producto_id: linea.producto_id,
+      p_valores_ids: linea.valores_ids,
+    });
+
+    if (error) {
+      // No bloquear la venta por una falla de la validación.
+      console.warn("No se pudo validar el precio:", error.message);
+      continue;
+    }
+
+    const actual =
+      data === null || data === undefined ? null : Number(data);
+    const anterior = Number(linea.precio_lista);
+
+    if (
+      actual === null ||
+      !Number.isFinite(actual) ||
+      Math.abs(actual - anterior) > 0.009
+    ) {
+      cambios.push({
+        lineaId: linea.id,
+        productoNombre: linea.producto_nombre,
+        precioAnterior: anterior,
+        precioActual: actual,
+      });
+    }
+  }
+
+  if (cambios.length > 0) {
+    throw new PrecioDesactualizadoError(cambios);
+  }
+}
+
 export interface FiltrosPedidos {
   pagina: number;
   porPagina: number;
@@ -124,6 +206,8 @@ export interface FiltrosPedidos {
 }
 
 export async function crearPedido(draft: PedidoDraft, cajeroId: string): Promise<string> {
+  await validarPreciosLineas(draft.lineas);
+
   const entidad = await resolverEntidadEmisora(draft);
 
   const { data: perfil } = await supabase
@@ -405,6 +489,10 @@ export async function crearPedidoAgrupado(draft: DraftAgrupado, cajeroId: string
 
   const rutas = Object.keys(groups);
 
+  if (rutas.length > 1) {
+    await validarPreciosLineas(draft.lineas);
+  }
+
   if (rutas.length === 1) {
     const ruta = rutas[0] as RutaProduccion;
     const numeroPedido = await crearPedido(
@@ -440,7 +528,7 @@ export async function crearPedidoAgrupado(draft: DraftAgrupado, cajeroId: string
   }
 
   const { data: facturaData, error: facturaNumErr } = await supabase
-    .rpc("generar_numero_pedido", {
+    .rpc("generar_folio_venta", {
       marca_codigo: entidad.marcaCodigo,
       sucursal_codigo: entidad.sucursalCodigo,
     });

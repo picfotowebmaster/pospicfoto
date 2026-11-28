@@ -5,12 +5,91 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { enviarTicketPorCorreo } from "@/lib/services/email";
 import { crearOReutilizarEnlace } from "@/lib/services/enlacesCompartidos";
 import { resolverBaseUrl, urlTicketCompartido } from "@/lib/utils/baseUrl";
-import type { Pedido } from "@/lib/supabase/types";
+import type { EntidadEmisora, Pedido } from "@/lib/supabase/types";
 
 const ROLES_PERMITIDOS = ["mostrador", "admin", "superadmin", "contador"];
 const UUID_RE =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
+const SELECT_COMPLETO = "*, detalle_pedidos(*), pagos_pedido(*)";
+const SELECT_BASICO = "*, detalle_pedidos(*)";
+
+type AdminClient = ReturnType<typeof createAdminClient>;
+type ColumnaPedido = "numero_pedido" | "id";
+
+interface ResultadoBusqueda {
+  pedido: Pedido | null;
+  error: string | null;
+}
+
+async function buscarPedido(
+  admin: AdminClient,
+  columna: ColumnaPedido,
+  valor: string,
+): Promise<ResultadoBusqueda> {
+  const consultar = (select: string) =>
+    admin
+      .from("pedidos")
+      .select(select)
+      .eq(columna, valor)
+      .maybeSingle();
+
+  const { data, error } = await consultar(SELECT_COMPLETO);
+  if (!error) {
+    return { pedido: (data as unknown as Pedido) ?? null, error: null };
+  }
+
+  console.error(
+    `No se pudo consultar el pedido por ${columna} con pagos_pedido; se reintenta sin el detalle de pagos:`,
+    error,
+  );
+
+  const { data: basico, error: errorBasico } = await consultar(SELECT_BASICO);
+  if (errorBasico) {
+    return { pedido: null, error: errorBasico.message };
+  }
+
+  return { pedido: (basico as unknown as Pedido) ?? null, error: null };
+}
+
+async function buscarPedidosDeFactura(
+  admin: AdminClient,
+  pedido: Pedido,
+): Promise<Pedido[]> {
+  const factura = pedido.factura_numero;
+  if (!factura || factura === pedido.numero_pedido) return [pedido];
+
+  const { data, error } = await admin
+    .from("pedidos")
+    .select(SELECT_COMPLETO)
+    .eq("factura_numero", factura)
+    .order("created_at", { ascending: true });
+
+  if (!error && data && data.length > 0) {
+    return data as unknown as Pedido[];
+  }
+
+  if (error) {
+    console.error(
+      "No se pudieron consultar los pedidos de la factura con pagos_pedido; se reintenta sin el detalle de pagos:",
+      error,
+    );
+  }
+
+  const { data: basico, error: errorBasico } = await admin
+    .from("pedidos")
+    .select(SELECT_BASICO)
+    .eq("factura_numero", factura)
+    .order("created_at", { ascending: true });
+
+  if (errorBasico) {
+    console.error("No se pudieron consultar los pedidos de la factura:", errorBasico);
+    return [pedido];
+  }
+
+  return (basico as unknown as Pedido[]) ?? [pedido];
+}
 
 export async function POST(request: NextRequest) {
   const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
@@ -66,44 +145,60 @@ export async function POST(request: NextRequest) {
 
   const admin = createAdminClient();
 
-  let pedido: Pedido | null = null;
+  const porNumero = await buscarPedido(admin, "numero_pedido", id);
+  if (porNumero.error) {
+    return NextResponse.json(
+      { error: `No se pudo consultar el pedido: ${porNumero.error}` },
+      { status: 500 },
+    );
+  }
 
-  const { data: porNumero } = await admin
-    .from("pedidos")
-    .select("*, detalle_pedidos(*), pagos_pedido(*)")
-    .eq("numero_pedido", id)
-    .maybeSingle();
+  let pedido = porNumero.pedido;
 
-  if (porNumero) {
-    pedido = porNumero as unknown as Pedido;
-  } else if (UUID_RE.test(id)) {
-    const { data: porId } = await admin
-      .from("pedidos")
-      .select("*, detalle_pedidos(*), pagos_pedido(*)")
-      .eq("id", id)
-      .maybeSingle();
-    pedido = (porId as unknown as Pedido) ?? null;
+  if (!pedido && UUID_RE.test(id)) {
+    const porId = await buscarPedido(admin, "id", id);
+    if (porId.error) {
+      return NextResponse.json(
+        { error: `No se pudo consultar el pedido: ${porId.error}` },
+        { status: 500 },
+      );
+    }
+    pedido = porId.pedido;
   }
 
   if (!pedido) {
     return NextResponse.json({ error: "Pedido no encontrado" }, { status: 404 });
   }
 
-  if (pedido.cajero_id) {
-    const { data: vendedor } = await admin
+  let pedidos = await buscarPedidosDeFactura(admin, pedido);
+
+  const cajeroIds = [
+    ...new Set(
+      pedidos
+        .map((p) => p.cajero_id)
+        .filter((valor): valor is string => Boolean(valor)),
+    ),
+  ];
+  if (cajeroIds.length > 0) {
+    const { data: vendedores } = await admin
       .from("profiles")
-      .select("nombre")
-      .eq("id", pedido.cajero_id)
-      .maybeSingle();
-    pedido = {
-      ...pedido,
-      vendedor_nombre: vendedor?.nombre?.trim() || null,
-    };
+      .select("id, nombre")
+      .in("id", cajeroIds);
+    const nombres = new Map(
+      (vendedores ?? []).map((v) => [v.id, v.nombre?.trim() || null]),
+    );
+    pedidos = pedidos.map((p) => ({
+      ...p,
+      vendedor_nombre: p.cajero_id ? nombres.get(p.cajero_id) ?? null : null,
+    }));
   }
 
   const emailOverride =
     typeof body.email === "string" ? body.email.trim() : "";
-  const email = emailOverride || pedido.cliente_email;
+  const email =
+    emailOverride ||
+    pedido.cliente_email ||
+    pedidos.find((p) => p.cliente_email)?.cliente_email;
 
   if (!email) {
     return NextResponse.json(
@@ -119,14 +214,22 @@ export async function POST(request: NextRequest) {
     );
   }
 
-  let emisor = null;
-  if (pedido.entidad_emisora_id) {
+  const emisores = new Map<string, EntidadEmisora>();
+  const entidadIds = [
+    ...new Set(
+      pedidos
+        .map((p) => p.entidad_emisora_id)
+        .filter((valor): valor is string => Boolean(valor)),
+    ),
+  ];
+  if (entidadIds.length > 0) {
     const { data } = await admin
       .from("entidades_emisoras")
       .select("*")
-      .eq("id", pedido.entidad_emisora_id)
-      .maybeSingle();
-    emisor = data;
+      .in("id", entidadIds);
+    for (const emisor of (data ?? []) as EntidadEmisora[]) {
+      emisores.set(emisor.id, emisor);
+    }
   }
 
   try {
@@ -139,8 +242,8 @@ export async function POST(request: NextRequest) {
 
     await enviarTicketPorCorreo({
       to: email,
-      pedido,
-      emisor,
+      pedidos,
+      emisores,
       baseUrl,
       urlTicket,
     });

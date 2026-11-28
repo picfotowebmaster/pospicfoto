@@ -14,7 +14,12 @@ import { ResumenPago } from "./_components/ResumenPago";
 import { BotonPagar } from "./_components/BotonPagar";
 import { ModalConfirmarPedido } from "./_components/ModalConfirmarPedido";
 import { Button } from "@/components/ui/Button";
-import { crearPedidoAgrupado } from "@/lib/services/pedidos";
+import { ConfirmModal } from "@/components/ui/ConfirmModal";
+import {
+  crearPedidoAgrupado,
+  PrecioDesactualizadoError,
+  type CambioPrecio,
+} from "@/lib/services/pedidos";
 import { guardarClientesEnCache } from "@/lib/services/clientes";
 import { supabase } from "@/lib/supabase/client";
 import { Logo } from "@/components/ui/Logo";
@@ -87,16 +92,21 @@ function MostradorContent() {
   const [confirmando, setConfirmando] = useState(false);
   const [refrescandoCatalogo, setRefrescandoCatalogo] = useState(false);
   const refrescandoRef = useRef<Promise<void> | null>(null);
+  const [cambiosPrecio, setCambiosPrecio] = useState<CambioPrecio[] | null>(
+    null,
+  );
 
   const refrescarCatalogo = useCallback(
-    (opciones?: { silencioso?: boolean }): Promise<void> => {
+    (opciones?: { silencioso?: boolean; force?: boolean }): Promise<void> => {
       if (!isOnline) return Promise.resolve();
       if (refrescandoRef.current) return refrescandoRef.current;
 
       setRefrescandoCatalogo(true);
       const promesa = (async () => {
         try {
-          const { atributos, catalogo } = await refreshCatalog();
+          const { atributos, catalogo } = await refreshCatalog({
+            force: opciones?.force,
+          });
           setAtributosPool(atributos);
           setCatalogo(catalogo);
           if (!opciones?.silencioso) showSuccess("Catálogo actualizado.");
@@ -187,7 +197,6 @@ function MostradorContent() {
 
   useEffect(() => {
     if (!isOnline) return;
-    void refrescarCatalogo({ silencioso: true });
     supabase
       .from("marcas")
       .select("id, nombre, codigo")
@@ -195,16 +204,16 @@ function MostradorContent() {
         if (data) setMarcas(data as { id: string; nombre: string; codigo: string }[]);
       })
       .catch(() => {});
-  }, [isOnline, refrescarCatalogo]);
+  }, [isOnline]);
 
   useEffect(() => {
     let ultimo = 0;
     function alVolver() {
       if (document.visibilityState !== "visible" || !isOnline) return;
       const ahora = Date.now();
-      if (ahora - ultimo < 60_000) return;
+      if (ahora - ultimo < 15 * 60_000) return;
       ultimo = ahora;
-      void refrescarCatalogo({ silencioso: true });
+      void refrescarCatalogo({ silencioso: true, force: false });
     }
     window.addEventListener("focus", alVolver);
     document.addEventListener("visibilitychange", alVolver);
@@ -227,14 +236,12 @@ function MostradorContent() {
     return () => clearInterval(interval);
   }, []);
 
-  async function handleAgregarLinea() {
-    await refrescarCatalogo({ silencioso: true });
+  function handleAgregarLinea() {
     setEditandoLinea(null);
     setMostrandoLinea(true);
   }
 
-  async function handleEditarLinea(linea: LineaPedidoDraft) {
-    await refrescarCatalogo({ silencioso: true });
+  function handleEditarLinea(linea: LineaPedidoDraft) {
     setEditandoLinea(linea);
     setMostrandoLinea(true);
   }
@@ -254,6 +261,7 @@ function MostradorContent() {
       descuento_valor: linea.descuento_valor ?? null,
       descuento_monto: linea.descuento_monto ?? null,
       atributos: linea.atributos,
+      valores_ids: linea.valores_ids ?? null,
       ruta: linea.ruta,
       categoria_id: linea.categoria_id ?? null,
       producto_id: linea.producto_id ?? null,
@@ -392,11 +400,66 @@ function MostradorContent() {
       pedido.limpiar();
       router.push(`/mostrador/ticket/${result.facturaNumero}`);
     } catch (err) {
+      if (err instanceof PrecioDesactualizadoError) {
+        setCambiosPrecio(err.cambios);
+        setPagarCargando(false);
+        return;
+      }
       console.error("Error al crear pedido:", err);
       showError(mensajeErrorPedido(err));
       setPagarCargando(false);
     }
   }
+
+  function aplicarCambiosPrecio() {
+    if (!cambiosPrecio) return;
+
+    const conDescuento = cambiosPrecio.some((cambio) => {
+      const linea = pedido.lineas.find((l) => l.id === cambio.lineaId);
+      return Boolean(linea?.descuento_id);
+    });
+
+    if (conDescuento) {
+      showError(
+        "El precio cambió en una línea con descuento. Edítala manualmente para recalcular.",
+      );
+      setCambiosPrecio(null);
+      return;
+    }
+
+    if (cambiosPrecio.some((cambio) => cambio.precioActual === null)) {
+      showError(
+        "Una línea ya no tiene precio configurado. Edítala manualmente.",
+      );
+      setCambiosPrecio(null);
+      return;
+    }
+
+    for (const cambio of cambiosPrecio) {
+      pedido.actualizarLinea(cambio.lineaId, {
+        precio_lista: cambio.precioActual,
+        precio_unitario: cambio.precioActual ?? cambio.precioAnterior,
+      });
+    }
+
+    setCambiosPrecio(null);
+    showSuccess(
+      "Precios actualizados. Revisa el pedido y vuelve a presionar Pagar.",
+    );
+  }
+
+  const mensajeCambiosPrecio = cambiosPrecio
+    ? cambiosPrecio
+        .map(
+          (cambio) =>
+            `${cambio.productoNombre}: $${cambio.precioAnterior.toFixed(2)} → ${
+              cambio.precioActual === null
+                ? "sin precio"
+                : `$${cambio.precioActual.toFixed(2)}`
+            }`,
+        )
+        .join(" · ")
+    : "";
 
   if (ticketOffline) {
     return (
@@ -650,6 +713,17 @@ function MostradorContent() {
             ? () => void refrescarCatalogo()
             : undefined
         }
+      />
+
+      <ConfirmModal
+        open={cambiosPrecio !== null}
+        title="El precio cambió"
+        message={mensajeCambiosPrecio}
+        variant="warning"
+        confirmLabel="Actualizar precios"
+        cancelLabel="Cancelar"
+        onConfirm={aplicarCambiosPrecio}
+        onCancel={() => setCambiosPrecio(null)}
       />
 
       <ModalConfirmarPedido

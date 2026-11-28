@@ -9,11 +9,18 @@ vi.mock("@/lib/services/pedidos", () => ({
 vi.mock("./db", () => ({
   enqueuePedido: vi.fn(),
   getPendingPedidos: vi.fn(),
+  getAllQueuedPedidos: vi.fn(),
   updatePedidoSyncStatus: vi.fn(),
   removeSyncedPedido: vi.fn(),
 }));
 
-import { enqueuePedido, getPendingPedidos, updatePedidoSyncStatus, removeSyncedPedido } from "./db";
+import {
+  enqueuePedido,
+  getPendingPedidos,
+  getAllQueuedPedidos,
+  updatePedidoSyncStatus,
+  removeSyncedPedido,
+} from "./db";
 
 const mockDraft = {
   cliente_nombre: "Test", cliente_telefono: "", fecha_entrega: "2026-01-01",
@@ -98,16 +105,16 @@ describe("syncQueue", () => {
 });
 
 describe("getQueueCount", () => {
-  it("retorna cantidad de pendientes", async () => {
-    vi.mocked(getPendingPedidos).mockResolvedValue([
+  it("cuenta pendientes y fallidos", async () => {
+    vi.mocked(getAllQueuedPedidos).mockResolvedValue([
       { id: "off_1", draft: {}, cajeroId: null, createdAt: Date.now(), syncStatus: "pending" },
-      { id: "off_2", draft: {}, cajeroId: null, createdAt: Date.now(), syncStatus: "pending" },
+      { id: "off_2", draft: {}, cajeroId: null, createdAt: Date.now(), syncStatus: "failed" },
     ]);
     expect(await getQueueCount()).toBe(2);
   });
 
-  it("retorna 0 si no hay pendientes", async () => {
-    vi.mocked(getPendingPedidos).mockResolvedValue([]);
+  it("retorna 0 si no hay pedidos en cola", async () => {
+    vi.mocked(getAllQueuedPedidos).mockResolvedValue([]);
     expect(await getQueueCount()).toBe(0);
   });
 });

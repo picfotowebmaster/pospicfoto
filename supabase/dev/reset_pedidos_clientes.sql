@@ -1,16 +1,33 @@
 -- =============================================
--- RESET DE PEDIDOS Y CLIENTES
--- Borra todos los datos transaccionales de prueba
--- y reinicia los consecutivos. Se conservan
--- usuarios/perfiles, catálogos, precios, sucursales,
--- marcas, entidades emisoras y push_subscriptions.
---
--- Ejecutar en: SQL Editor de Supabase
--- https://supabase.com/dashboard/project/ofarxltreyfpxsbiafzs/sql/new
---
--- ADVERTENCIA: operación irreversible. Respalda la
--- base antes de ejecutar (Database > Backups).
+-- ⚠️  ALERTA — SCRIPT DESTRUCTIVO — SOLO DESARROLLO  ⚠️
 -- =============================================
+-- NO EJECUTAR en producción ni sobre datos reales.
+-- Requiere una ORDEN ESCRITA Y EXPLÍCITA DEL CLIENTE.
+--
+-- Este script BORRA pedidos, clientes, facturación y correos:
+-- pedido_comentarios, enlaces_compartidos, detalle_pedidos,
+-- pedido_movimientos, pedidos, clientes, facturas_globales,
+-- email_envios, email_eventos y clientes_fiscales.
+-- También reinicia los consecutivos de pedidos y facturas.
+--
+-- Se conservan usuarios/perfiles, catálogos, precios,
+-- sucursales, marcas, entidades emisoras y push_subscriptions.
+--
+-- ANTES DE EJECUTAR:
+--   1. Confirma que existe autorización escrita del cliente.
+--   2. Respalda la base (Dashboard → Database → Backups).
+--   3. Descomenta la línea SET de abajo y ejecuta todo junto.
+--
+-- SET app.allow_destructive_dev = 'true';
+-- =============================================
+
+DO $$
+BEGIN
+  IF current_setting('app.allow_destructive_dev', true) IS DISTINCT FROM 'true' THEN
+    RAISE EXCEPTION
+      'RESET BLOQUEADO: script destructivo. Requiere orden escrita del cliente y ejecutar antes: SET app.allow_destructive_dev = ''true'';';
+  END IF;
+END $$;
 
 BEGIN;
 
@@ -36,7 +53,12 @@ DELETE FROM clientes_fiscales;
 --   node --env-file=.env.local scripts/limpiar-fotos-pedidos.mjs
 
 -- 5. Reiniciar consecutivos de pedidos y facturas
-ALTER SEQUENCE IF EXISTS pedido_global_seq RESTART WITH 1;
+DO $$
+BEGIN
+  IF to_regclass('public.folios_correlativos') IS NOT NULL THEN
+    DELETE FROM public.folios_correlativos;
+  END IF;
+END $$;
 ALTER SEQUENCE IF EXISTS factura_folio_seq RESTART WITH 1;
 UPDATE folios_factura SET ultimo_folio = 0, updated_at = now();
 

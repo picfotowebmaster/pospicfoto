@@ -147,7 +147,7 @@ describe("enviarTicketPorCorreo", () => {
   });
 
   it("envía el ticket al cliente con asunto y HTML escapado", async () => {
-    await enviarTicketPorCorreo({ to: "ana@correo.com", pedido: pedidoBase });
+    await enviarTicketPorCorreo({ to: "ana@correo.com", pedidos: [pedidoBase] });
 
     expect(sendMock).toHaveBeenCalledTimes(1);
     const payload = sendMock.mock.calls[0][0];
@@ -169,13 +169,48 @@ describe("enviarTicketPorCorreo", () => {
   it("incluye el link al ticket cuando se proporciona", async () => {
     await enviarTicketPorCorreo({
       to: "ana@correo.com",
-      pedido: pedidoBase,
+      pedidos: [pedidoBase],
       urlTicket: "https://pos.test/t/abc123",
     });
 
     const payload = sendMock.mock.calls[0][0];
     expect(payload.html).toContain("Ver ticket en línea");
     expect(payload.html).toContain("https://pos.test/t/abc123");
+  });
+
+  it("envía un solo correo con todos los tickets de la factura", async () => {
+    const pedidoMarcos = {
+      ...pedidoBase,
+      id: "pedido-id-marcos-99",
+      numero_pedido: "PED-101",
+      factura_numero: "FAC-555",
+      detalle_pedidos: [
+        {
+          id: "d2",
+          pedido_id: "pedido-id-marcos-99",
+          producto_nombre: "Marco 20x30",
+          cantidad: 1,
+          precio_unitario: 200,
+          importe_linea: 200,
+          atributos: {},
+        },
+      ],
+    } as unknown as Pedido;
+
+    await enviarTicketPorCorreo({
+      to: "ana@correo.com",
+      pedidos: [
+        { ...pedidoBase, factura_numero: "FAC-555" } as unknown as Pedido,
+        pedidoMarcos,
+      ],
+    });
+
+    expect(sendMock).toHaveBeenCalledTimes(1);
+    const payload = sendMock.mock.calls[0][0];
+    expect(payload.subject).toContain("FAC-555");
+    expect(payload.html).toContain("Foto 4x6");
+    expect(payload.html).toContain("Marco 20x30");
+    expect(payload.html).toContain("2 pedidos con rutas de producción distintas");
   });
 
   it("propaga el error del SDK", async () => {
@@ -186,7 +221,7 @@ describe("enviarTicketPorCorreo", () => {
     });
 
     await expect(
-      enviarTicketPorCorreo({ to: "ana@correo.com", pedido: pedidoBase }),
+      enviarTicketPorCorreo({ to: "ana@correo.com", pedidos: [pedidoBase] }),
     ).rejects.toThrow("boom");
   });
 });

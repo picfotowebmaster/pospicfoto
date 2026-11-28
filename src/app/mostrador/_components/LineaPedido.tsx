@@ -229,6 +229,7 @@ export function LineaPedido({
       descuento_valor: descuentoParaGuardar?.descuento_valor ?? null,
       descuento_monto: descuentoParaGuardar?.descuento_monto ?? null,
       atributos,
+      valores_ids: modoLibre ? null : resolucionPrecio?.valores_ids ?? null,
       ruta,
       categoria_id: modoLibre ? null : categoriaId || null,
       producto_id: modoLibre ? null : productoId || null,
